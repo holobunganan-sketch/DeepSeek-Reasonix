@@ -1,0 +1,47 @@
+package builtin
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestNorthwingOfficeWorkspaceBinding(t *testing.T) {
+	dir := t.TempDir()
+	tools := (Workspace{Dir: dir}).Tools("northwing_office")
+	if len(tools) != 1 || tools[0].Name() != "northwing_office" {
+		t.Fatalf("tools = %#v", tools)
+	}
+	args, _ := json.Marshal(map[string]any{
+		"action": "create_docx",
+		"path":   "deliverables/work/report.docx",
+		"title":  "Report",
+		"text":   "Body",
+	})
+	out, err := tools[0].Execute(context.Background(), args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out == "" {
+		t.Fatal("empty Office report")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "deliverables", "work", "report.docx")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNorthwingOfficeRejectsOutsideWorkspace(t *testing.T) {
+	dir := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "report.docx")
+	tool := (Workspace{Dir: dir}).Tools("northwing_office")[0]
+	args, _ := json.Marshal(map[string]any{
+		"action": "create_docx",
+		"path":   outside,
+		"text":   "Body",
+	})
+	if _, err := tool.Execute(context.Background(), args); err == nil {
+		t.Fatal("outside-workspace Office write succeeded")
+	}
+}
