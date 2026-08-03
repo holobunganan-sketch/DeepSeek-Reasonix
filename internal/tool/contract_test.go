@@ -57,19 +57,20 @@ func boolString(v bool) string {
 // which is the guard against a context-maintenance strategy silently desyncing
 // from the tool surface.
 var acceptsDefaultSnip = map[string]bool{
-	"bash_output":   true, // streamed job output; tailing handled by the job, not the snip pass
-	"code_index":    true,
-	"complete_step": true,
-	"delete_range":  true,
-	"delete_symbol": true,
-	"edit_file":     true,
-	"kill_shell":    true,
-	"move_file":     true,
-	"multi_edit":    true,
-	"notebook_edit": true,
-	"todo_write":    true,
-	"wait":          true,
-	"write_file":    true,
+	"bash_output":       true, // streamed job output; tailing handled by the job, not the snip pass
+	"code_index":        true,
+	"complete_step":     true,
+	"delete_range":      true,
+	"delete_symbol":     true,
+	"edit_file":         true,
+	"kill_shell":        true,
+	"move_file":         true,
+	"multi_edit":        true,
+	"northwing_office": true, // compact structured validation report; generic head/tail remains readable
+	"notebook_edit":     true,
+	"todo_write":        true,
+	"wait":              true,
+	"write_file":        true,
 }
 
 func TestEveryBuiltinDeclaresSnipStance(t *testing.T) {
@@ -80,7 +81,7 @@ func TestEveryBuiltinDeclaresSnipStance(t *testing.T) {
 		case hints && acceptsDefaultSnip[name]:
 			t.Errorf("%s both implements SnipHinter and is listed in acceptsDefaultSnip; remove it from the list", name)
 		case !hints && !acceptsDefaultSnip[name]:
-			t.Errorf("built-in %q declares no snip stance: implement tool.SnipHinter for a tailored geometry, or add it to acceptsDefaultSnip if the ReadOnly-tiered default is right (this guards against a renamed/new tool silently taking a generic default)", name)
+			t.Errorf("built-in %q declares no snip stance: implement tool.SnipHinter for a tailored geometry, or add it to acceptsDefaultSnip if the ReadOnly-tiered default is right (this guards against a context-maintenance strategy silently desyncing from the tool surface)", name)
 		}
 	}
 }
