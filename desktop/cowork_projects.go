@@ -17,6 +17,13 @@ func (a *App) LoadCoworkProject(workspaceRoot string) (cowork.Project, error) {
 	return desktopCoworkStore.Load(workspaceRoot)
 }
 
+// CoworkProjectSummaries reads all visible project manifests behind one Wails
+// call. The result contains counts and latest references only; it never loads
+// session transcripts, artifact bodies, or Reasonix execution state.
+func (a *App) CoworkProjectSummaries(workspaceRoots []string) []cowork.ProjectSummary {
+	return desktopCoworkStore.Summaries(workspaceRoots)
+}
+
 // LinkCoworkWork associates one existing Reasonix session/Goal with a project.
 // The Reasonix runtime profile is stored as a launch hint; active execution state
 // remains inside the existing controller and session stores.
