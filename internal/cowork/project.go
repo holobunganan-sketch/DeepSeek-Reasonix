@@ -36,14 +36,14 @@ var (
 // sessions, goals, and deliverables without copying their content or duplicating
 // Reasonix runtime state.
 type Project struct {
-	Version    int        `json:"version"`
-	ID         string     `json:"id"`
-	Name       string     `json:"name"`
-	CreatedAt  time.Time  `json:"createdAt"`
-	UpdatedAt  time.Time  `json:"updatedAt"`
-	Works      []WorkRef  `json:"works,omitempty"`
-	Artifacts  []Artifact `json:"artifacts,omitempty"`
-	Workspace  string     `json:"-"`
+	Version   int        `json:"version"`
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
+	Works     []WorkRef  `json:"works,omitempty"`
+	Artifacts []Artifact `json:"artifacts,omitempty"`
+	Workspace string     `json:"-"`
 }
 
 // WorkRef links one Northwing work item to the Reasonix session and Goal that
