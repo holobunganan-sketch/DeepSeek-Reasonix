@@ -6,18 +6,23 @@ import { fileURLToPath } from "node:url";
 const dir = dirname(fileURLToPath(import.meta.url));
 const source = (path: string) => readFileSync(resolve(dir, path), "utf8");
 const bridge = source("../lib/bridge.ts");
-// Northwing wraps the unchanged Reasonix project tree. Source-level contracts
-// inspect both files so the wrapper cannot hide regressions in the base surface.
 const treeWrapper = source("../components/ProjectTree.tsx");
 const treeBase = source("../components/ReasonixProjectTree.tsx");
 const tree = treeWrapper + treeBase;
+const coworkRail = source("../components/NorthwingCoworkRail.tsx");
+const openCodeSetup = source("../components/NorthwingOpenCodeSetup.tsx");
 const northwingCenter = source("../components/NorthwingProjectCenter.tsx");
 const workDialog = source("../components/NorthwingWorkDialog.tsx");
 const artifactCenter = source("../components/NorthwingArtifactCenter.tsx");
 const coworkAdapter = source("../lib/northwingCowork.ts");
 const coworkBridge = source("../lib/northwingBridgeAugment.ts");
 const coworkDesktop = source("../../../cowork_projects.go");
+const coworkOffice = source("../../../cowork_office.go");
 const coworkArtifacts = source("../../../../internal/cowork/artifacts.go");
+const officeTool = source("../../../../internal/tool/builtin/northwing_office.go");
+const identity = source("../../../northwing_identity.go");
+const protocol = source("../../../northwing_protocol.go");
+const wails = source("../../../wails.json");
 const tabs = source("../components/TabBar.tsx");
 const app = source("../App.tsx");
 const badge = source("../components/WorktreeBadge.tsx");
@@ -44,9 +49,12 @@ ok(/activeTab\?\.isolatedWorktree && <WorktreeBadge/.test(app), "topic bar ident
 ok(/node\.isolatedWorktree && <WorktreeBadge/.test(tree), "project tree identifies isolated worktrees");
 ok(/GitBranch/.test(badge) && /#6119/.test(badge), "shared badge preserves the credited #6119 design contribution");
 
-console.log("\nNorthwing project center");
-ok(/<NorthwingProjectCenter[\s\S]*<ReasonixProjectTree/.test(treeWrapper), "Northwing stays a thin wrapper around the complete Reasonix tree");
+console.log("\nNorthwing CoWork surface");
+ok(/<NorthwingCoworkRail[\s\S]*<ReasonixProjectTree/.test(treeWrapper), "Northwing stays a thin product wrapper around the complete Reasonix tree");
 ok(/export function ProjectTree\(/.test(treeBase), "Reasonix project tree implementation remains present");
+ok(/role="tab"[\s\S]*Chat[\s\S]*Work/.test(coworkRail), "CoWork rail exposes Chat and Work surfaces");
+ok(/turn_started[\s\S]*approval_request[\s\S]*turn_done/.test(coworkRail), "CoWork rail derives business status from the existing Reasonix event stream");
+ok(/PendingNorthwingLaunches/.test(coworkRail) && /SwitchWorkspace/.test(coworkRail), "Northwing URL launches select mode and workspace");
 ok(/CoworkProjectState\(workspaceRoot string, syncArtifacts bool\)/.test(coworkDesktop), "desktop exposes one current-project state binding");
 ok(/readCoworkProjectState\(workspaceRoot, syncArtifacts\)/.test(coworkAdapter), "frontend reads one project state instead of rebuilding the project catalog");
 ok(!/ListProjectTree\(/.test(northwingCenter), "Northwing does not duplicate the Reasonix project catalog read");
@@ -67,7 +75,11 @@ ok(/ResumeSessionForTab\(tab\.id, work\.sessionPath\)/.test(coworkAdapter), "leg
 ok(/ResumeGoalForTab\(tab\.id\)/.test(coworkAdapter), "saved Work resumes the existing Goal when available");
 ok(/launchCoworkWork\(workspaceRoot, draft\)/.test(workDialog), "Work dialog delegates execution to the thin lifecycle adapter");
 
-console.log("\nNorthwing Artifact center");
+console.log("\nNorthwing Office and Artifact center");
+ok(/Name\(\) string \{ return "northwing_office" \}/.test(officeTool), "Office pack exposes one stable tool schema");
+ok(/create_docx[\s\S]*create_pptx[\s\S]*create_xlsx[\s\S]*create_pdf/.test(officeTool), "Office pack supports four formal deliverable formats");
+ok(/confineWrite/.test(officeTool) && /confineRead/.test(officeTool), "Office actions retain Reasonix workspace and permission confinement");
+ok(/InspectCoworkArtifact/.test(coworkOffice), "Artifact Center has local deterministic Office inspection");
 ok(/SyncArtifacts\(workspaceRoot string\)/.test(coworkArtifacts), "backend scans Work deliverable directories in one project transaction");
 ok(/latest\.SHA256 == digest/.test(coworkArtifacts), "unchanged files do not create duplicate artifact versions");
 ok(/writeProject\(project\)/.test(coworkArtifacts), "changed artifacts publish one atomic manifest update");
@@ -78,7 +90,17 @@ ok(/ReadFileForTab\(tab\.id, path\)/.test(coworkAdapter), "Artifact preview is s
 ok(/setCoworkArtifactFinal\(workspaceRoot, artifact\.id\)/.test(artifactCenter), "Artifact center marks a version as final");
 ok(/reviseCoworkArtifact\(workspaceRoot, project, revising, revision\)/.test(artifactCenter), "Artifact center starts scoped revision work");
 ok(/previewCoworkArtifact\(workspaceRoot, artifact\.path\)/.test(artifactCenter), "Artifact center provides a lightweight preview path");
-ok(/preview\.file\.kind === "image"[\s\S]*preview\.file\.kind === "pdf"/.test(artifactCenter), "Artifact center renders native image and PDF previews");
+ok(/preview\.file\?\.kind === "image"[\s\S]*preview\.file\?\.kind === "pdf"/.test(artifactCenter), "Artifact center renders native image and PDF previews");
+ok(/inspectCoworkArtifact/.test(artifactCenter) && /officeMetrics/.test(artifactCenter), "Artifact center shows Office structure without a model call");
+
+console.log("\nOpenCode Go and identity");
+ok(/opencode-go[\s\S]*opencode-go-anthropic/.test(openCodeSetup), "one-click setup installs both official Go protocol presets");
+ok(/deepseek-v4-flash/.test(openCodeSetup) && /deepseek-v4-pro/.test(openCodeSetup) && /qwen3\.7-plus/.test(openCodeSetup), "model roles use the intended Go catalog");
+ok(!/opencode-zen/.test(openCodeSetup), "Zen remains optional");
+ok(/NORTHWING_HOME/.test(identity) && /REASONIX_HOME/.test(identity), "Northwing isolates data while preserving the Reasonix kernel contract");
+ok(/io\.github\.holobunganansketch\.northwing/.test(identity), "Northwing app id is explicit");
+ok(/northwing/.test(protocol) && /PendingNorthwingLaunches/.test(protocol), "Northwing URL protocol is parsed and queued");
+ok(/"name": "northwing"/.test(wails) && /"outputfilename": "northwing"/.test(wails), "Wails builds the Northwing executable identity");
 
 if (failed) process.exit(1);
-console.log("delivery worktree and Northwing CoWork lifecycle tests passed");
+console.log("delivery worktree and Northwing product contract tests passed");
