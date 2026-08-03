@@ -61,21 +61,21 @@ func (w Workspace) Tools(enabled ...string) []tool.Tool {
 	forbidRoots := realRoots(w.ForbidReadRoots)
 
 	overrides := map[string]tool.Tool{
-		"read_file":       readFile{workDir: w.Dir, paths: w.ReadPaths, forbidRoots: forbidRoots, overlay: w.FileOverlay},
-		"write_file":      writeFile{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig, overlay: w.FileOverlay},
-		"edit_file":       editFile{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
-		"multi_edit":      multiEdit{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
-		"move_file":       moveFile{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
-		"notebook_edit":   notebookEdit{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
-		"delete_range":    deleteRange{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
-		"delete_symbol":   deleteSymbol{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
+		"read_file":        readFile{workDir: w.Dir, paths: w.ReadPaths, forbidRoots: forbidRoots, overlay: w.FileOverlay},
+		"write_file":       writeFile{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig, overlay: w.FileOverlay},
+		"edit_file":        editFile{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
+		"multi_edit":       multiEdit{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
+		"move_file":        moveFile{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
+		"notebook_edit":    notebookEdit{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
+		"delete_range":     deleteRange{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
+		"delete_symbol":    deleteSymbol{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
 		"northwing_office": northwingOffice{workDir: w.Dir, roots: roots, forbidRoots: forbidRoots, guard: w.SessionGuard, managed: w.ManagedConfig},
-		"code_index":      codeIndex{workDir: w.Dir, forbidRoots: forbidRoots},
-		"bash":            bash{workDir: w.Dir, sb: w.Bash, timeout: w.BashTimeout, guard: w.SessionGuard, terminal: w.Terminal},
-		"ls":              listDir{workDir: w.Dir, paths: w.ReadPaths, forbidRoots: forbidRoots},
-		"glob":            globTool{workDir: w.Dir, paths: w.ReadPaths, forbidRoots: forbidRoots},
-		"grep":            grepTool{workDir: w.Dir, paths: w.ReadPaths, rg: w.Search.RgPath, forbidRoots: forbidRoots, sb: w.Bash},
-		"web_fetch":       webFetch{proxySpec: w.ProxySpec},
+		"code_index":       codeIndex{workDir: w.Dir, forbidRoots: forbidRoots},
+		"bash":             bash{workDir: w.Dir, sb: w.Bash, timeout: w.BashTimeout, guard: w.SessionGuard, terminal: w.Terminal},
+		"ls":               listDir{workDir: w.Dir, paths: w.ReadPaths, forbidRoots: forbidRoots},
+		"glob":             globTool{workDir: w.Dir, paths: w.ReadPaths, forbidRoots: forbidRoots},
+		"grep":             grepTool{workDir: w.Dir, paths: w.ReadPaths, rg: w.Search.RgPath, forbidRoots: forbidRoots, sb: w.Bash},
+		"web_fetch":        webFetch{proxySpec: w.ProxySpec},
 	}
 	all := tool.Builtins()
 	if len(enabled) == 0 {
