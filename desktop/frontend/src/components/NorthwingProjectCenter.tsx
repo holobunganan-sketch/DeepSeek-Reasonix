@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   FileOutput,
@@ -6,53 +6,21 @@ import {
   FolderPlus,
   ListTodo,
   LoaderCircle,
+  Play,
   Sparkles,
 } from "lucide-react";
-import { asArray } from "../lib/array";
-import { app } from "../lib/bridge";
+import { onEvent } from "../lib/bridge";
 import { getLocale } from "../lib/i18n";
+import {
+  createCoworkProject,
+  readCoworkProjectState,
+  type CoworkProject,
+  type CoworkProjectState,
+} from "../lib/northwingCowork";
+import { NorthwingArtifactCenter } from "./NorthwingArtifactCenter";
+import { NorthwingWorkDialog } from "./NorthwingWorkDialog";
 import "./NorthwingProjectCenter.css";
 
-type CoworkWorkRef = {
-  id: string;
-  title: string;
-  profile: string;
-  updatedAt: string;
-};
-
-type CoworkArtifact = {
-  id: string;
-  path: string;
-  kind: string;
-  version: number;
-  createdAt: string;
-};
-
-type CoworkProjectSummary = {
-  workspace: string;
-  exists: boolean;
-  id?: string;
-  name?: string;
-  updatedAt?: string;
-  workCount: number;
-  artifactCount: number;
-  latestWork?: CoworkWorkRef;
-  latestArtifact?: CoworkArtifact;
-  error?: string;
-};
-
-type CoworkProject = {
-  id: string;
-  name: string;
-  workspace: string;
-};
-
-type CoworkBindings = {
-  CoworkProjectSummaries?: (workspaceRoots: string[]) => Promise<CoworkProjectSummary[]>;
-  CreateCoworkProject?: (workspaceRoot: string, name: string) => Promise<CoworkProject>;
-};
-
-const coworkApp = app as typeof app & CoworkBindings;
 const EXPANDED_KEY = "northwing:project-center-expanded";
 
 function readExpanded(): boolean {
@@ -66,10 +34,6 @@ function readExpanded(): boolean {
 function basename(path: string): string {
   const parts = path.replace(/\\/g, "/").split("/").filter(Boolean);
   return parts[parts.length - 1] ?? path;
-}
-
-function workspaceKey(path: string): string {
-  return path.replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
 function localText() {
@@ -87,9 +51,10 @@ function localText() {
       ordinaryHint: "启用后只增加轻量项目清单，不复制会话或文件。",
       latestWork: "最近工作",
       latestArtifact: "最近成品",
-      empty: "选择项目后可查看工作和成品摘要。",
-      unavailable: "当前桌面绑定尚未生成，请重新构建桌面应用。",
+      empty: "选择项目后可开始一项Work。",
       retry: "重试",
+      newWork: "新建 Work",
+      manage: "工作与成品",
     };
   }
   return {
@@ -104,9 +69,10 @@ function localText() {
     ordinaryHint: "Enabling adds a small manifest without copying sessions or files.",
     latestWork: "Latest work",
     latestArtifact: "Latest artifact",
-    empty: "Select a project to see its work and artifact summary.",
-    unavailable: "Desktop bindings are not generated in this build. Rebuild the desktop app.",
+    empty: "Select a project to start a Work.",
     retry: "Retry",
+    newWork: "New Work",
+    manage: "Work and artifacts",
   };
 }
 
@@ -123,55 +89,76 @@ export function NorthwingProjectCenter({
 }: NorthwingProjectCenterProps) {
   const text = localText();
   const [expanded, setExpanded] = useState(readExpanded);
-  const [summaries, setSummaries] = useState<CoworkProjectSummary[]>([]);
+  const [state, setState] = useState<CoworkProjectState>({ exists: false });
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
-  const [supported, setSupported] = useState(true);
+  const [workDialogOpen, setWorkDialogOpen] = useState(false);
+  const [artifactCenterOpen, setArtifactCenterOpen] = useState(false);
+  const requestRef = useRef(0);
+  const turnSyncTimerRef = useRef<number | null>(null);
 
-  const refresh = useCallback(async () => {
-    if (!activeWorkspaceRoot) {
-      setSummaries([]);
+  const refresh = useCallback(async (syncArtifacts = true) => {
+    const workspaceRoot = activeWorkspaceRoot?.trim() ?? "";
+    const request = ++requestRef.current;
+    if (!workspaceRoot) {
+      setState({ exists: false });
       setError("");
       setLoading(false);
       return;
     }
-    if (typeof coworkApp.CoworkProjectSummaries !== "function") {
-      setSupported(false);
-      return;
-    }
-    setSupported(true);
     setLoading(true);
     setError("");
     try {
-      const next = asArray(await coworkApp.CoworkProjectSummaries([activeWorkspaceRoot]));
-      setSummaries(next);
+      const next = await readCoworkProjectState(workspaceRoot, syncArtifacts);
+      if (request !== requestRef.current) return;
+      setState(next);
+      if (next.error) setError(next.error);
     } catch (err) {
+      if (request !== requestRef.current) return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      if (request === requestRef.current) setLoading(false);
     }
   }, [activeWorkspaceRoot]);
 
   useEffect(() => {
-    void refresh();
+    setWorkDialogOpen(false);
+    setArtifactCenterOpen(false);
+    void refresh(true);
   }, [refresh, refreshSignal]);
 
-  const totals = useMemo(() => summaries.reduce(
-    (result, summary) => {
-      if (summary.exists) result.projects += 1;
-      result.works += summary.workCount || 0;
-      result.artifacts += summary.artifactCount || 0;
-      return result;
-    },
-    { projects: 0, works: 0, artifacts: 0 },
-  ), [summaries]);
+  // Artifact discovery is local and deterministic. A completed Reasonix turn
+  // triggers one debounced hash scan; no file body or manifest data is added to
+  // the model context.
+  useEffect(() => {
+    const unsubscribe = onEvent((event) => {
+      if (event.kind !== "turn_done" || !activeWorkspaceRoot) return;
+      if (turnSyncTimerRef.current !== null) window.clearTimeout(turnSyncTimerRef.current);
+      turnSyncTimerRef.current = window.setTimeout(() => {
+        turnSyncTimerRef.current = null;
+        void refresh(true);
+      }, 350);
+    });
+    return () => {
+      unsubscribe();
+      if (turnSyncTimerRef.current !== null) window.clearTimeout(turnSyncTimerRef.current);
+    };
+  }, [activeWorkspaceRoot, refresh]);
 
-  const activeSummary = useMemo(() => {
-    const key = workspaceKey(activeWorkspaceRoot ?? "");
-    if (!key) return undefined;
-    return summaries.find((summary) => workspaceKey(summary.workspace) === key);
-  }, [activeWorkspaceRoot, summaries]);
+  const project = state.project;
+  const works = project?.works ?? [];
+  const artifacts = project?.artifacts ?? [];
+  const totals = {
+    projects: state.exists ? 1 : 0,
+    works: works.length,
+    artifacts: artifacts.length,
+  };
+
+  const latestWork = useMemo(() => [...works].sort((a, b) =>
+    String(b.updatedAt ?? b.createdAt ?? "").localeCompare(String(a.updatedAt ?? a.createdAt ?? "")))[0], [works]);
+  const latestArtifact = useMemo(() => [...artifacts].sort((a, b) =>
+    String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")))[0], [artifacts]);
 
   const toggleExpanded = () => {
     setExpanded((current) => {
@@ -186,17 +173,22 @@ export function NorthwingProjectCenter({
   };
 
   const enableActiveProject = async () => {
-    if (!activeWorkspaceRoot || creating || typeof coworkApp.CreateCoworkProject !== "function") return;
+    if (!activeWorkspaceRoot || creating) return;
     setCreating(true);
     setError("");
     try {
-      await coworkApp.CreateCoworkProject(activeWorkspaceRoot, basename(activeWorkspaceRoot));
-      await refresh();
+      await createCoworkProject(activeWorkspaceRoot, basename(activeWorkspaceRoot));
+      await refresh(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setCreating(false);
     }
+  };
+
+  const acceptProject = (nextProject: CoworkProject) => {
+    setState((current) => ({ ...current, exists: true, project: nextProject }));
+    void refresh(true);
   };
 
   return (
@@ -221,12 +213,10 @@ export function NorthwingProjectCenter({
 
       {expanded && (
         <div className="northwing-project-center__body">
-          {!supported ? (
-            <div className="northwing-project-center__message northwing-project-center__message--error">{text.unavailable}</div>
-          ) : error ? (
+          {error ? (
             <div className="northwing-project-center__message northwing-project-center__message--error">
               <span>{error}</span>
-              <button type="button" onClick={() => void refresh()}>{text.retry}</button>
+              <button type="button" onClick={() => void refresh(true)}>{text.retry}</button>
             </div>
           ) : !activeWorkspaceRoot ? (
             <div className="northwing-project-center__empty">
@@ -236,29 +226,37 @@ export function NorthwingProjectCenter({
                 {text.addFolder}
               </button>
             </div>
-          ) : activeSummary?.exists ? (
+          ) : state.exists && project ? (
             <div className="northwing-project-center__active">
-              <div className="northwing-project-center__project-title">{activeSummary.name || basename(activeWorkspaceRoot)}</div>
+              <div className="northwing-project-center__project-title">{project.name || basename(activeWorkspaceRoot)}</div>
               <div className="northwing-project-center__metrics">
-                <span>{activeSummary.workCount} {text.works}</span>
-                <span>{activeSummary.artifactCount} {text.artifacts}</span>
+                <span>{works.length} {text.works}</span>
+                <span>{artifacts.length} {text.artifacts}</span>
               </div>
-              {(activeSummary.latestWork || activeSummary.latestArtifact) && (
+              {(latestWork || latestArtifact) && (
                 <div className="northwing-project-center__latest">
-                  {activeSummary.latestWork && (
-                    <div title={activeSummary.latestWork.title}>
+                  {latestWork && (
+                    <div title={latestWork.title}>
                       <ListTodo size={12} />
-                      <span>{text.latestWork}: {activeSummary.latestWork.title}</span>
+                      <span>{text.latestWork}: {latestWork.title}</span>
                     </div>
                   )}
-                  {activeSummary.latestArtifact && (
-                    <div title={activeSummary.latestArtifact.path}>
+                  {latestArtifact && (
+                    <div title={latestArtifact.path}>
                       <FileOutput size={12} />
-                      <span>{text.latestArtifact}: {basename(activeSummary.latestArtifact.path)}</span>
+                      <span>{text.latestArtifact}: {basename(latestArtifact.path)}</span>
                     </div>
                   )}
                 </div>
               )}
+              <div className="northwing-project-center__actions">
+                <button type="button" className="northwing-project-center__primary" onClick={() => setWorkDialogOpen(true)}>
+                  <Play size={13} />{text.newWork}
+                </button>
+                <button type="button" onClick={() => setArtifactCenterOpen(true)}>
+                  <FolderKanban size={13} />{text.manage}
+                </button>
+              </div>
             </div>
           ) : (
             <div className="northwing-project-center__enable">
@@ -273,6 +271,22 @@ export function NorthwingProjectCenter({
             </div>
           )}
         </div>
+      )}
+
+      {workDialogOpen && activeWorkspaceRoot && (
+        <NorthwingWorkDialog
+          workspaceRoot={activeWorkspaceRoot}
+          onClose={() => setWorkDialogOpen(false)}
+          onStarted={acceptProject}
+        />
+      )}
+      {artifactCenterOpen && activeWorkspaceRoot && state.exists && project && (
+        <NorthwingArtifactCenter
+          workspaceRoot={activeWorkspaceRoot}
+          state={state}
+          onState={setState}
+          onClose={() => setArtifactCenterOpen(false)}
+        />
       )}
     </section>
   );
