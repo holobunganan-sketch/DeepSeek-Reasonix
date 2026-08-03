@@ -21,9 +21,9 @@ function ok(value: unknown, label: string) {
 
 console.log("\nNorthwing project center");
 ok(/CoworkProjectSummaries\(workspaceRoots \[\]string\)/.test(desktop), "desktop exposes one batch summary binding");
-ok(/await app\.ListProjectTree\(\)/.test(center), "center reuses the existing project catalog");
-ok(/await coworkApp\.CoworkProjectSummaries\(roots\)/.test(center), "visible roots cross Wails in one summary call");
-ok(!/LoadCoworkProject\(/.test(center), "center does not load every full manifest over separate Wails calls");
+ok(!/ListProjectTree\(/.test(center), "center does not rebuild the Reasonix project tree");
+ok(/CoworkProjectSummaries\(\[activeWorkspaceRoot\]\)/.test(center), "only the active manifest crosses Wails");
+ok(!/LoadCoworkProject\(/.test(center), "center does not load full manifests over separate Wails calls");
 ok(/CreateCoworkProject\(activeWorkspaceRoot/.test(center), "active regular workspace can opt into CoWork");
 ok(/<NorthwingProjectCenter[\s\S]*<ReasonixProjectTree/.test(wrapper), "Northwing remains a thin wrapper around the Reasonix tree");
 ok(/export function ProjectTree\(/.test(base), "complete Reasonix project tree stays present as the base component");
