@@ -109,6 +109,7 @@ jobs:
           $version = "${{ github.ref_name }}" -replace '^northwing-v', ''
           if (-not $version) { throw "Unable to parse version from ${{ github.ref_name }}" }
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "prerelease=$($version.Contains('-').ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Install frontend
         working-directory: desktop/frontend
@@ -161,7 +162,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: Northwing ${{ steps.version.outputs.version }}
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ fromJSON(steps.version.outputs.prerelease) }}
           generate_release_notes: true
           body_path: docs/NORTHWING_RELEASE_NOTES.md
           files: |
