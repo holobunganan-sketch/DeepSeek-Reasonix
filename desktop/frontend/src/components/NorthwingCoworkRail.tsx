@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CircleCheck, MessageSquare, PauseCircle, Play, Sparkles } from "lucide-react";
 import { onEvent } from "../lib/bridge";
 import { getLocale } from "../lib/i18n";
+import { NorthwingOpenCodeSetup } from "./NorthwingOpenCodeSetup";
 import { NorthwingProjectCenter, type NorthwingProjectCenterProps } from "./NorthwingProjectCenter";
 import "./NorthwingCoworkRail.css";
 
@@ -102,7 +103,10 @@ export function NorthwingCoworkRail(props: NorthwingProjectCenterProps) {
       )}
 
       {mode === "work" ? (
-        <NorthwingProjectCenter {...props} />
+        <>
+          <NorthwingOpenCodeSetup />
+          <NorthwingProjectCenter {...props} />
+        </>
       ) : (
         <div className="northwing-cowork-rail__chat">
           <p>{t.chatHint}</p>
