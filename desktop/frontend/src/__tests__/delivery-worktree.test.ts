@@ -8,7 +8,11 @@ const source = (path: string) => readFileSync(resolve(dir, path), "utf8");
 const bridge = source("../lib/bridge.ts");
 // Northwing wraps the unchanged Reasonix project tree. Source-level contracts
 // inspect both files so the wrapper cannot hide regressions in the base surface.
-const tree = source("../components/ProjectTree.tsx") + source("../components/ReasonixProjectTree.tsx");
+const treeWrapper = source("../components/ProjectTree.tsx");
+const treeBase = source("../components/ReasonixProjectTree.tsx");
+const tree = treeWrapper + treeBase;
+const northwingCenter = source("../components/NorthwingProjectCenter.tsx");
+const coworkDesktop = source("../../../cowork_projects.go");
 const tabs = source("../components/TabBar.tsx");
 const app = source("../App.tsx");
 const badge = source("../components/WorktreeBadge.tsx");
@@ -35,5 +39,13 @@ ok(/activeTab\?\.isolatedWorktree && <WorktreeBadge/.test(app), "topic bar ident
 ok(/node\.isolatedWorktree && <WorktreeBadge/.test(tree), "project tree identifies isolated worktrees");
 ok(/GitBranch/.test(badge) && /#6119/.test(badge), "shared badge preserves the credited #6119 design contribution");
 
+console.log("\nNorthwing project center");
+ok(/<NorthwingProjectCenter[\s\S]*<ReasonixProjectTree/.test(treeWrapper), "Northwing stays a thin wrapper around the complete Reasonix tree");
+ok(/export function ProjectTree\(/.test(treeBase), "Reasonix project tree implementation remains present");
+ok(/CoworkProjectSummaries\(workspaceRoots \[\]string\)/.test(coworkDesktop), "desktop exposes a batch summary binding");
+ok(/await coworkApp\.CoworkProjectSummaries\(roots\)/.test(northwingCenter), "project summaries cross Wails in one batch call");
+ok(!/LoadCoworkProject\(/.test(northwingCenter), "project center avoids per-project manifest calls");
+ok(/CreateCoworkProject\(activeWorkspaceRoot/.test(northwingCenter), "regular workspaces can opt into CoWork");
+
 if (failed) process.exit(1);
-console.log("delivery worktree tests passed");
+console.log("delivery worktree and Northwing project center tests passed");
