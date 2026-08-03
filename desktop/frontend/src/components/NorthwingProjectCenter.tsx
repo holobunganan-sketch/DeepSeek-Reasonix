@@ -11,7 +11,6 @@ import {
 import { asArray } from "../lib/array";
 import { app } from "../lib/bridge";
 import { getLocale } from "../lib/i18n";
-import type { ProjectNode } from "../lib/types";
 import "./NorthwingProjectCenter.css";
 
 type CoworkWorkRef = {
@@ -73,14 +72,6 @@ function workspaceKey(path: string): string {
   return path.replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
-function collectProjectRoots(nodes: ProjectNode[]): string[] {
-  const roots: string[] = [];
-  for (const node of nodes) {
-    if (node?.kind === "project" && node.root) roots.push(node.root);
-  }
-  return [...new Set(roots)];
-}
-
 function localText() {
   const locale = getLocale();
   if (locale === "zh" || locale === "zh-TW") {
@@ -139,6 +130,12 @@ export function NorthwingProjectCenter({
   const [supported, setSupported] = useState(true);
 
   const refresh = useCallback(async () => {
+    if (!activeWorkspaceRoot) {
+      setSummaries([]);
+      setError("");
+      setLoading(false);
+      return;
+    }
     if (typeof coworkApp.CoworkProjectSummaries !== "function") {
       setSupported(false);
       return;
@@ -147,16 +144,14 @@ export function NorthwingProjectCenter({
     setLoading(true);
     setError("");
     try {
-      const tree = asArray(await app.ListProjectTree());
-      const roots = collectProjectRoots(tree);
-      const next = asArray(await coworkApp.CoworkProjectSummaries(roots));
+      const next = asArray(await coworkApp.CoworkProjectSummaries([activeWorkspaceRoot]));
       setSummaries(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeWorkspaceRoot]);
 
   useEffect(() => {
     void refresh();
