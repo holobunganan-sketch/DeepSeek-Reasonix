@@ -1,0 +1,188 @@
+.northwing-project-center {
+  margin: 6px 8px 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-raised) 86%, transparent);
+  overflow: hidden;
+}
+
+.northwing-project-center__header {
+  width: 100%;
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.northwing-project-center__header:hover {
+  background: color-mix(in srgb, var(--surface-hover) 72%, transparent);
+}
+
+.northwing-project-center__brand,
+.northwing-project-center__totals,
+.northwing-project-center__totals span,
+.northwing-project-center__metrics,
+.northwing-project-center__latest div,
+.northwing-project-center__empty button,
+.northwing-project-center__enable button {
+  display: flex;
+  align-items: center;
+}
+
+.northwing-project-center__brand {
+  min-width: 0;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.northwing-project-center__brand span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.northwing-project-center__brand svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.northwing-project-center__totals {
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.northwing-project-center__totals span {
+  gap: 2px;
+}
+
+.northwing-project-center__chevron {
+  transition: transform 150ms ease;
+  color: var(--text-secondary);
+}
+
+.northwing-project-center--expanded .northwing-project-center__chevron {
+  transform: rotate(180deg);
+}
+
+.northwing-project-center__spinner {
+  animation: northwing-project-center-spin 850ms linear infinite;
+}
+
+@keyframes northwing-project-center-spin {
+  to { transform: rotate(360deg); }
+}
+
+.northwing-project-center__body {
+  border-top: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+  padding: 9px;
+}
+
+.northwing-project-center__active,
+.northwing-project-center__enable,
+.northwing-project-center__empty,
+.northwing-project-center__message {
+  display: grid;
+  gap: 6px;
+}
+
+.northwing-project-center__project-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.northwing-project-center__metrics {
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.northwing-project-center__latest {
+  display: grid;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.northwing-project-center__latest div {
+  min-width: 0;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.northwing-project-center__latest span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.northwing-project-center__enable {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.northwing-project-center__enable > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.northwing-project-center__enable strong {
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.northwing-project-center__enable span,
+.northwing-project-center__empty > span,
+.northwing-project-center__message {
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.northwing-project-center__empty button,
+.northwing-project-center__enable button,
+.northwing-project-center__message button {
+  width: fit-content;
+  gap: 4px;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border));
+  border-radius: 7px;
+  padding: 5px 7px;
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.northwing-project-center__enable button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.northwing-project-center__message--error {
+  color: var(--danger, #d65a5a);
+}
+
+@media (max-width: 760px) {
+  .northwing-project-center__totals {
+    display: none;
+  }
+
+  .northwing-project-center__header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
