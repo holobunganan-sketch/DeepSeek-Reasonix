@@ -57,7 +57,7 @@ export function NorthwingOpenCodeSetup() {
   const available = presets.every(Boolean);
   const conflicts = presets.some((preset) => preset?.status === "name_conflict" || preset?.status === "installed_modified");
   const installed = presets.every((preset) => preset?.status === "installed" || preset?.status === "installed_modified");
-  const keySet = presets.some((preset) => preset?.keySet);
+  const keySet = presets.every((preset) => Boolean(preset?.keySet));
   const configured = installed && keySet && settings?.defaultModel === EXECUTOR_MODEL;
 
   const setup = async () => {
@@ -65,9 +65,14 @@ export function NorthwingOpenCodeSetup() {
     setBusy(true);
     setError("");
     try {
+      const enteredKey = key.trim();
       for (const preset of presets) {
-        if (!preset || preset.status === "installed" || preset.status === "installed_modified") continue;
-        await app.AddProviderPresetAccess(preset.id, key.trim());
+        if (!preset) continue;
+        if (preset.status === "installed") {
+          if (!preset.keySet && enteredKey) await app.SetProviderKey(preset.keyEnv, enteredKey);
+          continue;
+        }
+        await app.AddProviderPresetAccess(preset.id, enteredKey);
       }
       await app.SetDefaultModel(EXECUTOR_MODEL);
       await app.SetPlannerModel(PLANNER_MODEL);
