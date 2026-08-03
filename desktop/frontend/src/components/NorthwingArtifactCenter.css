@@ -253,6 +253,17 @@
   line-height: 1.5;
 }
 
+.northwing-artifact-preview img,
+.northwing-artifact-preview iframe {
+  display: block;
+  width: 100%;
+  min-height: 320px;
+  flex: 1;
+  border: 0;
+  object-fit: contain;
+  background: color-mix(in srgb, var(--bg, #111) 76%, transparent);
+}
+
 .northwing-artifact-preview p {
   margin: 0;
   padding: 18px;
