@@ -15,8 +15,9 @@ const northwingCenter = source("../components/NorthwingProjectCenter.tsx");
 const workDialog = source("../components/NorthwingWorkDialog.tsx");
 const artifactCenter = source("../components/NorthwingArtifactCenter.tsx");
 const coworkAdapter = source("../lib/northwingCowork.ts");
+const coworkBridge = source("../lib/northwingBridgeAugment.ts");
 const coworkDesktop = source("../../../cowork_projects.go");
-const coworkArtifacts = source("../../../internal/cowork/artifacts.go");
+const coworkArtifacts = source("../../../../internal/cowork/artifacts.go");
 const tabs = source("../components/TabBar.tsx");
 const app = source("../App.tsx");
 const badge = source("../components/WorktreeBadge.tsx");
@@ -51,6 +52,7 @@ ok(/readCoworkProjectState\(workspaceRoot, syncArtifacts\)/.test(coworkAdapter),
 ok(!/ListProjectTree\(/.test(northwingCenter), "Northwing does not duplicate the Reasonix project catalog read");
 ok(/createCoworkProject\(activeWorkspaceRoot/.test(northwingCenter), "regular workspaces can opt into CoWork");
 ok(/event\.kind !== "turn_done"/.test(northwingCenter) && /refresh\(true\)/.test(northwingCenter), "completed Reasonix turns trigger local artifact synchronization");
+ok(/declare module "\.\/bridge"/.test(coworkBridge) && /CoworkProjectState\?/.test(coworkBridge), "generated Wails drift check includes optional Northwing bindings");
 
 console.log("\nNorthwing Work entry");
 ok(/Goal[\s\S]*Materials[\s\S]*Deliverable[\s\S]*Constraints[\s\S]*Completion criteria/.test(coworkAdapter), "Work Brief preserves the five user-facing contract fields");
@@ -59,8 +61,9 @@ ok(/EnsureBlankTab\("project", workspaceRoot\)/.test(coworkAdapter), "new Work r
 ok(/SetTokenModeForTab\(tab\.id, "delivery"\)/.test(coworkAdapter), "Work uses the existing Reasonix Delivery profile");
 ok(/UpsertCoworkWork[\s\S]*submitGoal\(tab, brief\)/.test(coworkAdapter), "Work-session binding is durable before the first provider request");
 ok(/SubmitInitialGoalToTab\(/.test(coworkAdapter), "Work launches through the existing atomic Goal submission path");
-ok(/toolApprovalMode[\s\S]*"auto"|"goal",[\s\S]*"auto"/.test(coworkAdapter), "Work retains safe automatic execution rather than YOLO");
-ok(/ResumeSessionForTab\(tab\.id, work\.sessionPath\)/.test(coworkAdapter), "saved Work restores its exact Reasonix session");
+ok(/"goal",[\s\S]*"auto"/.test(coworkAdapter), "Work retains safe automatic execution rather than YOLO");
+ok(/OpenTopicSession\("project", workspaceRoot, work\.goalId/.test(coworkAdapter), "saved Work reopens its durable Reasonix topic when available");
+ok(/ResumeSessionForTab\(tab\.id, work\.sessionPath\)/.test(coworkAdapter), "legacy Work falls back to its exact Reasonix session");
 ok(/ResumeGoalForTab\(tab\.id\)/.test(coworkAdapter), "saved Work resumes the existing Goal when available");
 ok(/launchCoworkWork\(workspaceRoot, draft\)/.test(workDialog), "Work dialog delegates execution to the thin lifecycle adapter");
 
