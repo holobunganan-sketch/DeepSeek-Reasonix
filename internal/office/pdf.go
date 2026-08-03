@@ -88,7 +88,7 @@ func wrapText(text string, width int) []string {
 		for len(r) > width {
 			cut := width
 			for i := width; i > width/2; i-- {
-				if strings.ContainsRune(" ，。,." , r[i-1]) {
+				if strings.ContainsRune(" ，。,.", r[i-1]) {
 					cut = i
 					break
 				}
