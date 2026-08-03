@@ -31,7 +31,9 @@
 .northwing-project-center__metrics,
 .northwing-project-center__latest div,
 .northwing-project-center__empty button,
-.northwing-project-center__enable button {
+.northwing-project-center__enable button,
+.northwing-project-center__actions,
+.northwing-project-center__actions button {
   display: flex;
   align-items: center;
 }
@@ -128,6 +130,41 @@
   white-space: nowrap;
 }
 
+.northwing-project-center__actions {
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.northwing-project-center__actions button,
+.northwing-project-center__empty button,
+.northwing-project-center__enable button,
+.northwing-project-center__message button {
+  width: fit-content;
+  gap: 4px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+  border-radius: 7px;
+  padding: 5px 7px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.northwing-project-center__actions button:hover,
+.northwing-project-center__empty button:hover,
+.northwing-project-center__enable button:hover,
+.northwing-project-center__message button:hover {
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--border));
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.northwing-project-center__actions .northwing-project-center__primary {
+  color: white;
+  border-color: color-mix(in srgb, var(--accent) 84%, white 8%);
+  background: var(--accent);
+}
+
 .northwing-project-center__enable {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -153,22 +190,8 @@
   line-height: 1.35;
 }
 
-.northwing-project-center__empty button,
-.northwing-project-center__enable button,
-.northwing-project-center__message button {
-  width: fit-content;
-  gap: 4px;
-  border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border));
-  border-radius: 7px;
-  padding: 5px 7px;
-  background: color-mix(in srgb, var(--accent) 11%, transparent);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.northwing-project-center__enable button:disabled {
+.northwing-project-center__enable button:disabled,
+.northwing-project-center__actions button:disabled {
   cursor: default;
   opacity: 0.65;
 }
