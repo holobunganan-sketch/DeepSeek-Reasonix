@@ -24,6 +24,7 @@ import {
   type CoworkProjectState,
   type CoworkWorkRef,
 } from "../lib/northwingCowork";
+import { inspectCoworkArtifact, isOfficeArtifact, type NorthwingOfficeReport } from "../lib/northwingOffice";
 import type { FilePreview } from "../lib/types";
 import "./NorthwingArtifactCenter.css";
 
@@ -49,6 +50,13 @@ function localText() {
     binaryPreview: "该文件不适合内置预览，请使用“打开”。",
     close: "关闭",
     version: "版本",
+    valid: "结构有效",
+    invalid: "结构异常",
+    pages: "页",
+    slides: "张幻灯片",
+    sheets: "个工作表",
+    paragraphs: "个段落",
+    cells: "个单元格",
   } : {
     title: "Project Work and Artifacts",
     works: "Works",
@@ -69,6 +77,13 @@ function localText() {
     binaryPreview: "This file does not support embedded preview. Use Open instead.",
     close: "Close",
     version: "Version",
+    valid: "Structure valid",
+    invalid: "Structure invalid",
+    pages: "pages",
+    slides: "slides",
+    sheets: "sheets",
+    paragraphs: "paragraphs",
+    cells: "cells",
   };
 }
 
@@ -102,7 +117,7 @@ export function NorthwingArtifactCenter({
   const [tab, setTab] = useState<"works" | "artifacts">("works");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [preview, setPreview] = useState<{ artifact: CoworkArtifact; file: FilePreview } | null>(null);
+  const [preview, setPreview] = useState<{ artifact: CoworkArtifact; file?: FilePreview; office?: NorthwingOfficeReport } | null>(null);
   const [revising, setRevising] = useState<CoworkArtifact | null>(null);
   const [revision, setRevision] = useState("");
 
@@ -152,7 +167,13 @@ export function NorthwingArtifactCenter({
     setBusy(`preview:${artifact.id}`);
     setError("");
     try {
-      setPreview({ artifact, file: await previewCoworkArtifact(workspaceRoot, artifact.path) });
+      const office = isOfficeArtifact(artifact.path)
+        ? await inspectCoworkArtifact(workspaceRoot, artifact.path)
+        : undefined;
+      const file = /\.(pdf|png|jpe?g|gif|webp|svg|txt|md|json|csv|html?|xml|ya?ml)$/i.test(artifact.path)
+        ? await previewCoworkArtifact(workspaceRoot, artifact.path)
+        : undefined;
+      setPreview({ artifact, file, office });
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -190,21 +211,23 @@ export function NorthwingArtifactCenter({
 
   const openArtifact = async (artifact: CoworkArtifact) => {
     setError("");
-    try {
-      await openCoworkArtifact(workspaceRoot, artifact.path);
-    } catch (err) {
-      setError(errorText(err));
-    }
+    try { await openCoworkArtifact(workspaceRoot, artifact.path); }
+    catch (err) { setError(errorText(err)); }
   };
 
   const revealArtifact = async (artifact: CoworkArtifact) => {
     setError("");
-    try {
-      await revealCoworkArtifact(workspaceRoot, artifact.path);
-    } catch (err) {
-      setError(errorText(err));
-    }
+    try { await revealCoworkArtifact(workspaceRoot, artifact.path); }
+    catch (err) { setError(errorText(err)); }
   };
+
+  const officeMetrics = (report: NorthwingOfficeReport) => [
+    report.pages ? `${report.pages} ${t.pages}` : "",
+    report.slides ? `${report.slides} ${t.slides}` : "",
+    report.sheets ? `${report.sheets} ${t.sheets}` : "",
+    report.paragraphs ? `${report.paragraphs} ${t.paragraphs}` : "",
+    report.cells ? `${report.cells} ${t.cells}` : "",
+  ].filter(Boolean).join(" · ");
 
   return createPortal(
     <div className="northwing-modal-backdrop" role="presentation" onMouseDown={(event) => {
@@ -212,10 +235,7 @@ export function NorthwingArtifactCenter({
     }}>
       <section className="northwing-artifact-center" role="dialog" aria-modal="true" aria-labelledby="northwing-artifact-center-title">
         <header className="northwing-artifact-center__header">
-          <div>
-            <h2 id="northwing-artifact-center-title">{project?.name || t.title}</h2>
-            <p>{t.title}</p>
-          </div>
+          <div><h2 id="northwing-artifact-center-title">{project?.name || t.title}</h2><p>{t.title}</p></div>
           <div className="northwing-artifact-center__header-actions">
             <button type="button" onClick={() => void sync()} disabled={Boolean(busy)}>
               {busy === "sync" ? <LoaderCircle className="northwing-spin" size={14} /> : <RefreshCw size={14} />}
@@ -226,12 +246,8 @@ export function NorthwingArtifactCenter({
         </header>
 
         <nav className="northwing-artifact-center__tabs" aria-label={t.title}>
-          <button type="button" className={tab === "works" ? "is-active" : ""} onClick={() => setTab("works")}>
-            <MessageSquareText size={14} />{t.works}<span>{works.length}</span>
-          </button>
-          <button type="button" className={tab === "artifacts" ? "is-active" : ""} onClick={() => setTab("artifacts")}>
-            <FileOutput size={14} />{t.artifacts}<span>{artifacts.length}</span>
-          </button>
+          <button type="button" className={tab === "works" ? "is-active" : ""} onClick={() => setTab("works")}><MessageSquareText size={14} />{t.works}<span>{works.length}</span></button>
+          <button type="button" className={tab === "artifacts" ? "is-active" : ""} onClick={() => setTab("artifacts")}><FileOutput size={14} />{t.artifacts}<span>{artifacts.length}</span></button>
         </nav>
 
         {error && <div className="northwing-artifact-center__error">{error}</div>}
@@ -239,48 +255,33 @@ export function NorthwingArtifactCenter({
         <div className="northwing-artifact-center__body">
           {tab === "works" ? (
             works.length === 0 ? <div className="northwing-artifact-center__empty">{t.noWorks}</div> : (
-              <div className="northwing-artifact-center__list">
-                {works.map((work) => (
-                  <article key={work.id} className="northwing-work-row">
-                    <div className="northwing-work-row__copy">
-                      <strong>{work.title}</strong>
-                      <span>{work.profile || "delivery"} · {timeLabel(work.updatedAt || work.createdAt)}</span>
-                      <code>deliverables/{work.id}</code>
-                    </div>
-                    <button type="button" onClick={() => void resume(work)} disabled={Boolean(busy)}>
-                      {busy === `work:${work.id}` ? <LoaderCircle className="northwing-spin" size={14} /> : <Play size={14} />}
-                      {t.continue}
-                    </button>
-                  </article>
-                ))}
-              </div>
+              <div className="northwing-artifact-center__list">{works.map((work) => (
+                <article key={work.id} className="northwing-work-row">
+                  <div className="northwing-work-row__copy"><strong>{work.title}</strong><span>{work.profile || "delivery"} · {timeLabel(work.updatedAt || work.createdAt)}</span><code>deliverables/{work.id}</code></div>
+                  <button type="button" onClick={() => void resume(work)} disabled={Boolean(busy)}>{busy === `work:${work.id}` ? <LoaderCircle className="northwing-spin" size={14} /> : <Play size={14} />}{t.continue}</button>
+                </article>
+              ))}</div>
             )
           ) : (
             artifacts.length === 0 ? <div className="northwing-artifact-center__empty">{t.noArtifacts}</div> : (
-              <div className="northwing-artifact-center__list">
-                {artifacts.map((artifact) => {
-                  const finalKey = artifact.workId || "__project__";
-                  const isFinal = state.finalArtifacts?.[finalKey] === artifact.id;
-                  const work = artifact.workId ? worksByID.get(artifact.workId) : undefined;
-                  return (
-                    <article key={artifact.id} className={`northwing-artifact-row${isFinal ? " northwing-artifact-row--final" : ""}`}>
-                      <div className="northwing-artifact-row__copy">
-                        <strong title={artifact.path}>{basename(artifact.path)}</strong>
-                        <span>{work?.title || artifact.kind} · {t.version} {artifact.version} · {timeLabel(artifact.createdAt)}</span>
-                        <code>{artifact.path}</code>
-                      </div>
-                      {isFinal && <span className="northwing-artifact-row__final"><CheckCircle2 size={12} />{t.finalBadge}</span>}
-                      <div className="northwing-artifact-row__actions">
-                        <button type="button" onClick={() => void showPreview(artifact)} disabled={Boolean(busy)}>{t.preview}</button>
-                        <button type="button" onClick={() => void openArtifact(artifact)}><ExternalLink size={12} />{t.open}</button>
-                        <button type="button" onClick={() => void revealArtifact(artifact)}><FolderSearch size={12} />{t.reveal}</button>
-                        <button type="button" onClick={() => void markFinal(artifact)} disabled={Boolean(busy) || isFinal}><Star size={12} />{t.final}</button>
-                        <button type="button" onClick={() => { setRevising(artifact); setRevision(""); }} disabled={Boolean(busy)}>{t.revise}</button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+              <div className="northwing-artifact-center__list">{artifacts.map((artifact) => {
+                const finalKey = artifact.workId || "__project__";
+                const isFinal = state.finalArtifacts?.[finalKey] === artifact.id;
+                const work = artifact.workId ? worksByID.get(artifact.workId) : undefined;
+                return (
+                  <article key={artifact.id} className={`northwing-artifact-row${isFinal ? " northwing-artifact-row--final" : ""}`}>
+                    <div className="northwing-artifact-row__copy"><strong title={artifact.path}>{basename(artifact.path)}</strong><span>{work?.title || artifact.kind} · {t.version} {artifact.version} · {timeLabel(artifact.createdAt)}</span><code>{artifact.path}</code></div>
+                    {isFinal && <span className="northwing-artifact-row__final"><CheckCircle2 size={12} />{t.finalBadge}</span>}
+                    <div className="northwing-artifact-row__actions">
+                      <button type="button" onClick={() => void showPreview(artifact)} disabled={Boolean(busy)}>{t.preview}</button>
+                      <button type="button" onClick={() => void openArtifact(artifact)}><ExternalLink size={12} />{t.open}</button>
+                      <button type="button" onClick={() => void revealArtifact(artifact)}><FolderSearch size={12} />{t.reveal}</button>
+                      <button type="button" onClick={() => void markFinal(artifact)} disabled={Boolean(busy) || isFinal}><Star size={12} />{t.final}</button>
+                      <button type="button" onClick={() => { setRevising(artifact); setRevision(""); }} disabled={Boolean(busy)}>{t.revise}</button>
+                    </div>
+                  </article>
+                );
+              })}</div>
             )
           )}
         </div>
@@ -288,15 +289,21 @@ export function NorthwingArtifactCenter({
         {preview && (
           <aside className="northwing-artifact-preview">
             <header><strong>{basename(preview.artifact.path)}</strong><button type="button" onClick={() => setPreview(null)}><X size={14} /></button></header>
-            {preview.file.kind === "image" && preview.file.url ? (
-              <img src={preview.file.url} alt={basename(preview.artifact.path)} />
-            ) : preview.file.kind === "pdf" && preview.file.url ? (
-              <iframe src={preview.file.url} title={basename(preview.artifact.path)} />
-            ) : preview.file.binary ? (
-              <p>{t.binaryPreview}</p>
-            ) : (
-              <pre>{preview.file.body || "(empty file)"}</pre>
+            {preview.office && (
+              <div className="northwing-artifact-preview__office">
+                <strong className={preview.office.valid ? "is-valid" : "is-invalid"}>{preview.office.valid ? t.valid : t.invalid}</strong>
+                {officeMetrics(preview.office) && <span>{officeMetrics(preview.office)}</span>}
+                {preview.office.preview?.length ? <ul>{preview.office.preview.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}</ul> : null}
+                {preview.office.warnings?.length ? <ul className="is-warning">{preview.office.warnings.map((line) => <li key={line}>{line}</li>)}</ul> : null}
+              </div>
             )}
+            {preview.file?.kind === "image" && preview.file.url ? (
+              <img src={preview.file.url} alt={basename(preview.artifact.path)} />
+            ) : preview.file?.kind === "pdf" && preview.file.url ? (
+              <iframe src={preview.file.url} title={basename(preview.artifact.path)} />
+            ) : preview.file && !preview.file.binary ? (
+              <pre>{preview.file.body || "(empty file)"}</pre>
+            ) : !preview.office ? <p>{t.binaryPreview}</p> : null}
           </aside>
         )}
 
@@ -304,10 +311,7 @@ export function NorthwingArtifactCenter({
           <aside className="northwing-artifact-revision">
             <header><strong>{t.revise}: {basename(revising.path)}</strong><button type="button" onClick={() => setRevising(null)}><X size={14} /></button></header>
             <textarea autoFocus rows={4} value={revision} onChange={(event) => setRevision(event.target.value)} placeholder={t.revisePlaceholder} />
-            <button type="button" onClick={() => void submitRevision()} disabled={!revision.trim() || Boolean(busy)}>
-              {busy === `revise:${revising.id}` ? <LoaderCircle className="northwing-spin" size={14} /> : <MessageSquareText size={14} />}
-              {t.submitRevision}
-            </button>
+            <button type="button" onClick={() => void submitRevision()} disabled={!revision.trim() || Boolean(busy)}>{busy === `revise:${revising.id}` ? <LoaderCircle className="northwing-spin" size={14} /> : <MessageSquareText size={14} />}{t.submitRevision}</button>
           </aside>
         )}
       </section>
