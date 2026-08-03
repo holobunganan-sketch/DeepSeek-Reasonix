@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 const dir = dirname(fileURLToPath(import.meta.url));
 const source = (path: string) => readFileSync(resolve(dir, path), "utf8");
 const bridge = source("../lib/bridge.ts");
-const tree = source("../components/ProjectTree.tsx");
+// Northwing wraps the unchanged Reasonix project tree. Source-level contracts
+// inspect both files so the wrapper cannot hide regressions in the base surface.
+const tree = source("../components/ProjectTree.tsx") + source("../components/ReasonixProjectTree.tsx");
 const tabs = source("../components/TabBar.tsx");
 const app = source("../App.tsx");
 const badge = source("../components/WorktreeBadge.tsx");
