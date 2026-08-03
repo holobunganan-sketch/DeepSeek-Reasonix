@@ -5,7 +5,9 @@ RequestExecutionLevel user
 !include "FileFunc.nsh"
 
 !define APP_NAME "Northwing"
-!define APP_VERSION "0.1.0"
+!ifndef APP_VERSION
+  !define APP_VERSION "0.1.0"
+!endif
 !define APP_PUBLISHER "Northwing Contributors"
 !define APP_ID "io.github.holobunganansketch.northwing"
 !define APP_EXE "northwing.exe"
