@@ -8,6 +8,40 @@ import (
 	"testing"
 )
 
+func toolNames(tools []interface{ Name() string }) map[string]bool {
+	out := make(map[string]bool, len(tools))
+	for _, item := range tools {
+		out[item.Name()] = true
+	}
+	return out
+}
+
+func TestNorthwingOfficeDefaultExposureRequiresProjectManifest(t *testing.T) {
+	dir := t.TempDir()
+	ordinary := Workspace{Dir: dir}.Tools()
+	for _, item := range ordinary {
+		if item.Name() == "northwing_office" {
+			t.Fatal("ordinary Reasonix workspace exposed the Northwing Office schema")
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(dir, ".northwing"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".northwing", "project.json"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, item := range (Workspace{Dir: dir}).Tools() {
+		if item.Name() == "northwing_office" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("Northwing project did not expose the Office schema")
+	}
+}
+
 func TestNorthwingOfficeWorkspaceBinding(t *testing.T) {
 	dir := t.TempDir()
 	tools := (Workspace{Dir: dir}).Tools("northwing_office")
