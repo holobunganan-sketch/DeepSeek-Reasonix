@@ -13,6 +13,10 @@ const (
 	northwingAppID       = "io.github.holobunganansketch.northwing"
 )
 
+func init() {
+	applyNorthwingRuntimeIdentity()
+}
+
 // applyNorthwingRuntimeIdentity redirects the unchanged Reasonix kernel to
 // Northwing-owned data paths. Existing Reasonix installs and explicit isolation
 // variables are preserved; Northwing never writes into them by default.
