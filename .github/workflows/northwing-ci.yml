@@ -40,16 +40,48 @@ jobs:
           cache: pnpm
           cache-dependency-path: desktop/frontend/pnpm-lock.yaml
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Go format
         shell: bash
         run: |
-          targets=(internal/office internal/cowork internal/tool/builtin internal/agent cmd/northwing)
+          targets=(
+            internal/office
+            internal/cowork
+            internal/tool/builtin
+            internal/agent
+            cmd/northwing
+            desktop/cowork_projects.go
+            desktop/cowork_office.go
+            desktop/northwing_identity.go
+            desktop/northwing_protocol.go
+            desktop/single_instance.go
+            desktop/main.go
+          )
           gofmt -w "${targets[@]}"
           git diff -- "${targets[@]}"
           git diff --exit-code -- "${targets[@]}"
 
       - name: Kernel tests
         run: go test ./...
+
+      - name: Generate Office interoperability fixtures
+        env:
+          NORTHWING_OFFICE_FIXTURE_DIR: ${{ runner.temp }}/northwing-office
+        run: go test ./internal/office -run TestWriteExternalFixtures -count=1
+
+      - name: Verify Office fixtures with independent parsers
+        env:
+          NORTHWING_OFFICE_FIXTURE_DIR: ${{ runner.temp }}/northwing-office
+        run: |
+          python -m pip install --disable-pip-version-check --quiet \
+            python-docx==1.2.0 \
+            python-pptx==1.0.2 \
+            openpyxl==3.1.5 \
+            pypdf==5.9.0
+          python scripts/verify_northwing_office.py "$NORTHWING_OFFICE_FIXTURE_DIR"
 
       - name: Frontend install
         working-directory: desktop/frontend
