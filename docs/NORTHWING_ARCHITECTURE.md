@@ -71,8 +71,12 @@ The desktop Work entry collects only:
 - completion criteria
 
 Northwing compiles these fields into one compact Work Brief. The brief is the
-first normal user turn in an existing Reasonix project session; it is not added
-to the stable system prompt. Before the provider request starts, Northwing:
+first normal user input in an existing Reasonix project session; it is not added
+to the stable system prompt. The transcript displays the compact Work title, the
+Reasonix Goal stores the concise objective, and the full Work Brief remains the
+actual model input and durable session context.
+
+Before the provider request starts, Northwing:
 
 1. creates a durable Work ID;
 2. opens a normal Reasonix project topic and session;
