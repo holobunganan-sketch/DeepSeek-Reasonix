@@ -43,8 +43,9 @@ console.log("\nNorthwing project center");
 ok(/<NorthwingProjectCenter[\s\S]*<ReasonixProjectTree/.test(treeWrapper), "Northwing stays a thin wrapper around the complete Reasonix tree");
 ok(/export function ProjectTree\(/.test(treeBase), "Reasonix project tree implementation remains present");
 ok(/CoworkProjectSummaries\(workspaceRoots \[\]string\)/.test(coworkDesktop), "desktop exposes a batch summary binding");
-ok(/await coworkApp\.CoworkProjectSummaries\(roots\)/.test(northwingCenter), "project summaries cross Wails in one batch call");
-ok(!/LoadCoworkProject\(/.test(northwingCenter), "project center avoids per-project manifest calls");
+ok(/CoworkProjectSummaries\(\[activeWorkspaceRoot\]\)/.test(northwingCenter), "only the active project summary crosses Wails");
+ok(!/ListProjectTree\(/.test(northwingCenter), "Northwing does not duplicate the project catalog read");
+ok(!/LoadCoworkProject\(/.test(northwingCenter), "project center avoids full per-project manifest calls");
 ok(/CreateCoworkProject\(activeWorkspaceRoot/.test(northwingCenter), "regular workspaces can opt into CoWork");
 
 if (failed) process.exit(1);
