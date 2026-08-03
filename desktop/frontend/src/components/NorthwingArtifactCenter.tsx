@@ -12,11 +12,12 @@ import {
   Star,
   X,
 } from "lucide-react";
-import { app } from "../lib/bridge";
 import {
   continueCoworkWork,
+  openCoworkArtifact,
   previewCoworkArtifact,
   readCoworkProjectState,
+  revealCoworkArtifact,
   reviseCoworkArtifact,
   setCoworkArtifactFinal,
   type CoworkArtifact,
@@ -147,7 +148,7 @@ export function NorthwingArtifactCenter({
     setBusy(`preview:${artifact.id}`);
     setError("");
     try {
-      setPreview({ artifact, file: await previewCoworkArtifact(artifact.path) });
+      setPreview({ artifact, file: await previewCoworkArtifact(workspaceRoot, artifact.path) });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -249,8 +250,8 @@ export function NorthwingArtifactCenter({
                       {isFinal && <span className="northwing-artifact-row__final"><CheckCircle2 size={12} />{t.finalBadge}</span>}
                       <div className="northwing-artifact-row__actions">
                         <button type="button" onClick={() => void showPreview(artifact)} disabled={Boolean(busy)}>{t.preview}</button>
-                        <button type="button" onClick={() => void app.OpenWorkspacePath(artifact.path)}><ExternalLink size={12} />{t.open}</button>
-                        <button type="button" onClick={() => void app.RevealWorkspacePath(artifact.path)}><FolderSearch size={12} />{t.reveal}</button>
+                        <button type="button" onClick={() => void openCoworkArtifact(workspaceRoot, artifact.path)}><ExternalLink size={12} />{t.open}</button>
+                        <button type="button" onClick={() => void revealCoworkArtifact(workspaceRoot, artifact.path)}><FolderSearch size={12} />{t.reveal}</button>
                         <button type="button" onClick={() => void markFinal(artifact)} disabled={Boolean(busy) || isFinal}><Star size={12} />{t.final}</button>
                         <button type="button" onClick={() => { setRevising(artifact); setRevision(""); }} disabled={Boolean(busy)}>{t.revise}</button>
                       </div>
