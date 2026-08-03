@@ -1,0 +1,83 @@
+.northwing-cowork-rail {
+  display: grid;
+  gap: 5px;
+}
+
+.northwing-cowork-rail__mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  margin: 5px 8px 0;
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface-raised) 76%, transparent);
+}
+
+.northwing-cowork-rail__mode button,
+.northwing-cowork-rail__chat button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 27px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.northwing-cowork-rail__mode button.is-active {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface-hover));
+  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+}
+
+.northwing-cowork-rail__live {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0 8px;
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--surface-raised) 78%, transparent);
+  font-size: 10px;
+}
+
+.northwing-cowork-rail__live > svg { flex: none; margin-top: 1px; }
+.northwing-cowork-rail__live > span { min-width: 0; display: grid; gap: 2px; }
+.northwing-cowork-rail__live strong { color: var(--text-primary); font-weight: 650; }
+.northwing-cowork-rail__live small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.northwing-cowork-rail__live.is-working svg { color: var(--accent); }
+.northwing-cowork-rail__live.is-waiting { background: color-mix(in srgb, #d79b42 12%, transparent); }
+.northwing-cowork-rail__live.is-waiting svg { color: #d79b42; }
+.northwing-cowork-rail__live.is-done svg { color: #52b788; }
+.northwing-cowork-rail__live.is-error svg { color: var(--danger, #d65a5a); }
+
+.northwing-cowork-rail__chat {
+  display: grid;
+  gap: 8px;
+  margin: 6px 8px 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  border-radius: 10px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--surface-raised) 78%, transparent);
+}
+
+.northwing-cowork-rail__chat p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.northwing-cowork-rail__chat button {
+  width: fit-content;
+  padding: 0 8px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+}
