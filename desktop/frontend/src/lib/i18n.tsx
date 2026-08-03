@@ -24,6 +24,7 @@ type Dict = Record<DictKey, string>;
 const DICTS: Partial<Record<Locale, Dict>> = { en };
 const localeLoads = new Map<Locale, Promise<void>>();
 const STORAGE_KEY = "reasonix-lang";
+const PRODUCT_NAME = "Northwing";
 
 // currentLocale mirrors the active locale for callers outside React (lib/tools.ts).
 let currentLocale: Locale = "en";
@@ -95,10 +96,18 @@ export function clearLegacyLangPref(): void {
   }
 }
 
+// Product branding is applied only at the UI translation boundary. Internal
+// config keys, environment variables, file formats, and Reasonix compatibility
+// APIs remain untouched, which keeps the kernel and upstream synchronization
+// stable while preventing inherited product copy from leaking into Northwing.
+export function brandText(value: string): string {
+  return value.replaceAll("Reasonix", PRODUCT_NAME);
+}
+
 // translate resolves a key for a locale and fills {placeholders}. Missing keys fall
 // back to English, then to the raw key, so the UI never renders blank.
 function translate(locale: Locale, key: DictKey, vars?: Record<string, string | number>): string {
-  const s = DICTS[locale]?.[key] ?? en[key] ?? key;
+  const s = brandText(DICTS[locale]?.[key] ?? en[key] ?? key);
   if (!vars) return s;
   return s.replace(/\{(\w+)\}/g, (_, k) => (vars[k] !== undefined ? String(vars[k]) : `{${k}}`));
 }
