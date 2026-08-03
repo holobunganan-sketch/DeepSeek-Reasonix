@@ -1,22 +1,21 @@
 import { useEffect, useState } from "react";
 import { CircleCheck, MessageSquare, PauseCircle, Play, Sparkles } from "lucide-react";
-import { onEvent } from "../lib/bridge";
+import { app, onEvent } from "../lib/bridge";
 import { getLocale } from "../lib/i18n";
+import type { NorthwingLaunch } from "../lib/northwingBridgeAugment";
 import { NorthwingOpenCodeSetup } from "./NorthwingOpenCodeSetup";
 import { NorthwingProjectCenter, type NorthwingProjectCenterProps } from "./NorthwingProjectCenter";
 import "./NorthwingCoworkRail.css";
 
 type SurfaceMode = "chat" | "work";
 type LiveState = "idle" | "working" | "waiting" | "done" | "error";
+type LaunchBinding = { PendingNorthwingLaunches?: () => Promise<NorthwingLaunch[]> };
 
 const MODE_KEY = "northwing:surface-mode";
 
 function initialMode(): SurfaceMode {
-  try {
-    return localStorage.getItem(MODE_KEY) === "chat" ? "chat" : "work";
-  } catch {
-    return "work";
-  }
+  try { return localStorage.getItem(MODE_KEY) === "chat" ? "chat" : "work"; }
+  catch { return "work"; }
 }
 
 function text() {
@@ -56,23 +55,35 @@ export function NorthwingCoworkRail(props: NorthwingProjectCenterProps) {
 
   useEffect(() => onEvent((event) => {
     switch (event.kind) {
-    case "turn_started":
-      setLive({ state: "working", detail: "" });
-      break;
-    case "phase":
-      setLive({ state: "working", detail: event.text?.trim() ?? "" });
-      break;
+    case "turn_started": setLive({ state: "working", detail: "" }); break;
+    case "phase": setLive({ state: "working", detail: event.text?.trim() ?? "" }); break;
     case "approval_request":
-    case "ask_request":
-      setLive({ state: "waiting", detail: event.text?.trim() ?? "" });
-      break;
-    case "turn_done":
-      setLive({ state: event.err ? "error" : "done", detail: event.err?.trim() ?? "" });
-      break;
-    default:
-      break;
+    case "ask_request": setLive({ state: "waiting", detail: event.text?.trim() ?? "" }); break;
+    case "turn_done": setLive({ state: event.err ? "error" : "done", detail: event.err?.trim() ?? "" }); break;
+    default: break;
     }
   }), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const binding = app as typeof app & LaunchBinding;
+    const consume = async () => {
+      if (cancelled || typeof binding.PendingNorthwingLaunches !== "function") return;
+      try {
+        const launches = await binding.PendingNorthwingLaunches();
+        for (const launch of launches) {
+          if (cancelled) return;
+          choose(launch.mode === "chat" ? "chat" : "work");
+          if (launch.workspace) await app.SwitchWorkspace(launch.workspace);
+        }
+      } catch {
+        // Protocol activation is optional and must never disturb normal startup.
+      }
+    };
+    void consume();
+    const timer = window.setInterval(() => void consume(), 1500);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, []);
 
   const label = live.state === "working" ? t.working
     : live.state === "waiting" ? t.waiting
@@ -87,31 +98,20 @@ export function NorthwingCoworkRail(props: NorthwingProjectCenterProps) {
   return (
     <div className="northwing-cowork-rail">
       <div className="northwing-cowork-rail__mode" role="tablist" aria-label="Northwing mode">
-        <button type="button" role="tab" aria-selected={mode === "chat"} className={mode === "chat" ? "is-active" : ""} onClick={() => choose("chat")}>
-          <MessageSquare size={13} />{t.chat}
-        </button>
-        <button type="button" role="tab" aria-selected={mode === "work"} className={mode === "work" ? "is-active" : ""} onClick={() => choose("work")}>
-          <Sparkles size={13} />{t.work}
-        </button>
+        <button type="button" role="tab" aria-selected={mode === "chat"} className={mode === "chat" ? "is-active" : ""} onClick={() => choose("chat")}><MessageSquare size={13} />{t.chat}</button>
+        <button type="button" role="tab" aria-selected={mode === "work"} className={mode === "work" ? "is-active" : ""} onClick={() => choose("work")}><Sparkles size={13} />{t.work}</button>
       </div>
 
       {(live.state !== "idle" || live.detail) && (
         <div className={`northwing-cowork-rail__live is-${live.state}`} aria-live="polite">
-          <Icon size={13} />
-          <span><strong>{label}</strong>{live.detail && <small>{live.detail}</small>}</span>
+          <Icon size={13} /><span><strong>{label}</strong>{live.detail && <small>{live.detail}</small>}</span>
         </div>
       )}
 
       {mode === "work" ? (
-        <>
-          <NorthwingOpenCodeSetup />
-          <NorthwingProjectCenter {...props} />
-        </>
+        <><NorthwingOpenCodeSetup /><NorthwingProjectCenter {...props} /></>
       ) : (
-        <div className="northwing-cowork-rail__chat">
-          <p>{t.chatHint}</p>
-          <button type="button" onClick={() => choose("work")}><Sparkles size={13} />{t.switchWork}</button>
-        </div>
+        <div className="northwing-cowork-rail__chat"><p>{t.chatHint}</p><button type="button" onClick={() => choose("work")}><Sparkles size={13} />{t.switchWork}</button></div>
       )}
     </div>
   );
