@@ -7,14 +7,15 @@ import (
 )
 
 func singleInstanceLock(app *App) *options.SingleInstanceLock {
-	// Allow contributors to run a dev build alongside the installed app.
-	// Set REASONIX_DEV=1 to skip the single-instance lock.
-	if os.Getenv("REASONIX_DEV") != "" {
+	// Allow contributors to run a dev build alongside the installed app. Keep the
+	// Reasonix variable for kernel compatibility and add the product-native alias.
+	if os.Getenv("NORTHWING_DEV") != "" || os.Getenv("REASONIX_DEV") != "" {
 		return nil
 	}
 	return &options.SingleInstanceLock{
 		UniqueId: singleInstanceID(),
-		OnSecondInstanceLaunch: func(options.SecondInstanceData) {
+		OnSecondInstanceLaunch: func(data options.SecondInstanceData) {
+			captureNorthwingLaunches(data.Args)
 			app.secondInstanceLaunch()
 		},
 	}
