@@ -167,6 +167,8 @@ export async function launchCoworkWork(workspaceRoot: string, draft: CoworkWorkD
     id: workID,
     title,
     sessionPath: await sessionPathForTab(tab),
+    // Reasonix currently exposes a durable topic anchor rather than a separate
+    // Goal identifier, so the compatibility field stores that topic ID.
     goalId: tab.topicId || "",
     profile: "delivery",
   };
@@ -181,9 +183,19 @@ export async function launchCoworkWork(workspaceRoot: string, draft: CoworkWorkD
 
 export async function openCoworkWork(workspaceRoot: string, work: CoworkWorkRef): Promise<TabMeta> {
   await localTargetToken();
-  const tab = await app.EnsureBlankTab("project", workspaceRoot);
-  if (work.sessionPath) await app.ResumeSessionForTab(tab.id, work.sessionPath);
-  if (tab.topicId && work.title) await app.RenameTopic(tab.topicId, work.title).catch(() => undefined);
+  let tab: TabMeta | null = null;
+  if (work.goalId) {
+    try {
+      tab = await app.OpenTopicSession("project", workspaceRoot, work.goalId, work.sessionPath || "");
+    } catch {
+      tab = null;
+    }
+  }
+  if (!tab) {
+    tab = await app.EnsureBlankTab("project", workspaceRoot);
+    if (work.sessionPath) await app.ResumeSessionForTab(tab.id, work.sessionPath);
+    if (tab.topicId && work.title) await app.RenameTopic(tab.topicId, work.title).catch(() => undefined);
+  }
   await app.SetTokenModeForTab(tab.id, "delivery");
   await app.SetActiveTab(tab.id);
   return tab;
@@ -203,6 +215,7 @@ export async function continueCoworkWork(workspaceRoot: string, work: CoworkWork
   const updated: CoworkWorkRef = {
     ...work,
     sessionPath: await sessionPathForTab(tab),
+    goalId: tab.topicId || work.goalId,
     profile: "delivery",
   };
   await requiredBinding("UpsertCoworkWork")(workspaceRoot, updated);
@@ -227,6 +240,7 @@ export async function reviseCoworkArtifact(
   artifact: CoworkArtifact,
   instruction: string,
 ): Promise<TabMeta> {
+  await localTargetToken();
   const work = (project.works ?? []).find((candidate) => candidate.id === artifact.workId);
   const tab = work ? await openCoworkWork(workspaceRoot, work) : await app.EnsureBlankTab("project", workspaceRoot);
   await app.SetTokenModeForTab(tab.id, "delivery");
