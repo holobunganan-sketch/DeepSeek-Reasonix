@@ -13,6 +13,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 var root = flag.String("root", ".", "repository root")
@@ -164,10 +165,8 @@ func fillPolygon(img *image.RGBA, points []image.Point, c color.RGBA) {
 				xs = append(xs, x)
 			}
 		}
+		sort.Ints(xs)
 		for i := 0; i+1 < len(xs); i += 2 {
-			if xs[i] > xs[i+1] {
-				xs[i], xs[i+1] = xs[i+1], xs[i]
-			}
 			for x := xs[i]; x <= xs[i+1]; x++ {
 				if image.Pt(x, y).In(img.Bounds()) {
 					img.SetRGBA(x, y, c)
@@ -197,10 +196,29 @@ func circle(img *image.RGBA, center image.Point, radius int, c color.RGBA) {
 				img.SetRGBA(x, y, c)
 			}
 		}
-	}
 }
 
-func clamp(v, lo, hi int) int { return int(math.Max(float64(lo), math.Min(float64(hi), float64(v)))) }
-func abs(v int) int { if v < 0 { return -v }; return v }
-func min(a, b int) int { if a < b { return a }; return b }
-func max(a, b int) int { if a > b { return a }; return b }
+func clamp(v, lo, hi int) int {
+	return int(math.Max(float64(lo), math.Min(float64(hi), float64(v))))
+}
+
+func abs(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
