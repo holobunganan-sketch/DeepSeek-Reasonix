@@ -60,7 +60,7 @@ ok(/deliverables\/\$\{workID\.trim\(\)\}/.test(coworkAdapter), "each Work receiv
 ok(/EnsureBlankTab\("project", workspaceRoot\)/.test(coworkAdapter), "new Work reuses a native Reasonix project session");
 ok(/SetTokenModeForTab\(tab\.id, "delivery"\)/.test(coworkAdapter), "Work uses the existing Reasonix Delivery profile");
 ok(/UpsertCoworkWork[\s\S]*submitGoal\(tab, brief\)/.test(coworkAdapter), "Work-session binding is durable before the first provider request");
-ok(/SubmitInitialGoalToTab\(/.test(coworkAdapter), "Work launches through the existing atomic Goal submission path");
+ok(/SubmitInitialGoalToTab\([\s\S]*displayText,[\s\S]*goal,[\s\S]*\[\]/.test(coworkAdapter), "atomic Goal submit sends the Work Brief directly without a second slash-command parse");
 ok(/"goal",[\s\S]*"auto"/.test(coworkAdapter), "Work retains safe automatic execution rather than YOLO");
 ok(/OpenTopicSession\("project", workspaceRoot, work\.goalId/.test(coworkAdapter), "saved Work reopens its durable Reasonix topic when available");
 ok(/ResumeSessionForTab\(tab\.id, work\.sessionPath\)/.test(coworkAdapter), "legacy Work falls back to its exact Reasonix session");
@@ -72,11 +72,12 @@ ok(/SyncArtifacts\(workspaceRoot string\)/.test(coworkArtifacts), "backend scans
 ok(/latest\.SHA256 == digest/.test(coworkArtifacts), "unchanged files do not create duplicate artifact versions");
 ok(/writeProject\(project\)/.test(coworkArtifacts), "changed artifacts publish one atomic manifest update");
 ok(/SetCoworkArtifactFinal/.test(coworkDesktop), "desktop exposes final artifact selection");
-ok(/OpenWorkspacePath\(artifact\.path\)/.test(artifactCenter), "Artifact center opens generated files");
-ok(/RevealWorkspacePath\(artifact\.path\)/.test(artifactCenter), "Artifact center reveals generated files");
+ok(/openCoworkArtifact\(workspaceRoot, artifact\.path\)/.test(artifactCenter), "Artifact center opens files through the owning project tab");
+ok(/revealCoworkArtifact\(workspaceRoot, artifact\.path\)/.test(artifactCenter), "Artifact center reveals files through the owning project tab");
+ok(/ReadFileForTab\(tab\.id, path\)/.test(coworkAdapter), "Artifact preview is scoped to the owning project tab");
 ok(/setCoworkArtifactFinal\(workspaceRoot, artifact\.id\)/.test(artifactCenter), "Artifact center marks a version as final");
 ok(/reviseCoworkArtifact\(workspaceRoot, project, revising, revision\)/.test(artifactCenter), "Artifact center starts scoped revision work");
-ok(/previewCoworkArtifact\(artifact\.path\)/.test(artifactCenter), "Artifact center provides a lightweight preview path");
+ok(/previewCoworkArtifact\(workspaceRoot, artifact\.path\)/.test(artifactCenter), "Artifact center provides a lightweight preview path");
 
 if (failed) process.exit(1);
 console.log("delivery worktree and Northwing CoWork lifecycle tests passed");
