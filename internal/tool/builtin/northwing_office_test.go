@@ -8,14 +8,6 @@ import (
 	"testing"
 )
 
-func toolNames(tools []interface{ Name() string }) map[string]bool {
-	out := make(map[string]bool, len(tools))
-	for _, item := range tools {
-		out[item.Name()] = true
-	}
-	return out
-}
-
 func TestNorthwingOfficeDefaultExposureRequiresProjectManifest(t *testing.T) {
 	dir := t.TempDir()
 	ordinary := Workspace{Dir: dir}.Tools()
