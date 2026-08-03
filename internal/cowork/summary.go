@@ -13,16 +13,16 @@ import (
 // bodies so listing projects never expands model context or duplicates Reasonix
 // runtime state.
 type ProjectSummary struct {
-	Workspace       string    `json:"workspace"`
-	Exists          bool      `json:"exists"`
-	ID              string    `json:"id,omitempty"`
-	Name            string    `json:"name,omitempty"`
-	UpdatedAt       time.Time `json:"updatedAt,omitempty"`
-	WorkCount       int       `json:"workCount"`
-	ArtifactCount   int       `json:"artifactCount"`
-	LatestWork      *WorkRef  `json:"latestWork,omitempty"`
-	LatestArtifact  *Artifact `json:"latestArtifact,omitempty"`
-	Error           string    `json:"error,omitempty"`
+	Workspace      string    `json:"workspace"`
+	Exists         bool      `json:"exists"`
+	ID             string    `json:"id,omitempty"`
+	Name           string    `json:"name,omitempty"`
+	UpdatedAt      time.Time `json:"updatedAt,omitempty"`
+	WorkCount      int       `json:"workCount"`
+	ArtifactCount  int       `json:"artifactCount"`
+	LatestWork     *WorkRef  `json:"latestWork,omitempty"`
+	LatestArtifact *Artifact `json:"latestArtifact,omitempty"`
+	Error          string    `json:"error,omitempty"`
 }
 
 // Summaries reads multiple manifests behind one desktop binding. This avoids an
