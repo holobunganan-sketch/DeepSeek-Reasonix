@@ -26,7 +26,7 @@ func CreatePDF(path, title, text string) error {
 		kids[i] = fmt.Sprintf("%d 0 R", pageObj)
 		chunk := lines[i*per : min(len(lines), (i+1)*per)]
 		stream := pdfContent(chunk)
-		objects[pageObj] = []byte(fmt.Sprintf(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents %d 0 R >>`, contentObj))
+		objects[pageObj] = []byte(fmt.Sprintf(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents %d 0 R >>`, contentObj))
 		objects[contentObj] = []byte(fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(stream), stream))
 	}
 	objects[1] = []byte(`<< /Type /Catalog /Pages 2 0 R >>`)
