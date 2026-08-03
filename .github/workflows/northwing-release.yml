@@ -1,0 +1,170 @@
+name: Northwing Release
+
+on:
+  push:
+    tags:
+      - "northwing-v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: northwing-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.5
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/frontend/pnpm-lock.yaml
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify tag format
+        shell: bash
+        run: |
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^northwing-v[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid Northwing release tag: ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+
+      - name: Go tests
+        run: go test ./...
+
+      - name: Generate Office interoperability fixtures
+        env:
+          NORTHWING_OFFICE_FIXTURE_DIR: ${{ runner.temp }}/northwing-office
+        run: go test ./internal/office -run TestWriteExternalFixtures -count=1
+
+      - name: Verify Office interoperability
+        env:
+          NORTHWING_OFFICE_FIXTURE_DIR: ${{ runner.temp }}/northwing-office
+        run: |
+          python -m pip install --disable-pip-version-check --quiet \
+            python-docx==1.2.0 \
+            python-pptx==1.0.2 \
+            openpyxl==3.1.5 \
+            pypdf==5.9.0
+          python scripts/verify_northwing_office.py "$NORTHWING_OFFICE_FIXTURE_DIR"
+
+      - name: Install frontend
+        working-directory: desktop/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend validation
+        working-directory: desktop/frontend
+        run: |
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
+  windows:
+    name: Build and publish Windows release
+    runs-on: windows-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.5
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/frontend/pnpm-lock.yaml
+
+      - name: Resolve release version
+        id: version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^northwing-v', ''
+          if (-not $version) { throw "Unable to parse version from ${{ github.ref_name }}" }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Install frontend
+        working-directory: desktop/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Desktop tests
+        working-directory: desktop
+        run: go test ./...
+
+      - name: Generate Northwing icons
+        run: go run ./cmd/northwing-icon -root .
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+
+      - name: Build Northwing Windows x64
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          wails build -platform windows/amd64 -clean -ldflags "-X main.version=$version -X main.channel=stable"
+
+      - name: Verify unified Northwing CLI
+        shell: pwsh
+        run: |
+          $expected = [regex]::Escape("northwing ${{ steps.version.outputs.version }}")
+          $output = & .\desktop\build\bin\northwing.exe version 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "northwing.exe version exited $LASTEXITCODE`n$output" }
+          $text = $output -join "`n"
+          if ($text -notmatch $expected) { throw "unexpected CLI output: $text" }
+
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Package Northwing
+        shell: pwsh
+        run: ./scripts/package-northwing-windows.ps1 -Version "${{ steps.version.outputs.version }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Northwing-${{ steps.version.outputs.version }}-windows-x64
+          path: |
+            dist/Northwing-${{ steps.version.outputs.version }}-windows-x64-setup.exe
+            dist/Northwing-${{ steps.version.outputs.version }}-windows-x64-portable.zip
+            dist/Northwing-${{ steps.version.outputs.version }}-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Northwing ${{ steps.version.outputs.version }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          body_path: docs/NORTHWING_RELEASE_NOTES.md
+          files: |
+            dist/Northwing-${{ steps.version.outputs.version }}-windows-x64-setup.exe
+            dist/Northwing-${{ steps.version.outputs.version }}-windows-x64-portable.zip
+            dist/Northwing-${{ steps.version.outputs.version }}-SHA256SUMS.txt
