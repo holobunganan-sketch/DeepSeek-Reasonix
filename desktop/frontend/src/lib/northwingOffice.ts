@@ -1,4 +1,5 @@
 import { app } from "./bridge";
+import "./northwingOffice.css";
 
 export type NorthwingOfficeReport = {
   path: string;
