@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -48,10 +49,11 @@ type Workspace struct {
 }
 
 // Tools returns the built-in tools bound to the workspace, ready to Add to a
-// per-run tool.Registry. An empty enabled list yields every built-in; otherwise
-// only the named ones are returned (unknown names are ignored). This is the
-// per-workspace analogue of the cli's process-cwd assembly — a desktop driver
-// calls it once per agent instead of relying on the global working directory.
+// per-run tool.Registry. An empty enabled list yields the normal Reasonix
+// built-ins plus Northwing Office only when this workspace has opted into a
+// `.northwing/project.json` manifest. An explicit enabled list may request the
+// Office tool directly. This keeps ordinary Reasonix prompts byte-stable while
+// making the capability automatic for CoWork projects.
 func (w Workspace) Tools(enabled ...string) []tool.Tool {
 	writeRoots := w.WriteRoots
 	if len(writeRoots) == 0 && w.Dir != "" {
@@ -79,12 +81,18 @@ func (w Workspace) Tools(enabled ...string) []tool.Tool {
 	}
 	all := tool.Builtins()
 	if len(enabled) == 0 {
-		for i, t := range all {
-			if bound, ok := overrides[t.Name()]; ok {
-				all[i] = bound
+		includeOffice := northwingProjectEnabled(w.Dir)
+		out := make([]tool.Tool, 0, len(all))
+		for _, t := range all {
+			if t.Name() == "northwing_office" && !includeOffice {
+				continue
 			}
+			if bound, ok := overrides[t.Name()]; ok {
+				t = bound
+			}
+			out = append(out, t)
 		}
-		return all
+		return out
 	}
 	want := make(map[string]bool, len(enabled))
 	for _, n := range enabled {
@@ -100,6 +108,15 @@ func (w Workspace) Tools(enabled ...string) []tool.Tool {
 		}
 	}
 	return out
+}
+
+func northwingProjectEnabled(workDir string) bool {
+	workDir = strings.TrimSpace(workDir)
+	if workDir == "" {
+		return false
+	}
+	info, err := os.Stat(filepath.Join(workDir, ".northwing", "project.json"))
+	return err == nil && info.Mode().IsRegular()
 }
 
 // resolveIn maps a tool's path/pattern argument into a working directory. With
