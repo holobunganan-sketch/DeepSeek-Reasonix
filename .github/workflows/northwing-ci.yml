@@ -53,12 +53,15 @@ jobs:
             internal/tool/builtin
             internal/agent
             cmd/northwing
+            cmd/northwing-icon
             desktop/cowork_projects.go
             desktop/cowork_office.go
             desktop/northwing_identity.go
             desktop/northwing_protocol.go
             desktop/single_instance.go
             desktop/main.go
+            desktop/menu.go
+            desktop/tray.go
           )
           gofmt -w "${targets[@]}"
           git diff -- "${targets[@]}"
@@ -130,6 +133,9 @@ jobs:
       - name: Desktop tests
         working-directory: desktop
         run: go test ./...
+
+      - name: Generate Northwing icons
+        run: go run ./cmd/northwing-icon -root .
 
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
