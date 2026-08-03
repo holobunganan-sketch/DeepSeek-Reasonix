@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -34,13 +35,13 @@ type northwingGitHubRelease struct {
 // ever installing an upstream binary over Northwing.
 func (a *App) CheckNorthwingUpdate() (*UpdateInfo, error) {
 	info := &UpdateInfo{
-		Current:      version,
-		Channel:      "stable",
+		Current:       version,
+		Channel:       "stable",
 		CanSelfUpdate: false,
-		ManualOnly:   true,
-		ManualReason: "Install Northwing updates from the official Northwing release page.",
-		InstallMode:  "manual",
-		DownloadURL:  northwingReleasesPage,
+		ManualOnly:    true,
+		ManualReason:  "Install Northwing updates from the official Northwing release page.",
+		InstallMode:   "manual",
+		DownloadURL:   northwingReleasesPage,
 	}
 	client, err := httpClient()
 	if err != nil {
@@ -70,7 +71,7 @@ func (a *App) CheckNorthwingUpdate() (*UpdateInfo, error) {
 		return info, nil
 	}
 	var release northwingGitHubRelease
-	if err := json.NewDecoder(http.MaxBytesReader(nil, resp.Body, 1<<20)).Decode(&release); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&release); err != nil {
 		info.Err = fmt.Sprintf("decode Northwing release: %v", err)
 		return info, nil
 	}
