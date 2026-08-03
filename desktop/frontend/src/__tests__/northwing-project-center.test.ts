@@ -8,7 +8,7 @@ const source = (path: string) => readFileSync(resolve(dir, path), "utf8");
 const center = source("../components/NorthwingProjectCenter.tsx");
 const wrapper = source("../components/ProjectTree.tsx");
 const base = source("../components/ReasonixProjectTree.tsx");
-const desktop = source("../../cowork_projects.go");
+const desktop = source("../../../cowork_projects.go");
 
 let failed = 0;
 function ok(value: unknown, label: string) {
