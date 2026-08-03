@@ -123,6 +123,13 @@ async function localTargetToken() {
   return token;
 }
 
+async function projectTab(workspaceRoot: string): Promise<TabMeta> {
+  const tabs = await app.ListTabs();
+  const existing = tabs.find((tab) => tab.scope === "project" && tab.workspaceRoot === workspaceRoot && !tab.readOnly);
+  if (existing) return existing;
+  return app.EnsureBlankTab("project", workspaceRoot);
+}
+
 async function sessionPathForTab(tab: TabMeta): Promise<string> {
   const meta = await app.MetaForTab(tab.id);
   return meta.sessionPath || tab.sessionPath || "";
@@ -134,7 +141,7 @@ async function submitGoal(tab: TabMeta, goal: string, displayText = goal): Promi
     tab.id,
     goal,
     displayText,
-    `/goal ${goal}`,
+    goal,
     [],
     "goal",
     "auto",
@@ -230,8 +237,19 @@ export async function setCoworkArtifactFinal(workspaceRoot: string, artifactID: 
   return requiredBinding("SetCoworkArtifactFinal")(workspaceRoot, artifactID);
 }
 
-export async function previewCoworkArtifact(path: string): Promise<FilePreview> {
-  return app.ReadFile(path);
+export async function previewCoworkArtifact(workspaceRoot: string, path: string): Promise<FilePreview> {
+  const tab = await projectTab(workspaceRoot);
+  return app.ReadFileForTab(tab.id, path);
+}
+
+export async function openCoworkArtifact(workspaceRoot: string, path: string): Promise<void> {
+  const tab = await projectTab(workspaceRoot);
+  await app.OpenWorkspacePathForTab(tab.id, path);
+}
+
+export async function revealCoworkArtifact(workspaceRoot: string, path: string): Promise<void> {
+  const tab = await projectTab(workspaceRoot);
+  await app.RevealWorkspacePathForTab(tab.id, path);
 }
 
 export async function reviseCoworkArtifact(
