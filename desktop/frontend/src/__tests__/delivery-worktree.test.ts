@@ -59,8 +59,8 @@ ok(/Goal[\s\S]*Materials[\s\S]*Deliverable[\s\S]*Constraints[\s\S]*Completion cr
 ok(/deliverables\/\$\{workID\.trim\(\)\}/.test(coworkAdapter), "each Work receives a deterministic deliverables directory");
 ok(/EnsureBlankTab\("project", workspaceRoot\)/.test(coworkAdapter), "new Work reuses a native Reasonix project session");
 ok(/SetTokenModeForTab\(tab\.id, "delivery"\)/.test(coworkAdapter), "Work uses the existing Reasonix Delivery profile");
-ok(/UpsertCoworkWork[\s\S]*submitGoal\(tab, brief\)/.test(coworkAdapter), "Work-session binding is durable before the first provider request");
-ok(/SubmitInitialGoalToTab\([\s\S]*displayText,[\s\S]*goal,[\s\S]*\[\]/.test(coworkAdapter), "atomic Goal submit sends the Work Brief directly without a second slash-command parse");
+ok(/UpsertCoworkWork[\s\S]*submitGoal\(tab, objective, brief, title\)/.test(coworkAdapter), "Work-session binding is durable before the first provider request");
+ok(/SubmitInitialGoalToTab\([\s\S]*goal,[\s\S]*displayText,[\s\S]*input,[\s\S]*\[\]/.test(coworkAdapter), "atomic Goal submit separates compact Goal/display from the full Work Brief input");
 ok(/"goal",[\s\S]*"auto"/.test(coworkAdapter), "Work retains safe automatic execution rather than YOLO");
 ok(/OpenTopicSession\("project", workspaceRoot, work\.goalId/.test(coworkAdapter), "saved Work reopens its durable Reasonix topic when available");
 ok(/ResumeSessionForTab\(tab\.id, work\.sessionPath\)/.test(coworkAdapter), "legacy Work falls back to its exact Reasonix session");
@@ -78,6 +78,7 @@ ok(/ReadFileForTab\(tab\.id, path\)/.test(coworkAdapter), "Artifact preview is s
 ok(/setCoworkArtifactFinal\(workspaceRoot, artifact\.id\)/.test(artifactCenter), "Artifact center marks a version as final");
 ok(/reviseCoworkArtifact\(workspaceRoot, project, revising, revision\)/.test(artifactCenter), "Artifact center starts scoped revision work");
 ok(/previewCoworkArtifact\(workspaceRoot, artifact\.path\)/.test(artifactCenter), "Artifact center provides a lightweight preview path");
+ok(/preview\.file\.kind === "image"[\s\S]*preview\.file\.kind === "pdf"/.test(artifactCenter), "Artifact center renders native image and PDF previews");
 
 if (failed) process.exit(1);
 console.log("delivery worktree and Northwing CoWork lifecycle tests passed");
