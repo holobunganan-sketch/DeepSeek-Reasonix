@@ -29,13 +29,9 @@ type northwingGitHubRelease struct {
 	Prerelease bool   `json:"prerelease"`
 }
 
-// CheckNorthwingUpdate queries only the Northwing fork's Release endpoint. The
-// initial product line is manual-update-only until Northwing has its own signed
-// manifest and signing keys; this prevents the inherited Reasonix updater from
-// ever installing an upstream binary over Northwing.
-func (a *App) CheckNorthwingUpdate() (*UpdateInfo, error) {
-	info := &UpdateInfo{
-		Current:       version,
+func newNorthwingUpdateInfo(current string) *UpdateInfo {
+	return &UpdateInfo{
+		Current:       current,
 		Channel:       "stable",
 		CanSelfUpdate: false,
 		ManualOnly:    true,
@@ -43,6 +39,31 @@ func (a *App) CheckNorthwingUpdate() (*UpdateInfo, error) {
 		InstallMode:   "manual",
 		DownloadURL:   northwingReleasesPage,
 	}
+}
+
+func evaluateNorthwingRelease(info *UpdateInfo, release northwingGitHubRelease) {
+	if info == nil || release.Draft || release.Prerelease || !northwingTagRE.MatchString(release.TagName) {
+		return
+	}
+	latest := strings.TrimPrefix(release.TagName, "northwing-")
+	current := strings.TrimSpace(info.Current)
+	if !strings.HasPrefix(current, "v") {
+		current = "v" + current
+	}
+	info.Latest = latest
+	info.Notes = release.Body
+	if strings.HasPrefix(release.HTMLURL, "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/") {
+		info.DownloadURL = release.HTMLURL
+	}
+	info.Available = semver.IsValid(current) && semver.IsValid(latest) && semver.Compare(latest, current) > 0
+}
+
+// CheckNorthwingUpdate queries only the Northwing fork's Release endpoint. The
+// initial product line is manual-update-only until Northwing has its own signed
+// manifest and signing keys; this prevents the inherited Reasonix updater from
+// ever installing an upstream binary over Northwing.
+func (a *App) CheckNorthwingUpdate() (*UpdateInfo, error) {
+	info := newNorthwingUpdateInfo(version)
 	client, err := httpClient()
 	if err != nil {
 		info.Err = err.Error()
@@ -75,20 +96,7 @@ func (a *App) CheckNorthwingUpdate() (*UpdateInfo, error) {
 		info.Err = fmt.Sprintf("decode Northwing release: %v", err)
 		return info, nil
 	}
-	if release.Draft || release.Prerelease || !northwingTagRE.MatchString(release.TagName) {
-		return info, nil
-	}
-	latest := strings.TrimPrefix(release.TagName, "northwing-")
-	current := strings.TrimSpace(version)
-	if !strings.HasPrefix(current, "v") {
-		current = "v" + current
-	}
-	info.Latest = latest
-	info.Notes = release.Body
-	if strings.HasPrefix(release.HTMLURL, "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/") {
-		info.DownloadURL = release.HTMLURL
-	}
-	info.Available = semver.IsValid(current) && semver.IsValid(latest) && semver.Compare(latest, current) > 0
+	evaluateNorthwingRelease(info, release)
 	return info, nil
 }
 
