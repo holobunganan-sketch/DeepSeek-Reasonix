@@ -1,9 +1,6 @@
-// Command reasonix-desktop is the Wails shell around the Reasonix kernel: a native
-// window hosting a webview frontend, with the Go-side control.Controller bound
-// directly to the UI (no HTTP hop — bindings in, runtime events out). It lives in
-// a nested module (reasonix/desktop) so the CGO/WebKit desktop build never touches
-// the CLI's CGO_ENABLED=0 single-static-binary guarantee, while still importing
-// the same internal/* kernel.
+// Command northwing is the Wails shell around the complete Reasonix kernel: a
+// native window hosting a webview frontend, with the Go-side controller bound
+// directly to the UI (no HTTP hop — bindings in, runtime events out).
 package main
 
 import (
@@ -30,32 +27,26 @@ import (
 	_ "reasonix/internal/tool/builtin"
 )
 
-// assets embeds the built frontend. `all:` so dotfiles (e.g. the dist .gitkeep
-// that keeps this directive compilable before the first `pnpm build`) are
-// included. A real run requires `pnpm build` (or `wails build`) to populate dist.
+// assets embeds the built frontend. `all:` so dotfiles are included. A real run
+// requires `pnpm build` (or `wails build`) to populate dist.
 //
 //go:embed all:frontend/dist
 var assets embed.FS
 
-// version is injected at build time via `wails build -ldflags "-X main.version=..."`,
-// mirroring cmd/reasonix/main.go. The auto-updater reads it (App.Version) to compare
-// against the published manifest; an un-injected dev build stays "dev" and never
-// prompts to update.
+// version is injected at build time via `wails build -ldflags "-X main.version=..."`.
 var version = "dev"
 
-// channel records the build's release line, injected via
-// `-X main.channel=preview`. Default "stable" tracks the public release;
-// "preview" tracks the opt-in test line. Legacy "canary" builds are treated as
-// preview for compatibility.
+// channel records the build's release line. Default stable tracks Northwing
+// releases; preview tracks opt-in test builds.
 var channel = "stable"
 
-// macSelfUpdate is injected as "true" only for Developer ID signed + notarized
-// macOS release builds. Local/ad-hoc macOS builds keep the manual download path.
+// macSelfUpdate is injected as true only for signed + notarized macOS builds.
 var macSelfUpdate = "false"
 
 const (
-	disableWebview2GPUEnv  = "REASONIX_DESKTOP_DISABLE_WEBVIEW2_GPU"
-	linuxDRIRenderNodeGlob = "/dev/dri/renderD*"
+	disableWebview2GPUEnv       = "NORTHWING_DESKTOP_DISABLE_WEBVIEW2_GPU"
+	legacyDisableWebview2GPUEnv = "REASONIX_DESKTOP_DISABLE_WEBVIEW2_GPU"
+	linuxDRIRenderNodeGlob      = "/dev/dri/renderD*"
 )
 
 func macSelfUpdateAllowed() bool {
@@ -68,12 +59,14 @@ func macSelfUpdateAllowed() bool {
 }
 
 func windowsWebview2GPUDisabled() bool {
-	if raw, ok := os.LookupEnv(disableWebview2GPUEnv); ok {
-		switch strings.ToLower(strings.TrimSpace(raw)) {
-		case "1", "true", "yes", "on":
-			return true
-		case "0", "false", "no", "off", "":
-			return false
+	for _, name := range []string{disableWebview2GPUEnv, legacyDisableWebview2GPUEnv} {
+		if raw, ok := os.LookupEnv(name); ok {
+			switch strings.ToLower(strings.TrimSpace(raw)) {
+			case "1", "true", "yes", "on":
+				return true
+			case "0", "false", "no", "off", "":
+				return false
+			}
 		}
 	}
 	return channel == "preview" || channel == "canary"
@@ -95,36 +88,27 @@ func linuxWebviewGpuPolicy(pattern string) linux.WebviewGpuPolicy {
 
 func main() {
 	// OpenSSH launches the Desktop executable itself as the short-lived
-	// SSH_ASKPASS helper. Handle that one-time capability before configuration,
-	// startup tracking, single-instance setup, Wails, or any logging/persistence.
+	// SSH_ASKPASS helper. Handle that one-time capability before Wails.
 	if handled, exitCode := RunRemoteAskPassHelper(context.Background(), os.Args[1:], os.Getenv, os.Stdout); handled {
 		os.Exit(exitCode)
 	}
-	// Detached macOS self-update child: wait for the old PID, hold the shared
-	// repair mutation lock, then swap the .app bundle. Must run before Wails.
 	if handled, exitCode := maybeRunMacUpdateHandoff(os.Args[1:]); handled {
 		os.Exit(exitCode)
 	}
 	capturePreviousFatalCrash()
 	installFatalCrashOutput()
 
-	// Accept and strip legacy launch tokens from old shortcuts
-	// (launch --detach --safe-mode). They produce no product behavior.
+	// Accept and strip legacy launch tokens from old shortcuts.
 	_ = parseDesktopLaunchArgs(os.Args[1:])
 
-	// Observe previous run for crash diagnostics only. Startup tracking must
-	// never force Safe Mode, disable plugins, or select a previous binary.
 	previousRun := repair.NewStartupTracker("").ObservePreviousRun()
-
 	app := NewApp()
 	app.previousRun = previousRun
-	title := "Reasonix"
 	singleInstance := singleInstanceLock(app)
 	appMenu := app.createAppMenu()
 	dragAndDrop := &options.DragAndDrop{EnableFileDrop: true}
 	bindings := []any{app}
 
-	// Restore saved window size, or fall back to the default.
 	width, height := 1240, 720
 	if saved, ok := loadWindowState(); ok {
 		if saved.Width > 0 {
@@ -135,26 +119,21 @@ func main() {
 		}
 	}
 
-	// Restore saved desktop zoom factor (WebView2 ZoomFactor), or default to 1.0.
 	zoomFactor := 1.0
 	if zf, ok := loadZoomFactor(); ok && zf > 0 {
 		zoomFactor = zf
 	}
 
-	// On Linux, cover JavaScriptCore's lazy signal-handler installation window.
-	// Other platforms provide a no-op implementation.
 	scheduleWebKitSignalHandlerRepair()
 
 	err := wails.Run(&options.App{
-		Title:     title,
+		Title:     northwingProductName,
 		Width:     width,
 		Height:    height,
 		Frameless: goruntime.GOOS == "windows",
 		Logger:    newCrashCaptureLogger(app),
 		MinWidth:  760,
 		MinHeight: 480,
-		// Match the dark UI shell so the initial webview background doesn't flash
-		// white before CSS loads — particularly visible on WebKitGTK.
 		BackgroundColour: &options.RGBA{R: 26, G: 26, B: 46, A: 255},
 		AssetServer: &assetserver.Options{
 			Assets: assets,
@@ -171,43 +150,21 @@ func main() {
 		OnShutdown:         app.shutdown,
 		Bind:               bindings,
 		SingleInstanceLock: singleInstance,
+		StartHidden:        true,
+		Menu:               appMenu,
+		DragAndDrop:        dragAndDrop,
 
-		// Start hidden — domReady positions and shows the window after restoring
-		// geometry, so the user never sees the default size/position flash.
-		StartHidden: true,
-
-		// Native application menu (File > Settings, Edit, Window).
-		Menu: appMenu,
-
-		// Native OS file drops: the webview withholds dropped files' paths from the
-		// HTML drop event, so the frontend (composer) reads them via runtime.OnFileDrop
-		// against the --wails-drop-target element instead.
-		DragAndDrop: dragAndDrop,
-
-		// --- per-platform adaptation (see desktop/README.md for the rationale) ---
 		Mac: &mac.Options{
-			// Inset traffic-lights over a frameless-feeling header; the frontend
-			// leaves a drag region at the top (CSS --wails-draggable).
-			TitleBar: mac.TitleBarHiddenInset(),
-			// Follow the OS appearance so the title bar matches light/dark system
-			// preference instead of being locked to dark.
+			TitleBar:  mac.TitleBarHiddenInset(),
 			Appearance: mac.DefaultAppearance,
 		},
 		Windows: &windows.Options{
-			// Follow the OS theme so the title bar matches light/dark system
-			// preference instead of being locked to dark.
 			Theme:                windows.SystemDefault,
 			ZoomFactor:           zoomFactor,
 			WebviewGpuIsDisabled: windowsWebview2GPUDisabled(),
 		},
 		Linux: &linux.Options{
-			ProgramName: "Reasonix",
-			// WebKitGTK GPU compositing is inconsistent across distros/drivers and
-			// is the one real cross-platform rough edge for a Go+webview stack:
-			// "always" can yield blank or flickering webviews on some setups, so
-			// we let the webview decide on demand when a render node is usable, and
-			// disable acceleration when remote/software-rendered sessions cannot
-			// access /dev/dri.
+			ProgramName:      northwingProductName,
 			WebviewGpuPolicy: linuxWebviewGpuPolicy(linuxDRIRenderNodeGlob),
 		},
 	})
@@ -217,10 +174,8 @@ func main() {
 }
 
 // desktopLaunchOptions captures legacy argv that old installers/shortcuts may
-// still pass. Fields are accepted and ignored so migration never crashes on
-// unknown product switches.
+// still pass. Fields are accepted and ignored so migration never crashes.
 type desktopLaunchOptions struct {
-	// LegacySafeModeArg is true when --safe-mode was present. v1.20+ ignores it.
 	LegacySafeModeArg bool
 }
 
