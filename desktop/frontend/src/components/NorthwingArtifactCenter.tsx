@@ -46,7 +46,7 @@ function localText() {
     revise: "修改",
     revisePlaceholder: "说明需要修改什么",
     submitRevision: "开始修改",
-    binaryPreview: "该文件不适合文本预览，请使用“打开”。",
+    binaryPreview: "该文件不适合内置预览，请使用“打开”。",
     close: "关闭",
     version: "版本",
   } : {
@@ -66,7 +66,7 @@ function localText() {
     revise: "Revise",
     revisePlaceholder: "Describe the required change",
     submitRevision: "Start revision",
-    binaryPreview: "This file is not suitable for text preview. Use Open instead.",
+    binaryPreview: "This file does not support embedded preview. Use Open instead.",
     close: "Close",
     version: "Version",
   };
@@ -81,6 +81,10 @@ function timeLabel(value?: string): string {
 
 function basename(path: string): string {
   return path.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? path;
+}
+
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 export function NorthwingArtifactCenter({
@@ -124,7 +128,7 @@ export function NorthwingArtifactCenter({
     try {
       onState(await readCoworkProjectState(workspaceRoot, true));
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorText(err));
     } finally {
       setBusy("");
     }
@@ -138,7 +142,7 @@ export function NorthwingArtifactCenter({
       await continueCoworkWork(workspaceRoot, work);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorText(err));
     } finally {
       setBusy("");
     }
@@ -150,7 +154,7 @@ export function NorthwingArtifactCenter({
     try {
       setPreview({ artifact, file: await previewCoworkArtifact(workspaceRoot, artifact.path) });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorText(err));
     } finally {
       setBusy("");
     }
@@ -162,7 +166,7 @@ export function NorthwingArtifactCenter({
     try {
       onState(await setCoworkArtifactFinal(workspaceRoot, artifact.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorText(err));
     } finally {
       setBusy("");
     }
@@ -178,9 +182,27 @@ export function NorthwingArtifactCenter({
       setRevision("");
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorText(err));
     } finally {
       setBusy("");
+    }
+  };
+
+  const openArtifact = async (artifact: CoworkArtifact) => {
+    setError("");
+    try {
+      await openCoworkArtifact(workspaceRoot, artifact.path);
+    } catch (err) {
+      setError(errorText(err));
+    }
+  };
+
+  const revealArtifact = async (artifact: CoworkArtifact) => {
+    setError("");
+    try {
+      await revealCoworkArtifact(workspaceRoot, artifact.path);
+    } catch (err) {
+      setError(errorText(err));
     }
   };
 
@@ -250,8 +272,8 @@ export function NorthwingArtifactCenter({
                       {isFinal && <span className="northwing-artifact-row__final"><CheckCircle2 size={12} />{t.finalBadge}</span>}
                       <div className="northwing-artifact-row__actions">
                         <button type="button" onClick={() => void showPreview(artifact)} disabled={Boolean(busy)}>{t.preview}</button>
-                        <button type="button" onClick={() => void openCoworkArtifact(workspaceRoot, artifact.path)}><ExternalLink size={12} />{t.open}</button>
-                        <button type="button" onClick={() => void revealCoworkArtifact(workspaceRoot, artifact.path)}><FolderSearch size={12} />{t.reveal}</button>
+                        <button type="button" onClick={() => void openArtifact(artifact)}><ExternalLink size={12} />{t.open}</button>
+                        <button type="button" onClick={() => void revealArtifact(artifact)}><FolderSearch size={12} />{t.reveal}</button>
                         <button type="button" onClick={() => void markFinal(artifact)} disabled={Boolean(busy) || isFinal}><Star size={12} />{t.final}</button>
                         <button type="button" onClick={() => { setRevising(artifact); setRevision(""); }} disabled={Boolean(busy)}>{t.revise}</button>
                       </div>
@@ -266,7 +288,15 @@ export function NorthwingArtifactCenter({
         {preview && (
           <aside className="northwing-artifact-preview">
             <header><strong>{basename(preview.artifact.path)}</strong><button type="button" onClick={() => setPreview(null)}><X size={14} /></button></header>
-            {preview.file.binary ? <p>{t.binaryPreview}</p> : <pre>{preview.file.body || "(empty file)"}</pre>}
+            {preview.file.kind === "image" && preview.file.url ? (
+              <img src={preview.file.url} alt={basename(preview.artifact.path)} />
+            ) : preview.file.kind === "pdf" && preview.file.url ? (
+              <iframe src={preview.file.url} title={basename(preview.artifact.path)} />
+            ) : preview.file.binary ? (
+              <p>{t.binaryPreview}</p>
+            ) : (
+              <pre>{preview.file.body || "(empty file)"}</pre>
+            )}
           </aside>
         )}
 
