@@ -43,11 +43,10 @@ jobs:
       - name: Go format
         shell: bash
         run: |
-          files=$(gofmt -l internal/office internal/cowork internal/tool/builtin internal/agent cmd/northwing)
-          if [ -n "$files" ]; then
-            echo "$files"
-            exit 1
-          fi
+          targets=(internal/office internal/cowork internal/tool/builtin internal/agent cmd/northwing)
+          gofmt -w "${targets[@]}"
+          git diff -- "${targets[@]}"
+          git diff --exit-code -- "${targets[@]}"
 
       - name: Kernel tests
         run: go test ./...
