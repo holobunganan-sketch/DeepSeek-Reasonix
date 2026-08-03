@@ -135,13 +135,13 @@ async function sessionPathForTab(tab: TabMeta): Promise<string> {
   return meta.sessionPath || tab.sessionPath || "";
 }
 
-async function submitGoal(tab: TabMeta, goal: string, displayText = goal): Promise<void> {
+async function submitGoal(tab: TabMeta, goal: string, input: string, displayText: string): Promise<void> {
   const target = await localTargetToken();
   await app.SubmitInitialGoalToTab(
     tab.id,
     goal,
     displayText,
-    goal,
+    input,
     [],
     "goal",
     "auto",
@@ -163,6 +163,7 @@ export async function createCoworkProject(workspaceRoot: string, name: string): 
 export async function launchCoworkWork(workspaceRoot: string, draft: CoworkWorkDraft): Promise<{ project: CoworkProject; work: CoworkWorkRef; tab: TabMeta }> {
   const workID = createCoworkWorkID();
   const title = draft.title.trim() || draft.objective.trim().slice(0, 72) || "Untitled work";
+  const objective = draft.objective.trim() || title;
   const brief = buildCoworkWorkBrief(workID, { ...draft, title });
 
   await localTargetToken();
@@ -181,10 +182,10 @@ export async function launchCoworkWork(workspaceRoot: string, draft: CoworkWorkD
   };
   const project = await requiredBinding("UpsertCoworkWork")(workspaceRoot, work);
 
-  // The Work link is durable before the first provider request. If submission
-  // fails, reopening the Work still restores the same Reasonix session instead
-  // of silently losing the user's brief.
-  await submitGoal(tab, brief);
+  // The Work link is durable before the first provider request. The compact
+  // title is shown in the transcript, the objective remains the Goal state,
+  // and the full Work Brief is the actual user input sent to the model.
+  await submitGoal(tab, objective, brief, title);
   return { project, work, tab };
 }
 
@@ -212,12 +213,12 @@ export async function continueCoworkWork(workspaceRoot: string, work: CoworkWork
   const tab = await openCoworkWork(workspaceRoot, work);
   const resumed = await app.ResumeGoalForTab(tab.id);
   if (!resumed) {
-    const goal = [
+    const input = [
       `Continue the Northwing work “${work.title}” from the restored Reasonix session.`,
       `Inspect the existing conversation, project files, and \`${coworkWorkOutputDir(work.id)}/\`.`,
       "Complete any unresolved requirements, validate the resulting files, and keep formal outputs in that deliverables directory.",
     ].join("\n\n");
-    await submitGoal(tab, goal);
+    await submitGoal(tab, work.title, input, `Continue ${work.title}`);
   }
   const updated: CoworkWorkRef = {
     ...work,
@@ -262,12 +263,12 @@ export async function reviseCoworkArtifact(
   const work = (project.works ?? []).find((candidate) => candidate.id === artifact.workId);
   const tab = work ? await openCoworkWork(workspaceRoot, work) : await app.EnsureBlankTab("project", workspaceRoot);
   await app.SetTokenModeForTab(tab.id, "delivery");
-  const goal = [
+  const input = [
     `Revise @${artifact.path} according to the following instruction:`,
     instruction.trim(),
     "Preserve correct existing content, make the smallest sufficient change, and validate the revised file.",
     `Keep the formal output under \`${artifact.workId ? coworkWorkOutputDir(artifact.workId) : "deliverables"}/\` so Northwing can register the next version automatically.`,
   ].join("\n\n");
-  await submitGoal(tab, goal, `Revise ${artifact.path}`);
+  await submitGoal(tab, `Revise ${artifact.path}`, input, `Revise ${artifact.path}`);
   return tab;
 }
