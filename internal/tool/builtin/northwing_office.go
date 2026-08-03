@@ -47,7 +47,7 @@ func (northwingOffice) Schema() json.RawMessage {
 }`)
 }
 
-func (northwingOffice) ReadOnly() bool { return false }
+func (northwingOffice) ReadOnly() bool     { return false }
 func (northwingOffice) PlanModeSafe() bool { return false }
 
 func (n northwingOffice) Execute(ctx context.Context, args json.RawMessage) (string, error) {
