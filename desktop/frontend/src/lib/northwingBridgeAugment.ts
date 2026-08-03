@@ -33,9 +33,13 @@ export type NorthwingOfficeReport = {
   warnings?: string[];
 };
 
-// Wails regenerates App method declarations from the Go surface. Keeping the
-// Northwing additions optional preserves the browser-dev mock while extending
-// bridge.ts's generated-method drift check after a real desktop build.
+export type NorthwingLaunch = {
+  raw: string;
+  action: string;
+  workspace?: string;
+  mode?: "chat" | "work" | string;
+};
+
 declare module "./bridge" {
   interface AppBindings {
     CreateCoworkProject?(workspaceRoot: string, name: string): Promise<CoworkProject>;
@@ -48,6 +52,7 @@ declare module "./bridge" {
     SetCoworkArtifactFinal?(workspaceRoot: string, artifactID: string): Promise<CoworkProjectState>;
     RegisterCoworkArtifact?(workspaceRoot: string, path: string, kind: string, workID: string): Promise<CoworkProject>;
     InspectCoworkArtifact?(workspaceRoot: string, artifactPath: string): Promise<NorthwingOfficeReport>;
+    PendingNorthwingLaunches?(): Promise<NorthwingLaunch[]>;
   }
 }
 
