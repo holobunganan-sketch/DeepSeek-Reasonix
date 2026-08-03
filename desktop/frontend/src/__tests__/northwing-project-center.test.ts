@@ -6,6 +6,9 @@ import { fileURLToPath } from "node:url";
 const dir = dirname(fileURLToPath(import.meta.url));
 const source = (path: string) => readFileSync(resolve(dir, path), "utf8");
 const center = source("../components/NorthwingProjectCenter.tsx");
+const workDialog = source("../components/NorthwingWorkDialog.tsx");
+const artifactCenter = source("../components/NorthwingArtifactCenter.tsx");
+const adapter = source("../lib/northwingCowork.ts");
 const wrapper = source("../components/ProjectTree.tsx");
 const base = source("../components/ReasonixProjectTree.tsx");
 const desktop = source("../../../cowork_projects.go");
@@ -20,11 +23,13 @@ function ok(value: unknown, label: string) {
 }
 
 console.log("\nNorthwing project center");
-ok(/CoworkProjectSummaries\(workspaceRoots \[\]string\)/.test(desktop), "desktop exposes one batch summary binding");
+ok(/CoworkProjectState\(workspaceRoot string, syncArtifacts bool\)/.test(desktop), "desktop exposes one current-project state binding");
 ok(!/ListProjectTree\(/.test(center), "center does not rebuild the Reasonix project tree");
-ok(/CoworkProjectSummaries\(\[activeWorkspaceRoot\]\)/.test(center), "only the active manifest crosses Wails");
-ok(!/LoadCoworkProject\(/.test(center), "center does not load full manifests over separate Wails calls");
-ok(/CreateCoworkProject\(activeWorkspaceRoot/.test(center), "active regular workspace can opt into CoWork");
+ok(/readCoworkProjectState\(workspaceRoot, syncArtifacts\)/.test(adapter), "one state call loads and optionally syncs the active project");
+ok(/createCoworkProject\(activeWorkspaceRoot/.test(center), "active regular workspace can opt into CoWork");
+ok(/<NorthwingWorkDialog/.test(center) && /<NorthwingArtifactCenter/.test(center), "project center exposes Work and Artifact entry points");
+ok(/launchCoworkWork\(workspaceRoot, draft\)/.test(workDialog), "Work dialog launches the Goal and Delivery lifecycle");
+ok(/continueCoworkWork\(workspaceRoot, work\)/.test(artifactCenter), "Work list resumes saved sessions");
 ok(/<NorthwingProjectCenter[\s\S]*<ReasonixProjectTree/.test(wrapper), "Northwing remains a thin wrapper around the Reasonix tree");
 ok(/export function ProjectTree\(/.test(base), "complete Reasonix project tree stays present as the base component");
 ok(/session transcripts, artifact bodies, or Reasonix execution state/.test(desktop), "binding documents the no-duplication boundary");
