@@ -16,11 +16,15 @@ func TestBuiltinToolContractDocumentation(t *testing.T) {
 	if len(entries) == 0 {
 		t.Fatal("no built-in tool contract entries")
 	}
-	doc, err := os.ReadFile("../../docs/TOOL_CONTRACT.md")
+	base, err := os.ReadFile("../../docs/TOOL_CONTRACT.md")
 	if err != nil {
 		t.Fatalf("read docs/TOOL_CONTRACT.md: %v", err)
 	}
-	text := string(doc)
+	extension, err := os.ReadFile("../../docs/NORTHWING_TOOL_CONTRACT.md")
+	if err != nil {
+		t.Fatalf("read docs/NORTHWING_TOOL_CONTRACT.md: %v", err)
+	}
+	text := string(base) + "\n" + string(extension)
 	for _, e := range entries {
 		if !strings.Contains(text, "| `"+e.Name+"` |") {
 			t.Errorf("documentation missing table row for %s", e.Name)
@@ -81,7 +85,7 @@ func TestEveryBuiltinDeclaresSnipStance(t *testing.T) {
 		case hints && acceptsDefaultSnip[name]:
 			t.Errorf("%s both implements SnipHinter and is listed in acceptsDefaultSnip; remove it from the list", name)
 		case !hints && !acceptsDefaultSnip[name]:
-			t.Errorf("built-in %q declares no snip stance: implement tool.SnipHinter for a tailored geometry, or add it to acceptsDefaultSnip if the ReadOnly-tiered default is right (this guards against a context-maintenance strategy silently desyncing from the tool surface)", name)
+			t.Errorf("built-in %q declares no snip stance: implement tool.SnipHinter for a tailored geometry, or add it to acceptsDefaultSnip if the ReadOnly-tiered default is right (this guards against a renamed/new tool silently taking a generic default)", name)
 		}
 	}
 }
