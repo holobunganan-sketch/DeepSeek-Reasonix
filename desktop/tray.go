@@ -40,8 +40,8 @@ func (a *App) startTray() bool {
 
 	end := startDesktopTray(func() {
 		systray.SetIcon(trayIconBytes)
-		systray.SetTitle("Reasonix")
-		systray.SetTooltip("Reasonix")
+		systray.SetTitle(northwingProductName)
+		systray.SetTooltip(northwingProductName)
 		// Run off the systray Win32 message loop: SetOnTapped fires inside wndProc,
 		// so a blocking showFromTray (a wedged webview after sleep freezes
 		// runtime.WindowShow) would stall the whole tray's message pump (#3834). The
@@ -147,15 +147,15 @@ func trayMenuLabels(locale string) trayLabels {
 	if locale == "zh" {
 		return trayLabels{
 			openTitle:   "打开",
-			openTooltip: "打开 Reasonix 窗口",
+			openTooltip: "打开 Northwing 窗口",
 			quitTitle:   "退出",
-			quitTooltip: "退出 Reasonix",
+			quitTooltip: "退出 Northwing",
 		}
 	}
 	return trayLabels{
 		openTitle:   "Open",
-		openTooltip: "Open the Reasonix window",
+		openTooltip: "Open the Northwing window",
 		quitTitle:   "Quit",
-		quitTooltip: "Quit Reasonix",
+		quitTooltip: "Quit Northwing",
 	}
 }
