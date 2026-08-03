@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { NorthwingProjectCenter } from "./NorthwingProjectCenter";
+import { NorthwingCoworkRail } from "./NorthwingCoworkRail";
 import { ProjectTree as ReasonixProjectTree } from "./ReasonixProjectTree";
 
 export {
@@ -30,14 +30,13 @@ export type {
 
 type ProjectTreeProps = ComponentProps<typeof ReasonixProjectTree>;
 
-// Northwing adds one compact CoWork projection above the existing Reasonix
-// project tree. The original component remains intact in ReasonixProjectTree:
-// all session navigation, topic actions, delivery worktrees, search, sorting,
-// shortcuts, and runtime status behavior continue through the same props.
+// Northwing adds a compact Chat/Work control surface above the complete
+// Reasonix project tree. Reasonix remains the only execution and navigation
+// implementation underneath this product layer.
 export function ProjectTree(props: ProjectTreeProps) {
   return (
     <>
-      <NorthwingProjectCenter
+      <NorthwingCoworkRail
         activeWorkspaceRoot={props.activeWorkspaceRoot}
         refreshSignal={props.refreshSignal}
         onAddProject={props.onAddProject}
