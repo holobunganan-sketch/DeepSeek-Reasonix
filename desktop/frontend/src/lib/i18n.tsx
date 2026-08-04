@@ -25,6 +25,11 @@ const DICTS: Partial<Record<Locale, Dict>> = { en };
 const localeLoads = new Map<Locale, Promise<void>>();
 const STORAGE_KEY = "reasonix-lang";
 const PRODUCT_NAME = "Northwing";
+const KERNEL_TERM_MARKERS = [
+  "Reasonix's built-in read-only set",
+  "Reasonix 内置只读集合",
+  "Reasonix 內置唯讀集合",
+] as const;
 
 // currentLocale mirrors the active locale for callers outside React (lib/tools.ts).
 let currentLocale: Locale = "en";
@@ -100,7 +105,10 @@ export function clearLegacyLangPref(): void {
 // config keys, environment variables, file formats, and Reasonix compatibility
 // APIs remain untouched, which keeps the kernel and upstream synchronization
 // stable while preventing inherited product copy from leaking into Northwing.
+// Explicit references to the Reasonix kernel's policy sets remain technical
+// terminology and must not be relabelled as Northwing product behavior.
 export function brandText(value: string): string {
+  if (KERNEL_TERM_MARKERS.some((marker) => value.includes(marker))) return value;
   return value.replaceAll("Reasonix", PRODUCT_NAME);
 }
 
