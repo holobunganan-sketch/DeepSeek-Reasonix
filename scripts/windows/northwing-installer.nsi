@@ -8,12 +8,15 @@ RequestExecutionLevel user
 !ifndef APP_VERSION
   !define APP_VERSION "0.1.0"
 !endif
+!ifndef APP_SOURCE_EXE
+  !define APP_SOURCE_EXE "${__FILEDIR__}\..\..\desktop\build\bin\northwing.exe"
+!endif
 !define APP_PUBLISHER "Northwing Contributors"
 !define APP_ID "io.github.holobunganansketch.northwing"
 !define APP_EXE "northwing.exe"
 
 Name "${APP_NAME}"
-OutFile "Northwing-${APP_VERSION}-windows-x64-setup.exe"
+OutFile "${__FILEDIR__}\..\..\Northwing-${APP_VERSION}-windows-x64-setup.exe"
 InstallDir "$LOCALAPPDATA\Programs\Northwing"
 InstallDirRegKey HKCU "Software\Northwing" "InstallDir"
 BrandingText "Northwing — From intent to finished work."
@@ -31,7 +34,7 @@ BrandingText "Northwing — From intent to finished work."
 Section "Northwing" SEC_MAIN
   SetShellVarContext current
   SetOutPath "$INSTDIR"
-  File "..\..\desktop\build\bin\northwing.exe"
+  File "${APP_SOURCE_EXE}"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
   WriteRegStr HKCU "Software\Northwing" "InstallDir" "$INSTDIR"
