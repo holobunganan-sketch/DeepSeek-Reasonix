@@ -97,8 +97,40 @@ jobs:
         run: pnpm typecheck
 
       - name: Frontend tests
+        id: frontend_tests
+        continue-on-error: true
         working-directory: desktop/frontend
-        run: pnpm test
+        shell: bash
+        run: |
+          set +e
+          pnpm test 2>&1 | tee "$RUNNER_TEMP/frontend-test.log"
+          code=${PIPESTATUS[0]}
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Extract frontend test diagnostic
+        if: steps.frontend_tests.outputs.exit_code != '0'
+        shell: bash
+        run: |
+          {
+            echo "exit_code=${{ steps.frontend_tests.outputs.exit_code }}"
+            echo "--- failure lines ---"
+            grep -nE 'FAIL|failed|expected|got|Error:|ELIFECYCLE' "$RUNNER_TEMP/frontend-test.log" | tail -n 180 || true
+            echo "--- final 260 lines ---"
+            tail -n 260 "$RUNNER_TEMP/frontend-test.log"
+          } > "$RUNNER_TEMP/frontend-diagnostic.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.frontend_tests.outputs.exit_code != '0'
+        with:
+          name: northwing-frontend-diagnostic-${{ github.sha }}
+          path: ${{ runner.temp }}/frontend-diagnostic.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Preserve frontend test result
+        if: steps.frontend_tests.outputs.exit_code != '0'
+        run: exit 1
 
       - name: Frontend build
         working-directory: desktop/frontend
