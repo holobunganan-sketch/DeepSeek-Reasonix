@@ -19,7 +19,10 @@ function ok(cond: boolean, label: string) {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appSource = readFileSync(resolve(here, "../App.tsx"), "utf8");
-const projectTreeSource = readFileSync(resolve(here, "../components/ProjectTree.tsx"), "utf8");
+const projectTreeSource = [
+  readFileSync(resolve(here, "../components/ProjectTree.tsx"), "utf8"),
+  readFileSync(resolve(here, "../components/ReasonixProjectTree.tsx"), "utf8"),
+].join("\n");
 const settingsSource = readFileSync(resolve(here, "../components/SettingsPanel.tsx"), "utf8");
 const markdownSource = readFileSync(resolve(here, "../components/Markdown.tsx"), "utf8");
 const i18nSource = readFileSync(resolve(here, "../lib/i18n.tsx"), "utf8");
