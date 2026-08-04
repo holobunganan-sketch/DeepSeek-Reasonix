@@ -17,8 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  kernel-and-frontend:
-    name: Kernel and frontend
+  kernel-and-office:
+    name: Kernel and Office
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,16 +29,6 @@ jobs:
           cache-dependency-path: |
             go.sum
             desktop/go.sum
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: desktop/frontend/pnpm-lock.yaml
 
       - uses: actions/setup-python@v5
         with:
@@ -88,15 +78,31 @@ jobs:
             pypdf==5.9.0
           python scripts/verify_northwing_office.py "$NORTHWING_OFFICE_FIXTURE_DIR"
 
-      - name: Frontend install
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/frontend/pnpm-lock.yaml
+
+      - name: Install frontend
         working-directory: desktop/frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Frontend typecheck
+      - name: Typecheck
         working-directory: desktop/frontend
         run: pnpm typecheck
 
-      - name: Frontend tests
+      - name: Tests
         id: frontend_tests
         continue-on-error: true
         working-directory: desktop/frontend
@@ -108,7 +114,7 @@ jobs:
           echo "exit_code=$code" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - name: Extract frontend test diagnostic
+      - name: Extract test diagnostic
         if: steps.frontend_tests.outputs.exit_code != '0'
         shell: bash
         run: |
@@ -128,18 +134,20 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      - name: Preserve frontend test result
+      - name: Preserve test result
         if: steps.frontend_tests.outputs.exit_code != '0'
         run: exit 1
 
-      - name: Frontend build
+      - name: Production build
         working-directory: desktop/frontend
         run: pnpm build
 
   windows-desktop:
     name: Windows desktop and packages
     runs-on: windows-latest
-    needs: kernel-and-frontend
+    needs:
+      - kernel-and-office
+      - frontend
     steps:
       - uses: actions/checkout@v4
 
