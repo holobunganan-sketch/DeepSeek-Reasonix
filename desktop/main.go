@@ -130,13 +130,13 @@ func main() {
 	scheduleWebKitSignalHandlerRepair()
 
 	err := wails.Run(&options.App{
-		Title:     northwingProductName,
-		Width:     width,
-		Height:    height,
-		Frameless: goruntime.GOOS == "windows",
-		Logger:    newCrashCaptureLogger(app),
-		MinWidth:  760,
-		MinHeight: 480,
+		Title:            northwingProductName,
+		Width:            width,
+		Height:           height,
+		Frameless:        goruntime.GOOS == "windows",
+		Logger:           newCrashCaptureLogger(app),
+		MinWidth:         760,
+		MinHeight:        480,
 		BackgroundColour: &options.RGBA{R: 26, G: 26, B: 46, A: 255},
 		AssetServer: &assetserver.Options{
 			Assets: assets,
@@ -158,7 +158,7 @@ func main() {
 		DragAndDrop:        dragAndDrop,
 
 		Mac: &mac.Options{
-			TitleBar:  mac.TitleBarHiddenInset(),
+			TitleBar:   mac.TitleBarHiddenInset(),
 			Appearance: mac.DefaultAppearance,
 		},
 		Windows: &windows.Options{
