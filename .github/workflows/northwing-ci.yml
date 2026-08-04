@@ -17,6 +17,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  brand-audit:
+    name: Frontend brand audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture test references to Reasonix
+        shell: bash
+        run: |
+          grep -RIn -C 2 --include='*.ts' --include='*.tsx' 'Reasonix' desktop/frontend/src/__tests__ > "$RUNNER_TEMP/reasonix-test-references.txt" || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: northwing-brand-audit-${{ github.sha }}
+          path: ${{ runner.temp }}/reasonix-test-references.txt
+          if-no-files-found: error
+          retention-days: 1
+
   kernel-and-office:
     name: Kernel and Office
     runs-on: ubuntu-latest
