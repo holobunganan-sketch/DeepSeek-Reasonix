@@ -10,7 +10,7 @@ on:
       - northwing-main
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: northwing-${{ github.ref }}
@@ -104,11 +104,14 @@ jobs:
         working-directory: desktop/frontend
         run: pnpm build
 
-  desktop-tidy-export:
-    name: Desktop module tidy export
+  desktop-tidy-commit:
+    name: Commit desktop module tidy
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: agent/northwing-cowork-foundation
 
       - uses: actions/setup-go@v5
         with:
@@ -121,14 +124,18 @@ jobs:
         working-directory: desktop
         run: go mod tidy
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: northwing-desktop-tidy-${{ github.sha }}
-          path: |
-            desktop/go.mod
-            desktop/go.sum
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit generated module files
+        shell: bash
+        run: |
+          if git diff --quiet -- desktop/go.mod desktop/go.sum; then
+            echo "desktop module files are already tidy"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add desktop/go.mod desktop/go.sum
+          git commit -m "chore(desktop): tidy module dependencies"
+          git push origin HEAD:agent/northwing-cowork-foundation
 
   windows-desktop:
     name: Windows desktop and packages
