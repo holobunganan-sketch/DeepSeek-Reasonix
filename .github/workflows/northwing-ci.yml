@@ -104,6 +104,32 @@ jobs:
         working-directory: desktop/frontend
         run: pnpm build
 
+  desktop-tidy-export:
+    name: Desktop module tidy export
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.5
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+
+      - name: Tidy desktop module
+        working-directory: desktop
+        run: go mod tidy
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: northwing-desktop-tidy-${{ github.sha }}
+          path: |
+            desktop/go.mod
+            desktop/go.sum
+          if-no-files-found: error
+          retention-days: 1
+
   windows-desktop:
     name: Windows desktop and packages
     runs-on: windows-latest
