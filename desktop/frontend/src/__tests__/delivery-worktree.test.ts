@@ -52,11 +52,11 @@ ok(/GitBranch/.test(badge) && /#6119/.test(badge), "shared badge preserves the c
 console.log("\nNorthwing CoWork surface");
 ok(/<NorthwingCoworkRail[\s\S]*<ReasonixProjectTree/.test(treeWrapper), "Northwing stays a thin product wrapper around the complete Reasonix tree");
 ok(/export function ProjectTree\(/.test(treeBase), "Reasonix project tree implementation remains present");
-ok(/role="tab"[\s\S]*Chat[\s\S]*Work/.test(coworkRail), "CoWork rail exposes Chat and Work surfaces");
+ok(/aria-selected=\{mode === "chat"\}[\s\S]*\{t\.chat\}[\s\S]*aria-selected=\{mode === "work"\}[\s\S]*\{t\.work\}/.test(coworkRail), "CoWork rail exposes localized Chat and Work surfaces");
 ok(/turn_started[\s\S]*approval_request[\s\S]*turn_done/.test(coworkRail), "CoWork rail derives business status from the existing Reasonix event stream");
 ok(/PendingNorthwingLaunches/.test(coworkRail) && /SwitchWorkspace/.test(coworkRail), "Northwing URL launches select mode and workspace");
 ok(/CoworkProjectState\(workspaceRoot string, syncArtifacts bool\)/.test(coworkDesktop), "desktop exposes one current-project state binding");
-ok(/readCoworkProjectState\(workspaceRoot, syncArtifacts\)/.test(coworkAdapter), "frontend reads one project state instead of rebuilding the project catalog");
+ok(/export async function readCoworkProjectState\(workspaceRoot: string, syncArtifacts = true\)[\s\S]*requiredBinding\("CoworkProjectState"\)\(workspaceRoot, syncArtifacts\)/.test(coworkAdapter), "frontend reads one project state through the single desktop binding");
 ok(!/ListProjectTree\(/.test(northwingCenter), "Northwing does not duplicate the Reasonix project catalog read");
 ok(/createCoworkProject\(activeWorkspaceRoot/.test(northwingCenter), "regular workspaces can opt into CoWork");
 ok(/event\.kind !== "turn_done"/.test(northwingCenter) && /refresh\(true\)/.test(northwingCenter), "completed Reasonix turns trigger local artifact synchronization");
