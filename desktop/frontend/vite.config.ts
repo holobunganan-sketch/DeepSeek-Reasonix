@@ -90,6 +90,7 @@ const channel = buildChannel();
 
 const nodeModulePath = String.raw`[\\/]node_modules[\\/](?:\.pnpm[\\/][^\\/]+[\\/]node_modules[\\/])?`;
 const vendorReact = new RegExp(`${nodeModulePath}(?:react|react-dom)(?:[\\/]|$)`);
+const vendorIcons = new RegExp(`${nodeModulePath}lucide-react(?:[\\/]|$)`);
 const vendorMarkdown = new RegExp(
   `${nodeModulePath}(?:react-markdown|remark-gfm|remark-math|rehype-katex|katex)(?:[\\/]|$)`,
 );
@@ -127,13 +128,14 @@ export default defineConfig({
     },
     rolldownOptions: {
       output: {
-        // Manual chunk splitting: keep the heavy markdown/math/code pipeline
-        // in a separate chunk so it can be cached independently from the
-        // app shell. The vendor chunk splits react+react-dom (stable, rarely
-        // changes) from the markdown stack (changes more often).
+        // Manual chunk splitting: keep stable framework/icon code and the heavy
+        // markdown/math/code pipeline in independent cache units. lucide-react
+        // contributes many tree-shaken icon modules to the app shell; separating
+        // it lowers the main chunk without increasing initial transfer size.
         codeSplitting: {
           groups: [
             { name: "vendor-react", test: vendorReact },
+            { name: "vendor-icons", test: vendorIcons },
             { name: "vendor-markdown", test: vendorMarkdown },
             { name: "vendor-highlight", test: vendorHighlight },
           ],
