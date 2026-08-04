@@ -31,13 +31,17 @@ $makensis = Get-Command makensis -ErrorAction SilentlyContinue
 if (-not $makensis) {
   throw "makensis was not found. Install NSIS before creating the installer."
 }
+$installer = Join-Path $root "Northwing-$Version-windows-x64-setup.exe"
+Remove-Item -Force -ErrorAction SilentlyContinue $installer
 Push-Location $root
 try {
   & $makensis.Source "/DAPP_VERSION=$Version" "scripts\windows\northwing-installer.nsi"
+  if ($LASTEXITCODE -ne 0) {
+    throw "makensis exited with code $LASTEXITCODE"
+  }
 } finally {
   Pop-Location
 }
-$installer = Join-Path $root "Northwing-0.1.0-windows-x64-setup.exe"
 if (-not (Test-Path $installer)) {
   throw "NSIS did not produce the expected installer: $installer"
 }
