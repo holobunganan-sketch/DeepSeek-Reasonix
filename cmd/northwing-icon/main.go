@@ -196,6 +196,7 @@ func circle(img *image.RGBA, center image.Point, radius int, c color.RGBA) {
 				img.SetRGBA(x, y, c)
 			}
 		}
+	}
 }
 
 func clamp(v, lo, hi int) int {
