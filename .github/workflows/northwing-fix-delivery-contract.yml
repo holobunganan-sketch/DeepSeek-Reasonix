@@ -1,0 +1,49 @@
+name: Northwing Delivery Contract Fix
+
+on:
+  push:
+    branches:
+      - agent/northwing-cowork-foundation
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: northwing-delivery-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/northwing-cowork-foundation
+      - name: Update the CoWork static contracts
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('desktop/frontend/src/__tests__/delivery-worktree.test.ts')
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+              'ok(/role="tab"[\\s\\S]*Chat[\\s\\S]*Work/.test(coworkRail), "CoWork rail exposes Chat and Work surfaces");':
+              'ok(/aria-selected=\\{mode === "chat"\\}[\\s\\S]*\\{t\\.chat\\}[\\s\\S]*aria-selected=\\{mode === "work"\\}[\\s\\S]*\\{t\\.work\\}/.test(coworkRail), "CoWork rail exposes localized Chat and Work surfaces");',
+              'ok(/readCoworkProjectState\\(workspaceRoot, syncArtifacts\\)/.test(coworkAdapter), "frontend reads one project state instead of rebuilding the project catalog");':
+              'ok(/export async function readCoworkProjectState\\(workspaceRoot: string, syncArtifacts = true\\)[\\s\\S]*requiredBinding\\("CoworkProjectState"\\)\\(workspaceRoot, syncArtifacts\\)/.test(coworkAdapter), "frontend reads one project state through the single desktop binding");',
+          }
+          for old, new in replacements.items():
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one occurrence of {old!r}, found {count}')
+              text = text.replace(old, new)
+          path.write_text(text, encoding='utf-8')
+      - name: Commit focused test fixes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add desktop/frontend/src/__tests__/delivery-worktree.test.ts
+          git commit -m "test(ui): align CoWork static contracts"
+          git push origin HEAD:agent/northwing-cowork-foundation
