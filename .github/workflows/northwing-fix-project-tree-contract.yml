@@ -1,0 +1,46 @@
+name: Northwing Project Tree Contract Fix
+
+on:
+  push:
+    branches:
+      - agent/northwing-cowork-foundation
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: northwing-project-tree-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/northwing-cowork-foundation
+      - name: Read both project-tree layers in the chrome contract
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('desktop/frontend/src/__tests__/app-chrome-tabs.test.ts')
+          text = path.read_text(encoding='utf-8')
+          old = 'const projectTreeSource = readFileSync(resolve(testDir, "../components/ProjectTree.tsx"), "utf8");'
+          new = '''const projectTreeSource = [
+            readFileSync(resolve(testDir, "../components/ProjectTree.tsx"), "utf8"),
+            readFileSync(resolve(testDir, "../components/ReasonixProjectTree.tsx"), "utf8"),
+          ].join("\\n");'''
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'expected exactly one old source binding, found {count}')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+      - name: Commit focused test fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add desktop/frontend/src/__tests__/app-chrome-tabs.test.ts
+          git commit -m "test(ui): inspect both project-tree layers"
+          git push origin HEAD:agent/northwing-cowork-foundation
