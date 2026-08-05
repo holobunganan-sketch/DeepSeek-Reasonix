@@ -238,7 +238,9 @@ fi
 # Northwing owns the default Wails output name, while the inherited Reasonix
 # desktop release contract still consumes reasonix-desktop inside its signed
 # compatibility payload. The legacy builder must make that override explicit.
-grep -Fq 'build_args+=(-o "$BINNAME")' "$repo_root/scripts/desktop-build.sh"
+grep -Fq 'wails_output="$BINNAME"' "$repo_root/scripts/desktop-build.sh"
+grep -Fq '[ "$os" = windows ] && wails_output="$BINNAME.exe"' "$repo_root/scripts/desktop-build.sh"
+grep -Fq 'build_args+=(-o "$wails_output")' "$repo_root/scripts/desktop-build.sh"
 if sed -n '/^  desktop-windows:/,/^  lint:/p' "$repo_root/.github/workflows/ci.yml" |
 	grep -Eq "^        if: github\\.event_name != 'pull_request'$"; then
 	echo "Windows desktop packaging changes must be validated before merging" >&2
