@@ -34,8 +34,8 @@ function localText() {
     title: "项目工作与成品",
     works: "工作",
     artifacts: "成品",
-    noWorks: "还没有Work。",
-    noArtifacts: "尚未发现成品。任务完成后，deliverables目录中的文件会自动登记。",
+    noWorks: "还没有 Work。",
+    noArtifacts: "尚未发现成品。任务完成后，deliverables 目录中的文件会自动登记。",
     continue: "继续",
     sync: "同步成品",
     syncing: "正在同步",
@@ -57,6 +57,7 @@ function localText() {
     sheets: "个工作表",
     paragraphs: "个段落",
     cells: "个单元格",
+    inheritedModel: "当前／默认模型",
   } : {
     title: "Project Work and Artifacts",
     works: "Works",
@@ -84,6 +85,7 @@ function localText() {
     sheets: "sheets",
     paragraphs: "paragraphs",
     cells: "cells",
+    inheritedModel: "current/default model",
   };
 }
 
@@ -100,6 +102,16 @@ function basename(path: string): string {
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function workPolicy(work: CoworkWorkRef, inheritedModel: string): string {
+  return [
+    work.kind || "general",
+    work.quality || "standard",
+    work.sourcePolicy || "project_only",
+    work.modelRef || inheritedModel,
+    work.reasoningEffort || "default effort",
+  ].join(" · ");
 }
 
 export function NorthwingArtifactCenter({
@@ -140,13 +152,9 @@ export function NorthwingArtifactCenter({
     if (busy) return;
     setBusy("sync");
     setError("");
-    try {
-      onState(await readCoworkProjectState(workspaceRoot, true));
-    } catch (err) {
-      setError(errorText(err));
-    } finally {
-      setBusy("");
-    }
+    try { onState(await readCoworkProjectState(workspaceRoot, true)); }
+    catch (err) { setError(errorText(err)); }
+    finally { setBusy(""); }
   };
 
   const resume = async (work: CoworkWorkRef) => {
@@ -156,11 +164,8 @@ export function NorthwingArtifactCenter({
     try {
       await continueCoworkWork(workspaceRoot, work);
       onClose();
-    } catch (err) {
-      setError(errorText(err));
-    } finally {
-      setBusy("");
-    }
+    } catch (err) { setError(errorText(err)); }
+    finally { setBusy(""); }
   };
 
   const showPreview = async (artifact: CoworkArtifact) => {
@@ -174,23 +179,16 @@ export function NorthwingArtifactCenter({
         ? await previewCoworkArtifact(workspaceRoot, artifact.path)
         : undefined;
       setPreview({ artifact, file, office });
-    } catch (err) {
-      setError(errorText(err));
-    } finally {
-      setBusy("");
-    }
+    } catch (err) { setError(errorText(err)); }
+    finally { setBusy(""); }
   };
 
   const markFinal = async (artifact: CoworkArtifact) => {
     setBusy(`final:${artifact.id}`);
     setError("");
-    try {
-      onState(await setCoworkArtifactFinal(workspaceRoot, artifact.id));
-    } catch (err) {
-      setError(errorText(err));
-    } finally {
-      setBusy("");
-    }
+    try { onState(await setCoworkArtifactFinal(workspaceRoot, artifact.id)); }
+    catch (err) { setError(errorText(err)); }
+    finally { setBusy(""); }
   };
 
   const submitRevision = async () => {
@@ -202,11 +200,8 @@ export function NorthwingArtifactCenter({
       setRevising(null);
       setRevision("");
       onClose();
-    } catch (err) {
-      setError(errorText(err));
-    } finally {
-      setBusy("");
-    }
+    } catch (err) { setError(errorText(err)); }
+    finally { setBusy(""); }
   };
 
   const openArtifact = async (artifact: CoworkArtifact) => {
@@ -257,7 +252,12 @@ export function NorthwingArtifactCenter({
             works.length === 0 ? <div className="northwing-artifact-center__empty">{t.noWorks}</div> : (
               <div className="northwing-artifact-center__list">{works.map((work) => (
                 <article key={work.id} className="northwing-work-row">
-                  <div className="northwing-work-row__copy"><strong>{work.title}</strong><span>{work.profile || "delivery"} · {timeLabel(work.updatedAt || work.createdAt)}</span><code>deliverables/{work.id}</code></div>
+                  <div className="northwing-work-row__copy">
+                    <strong>{work.title}</strong>
+                    <span>{workPolicy(work, t.inheritedModel)}</span>
+                    <span>{timeLabel(work.updatedAt || work.createdAt)}</span>
+                    <code>deliverables/{work.id}</code>
+                  </div>
                   <button type="button" onClick={() => void resume(work)} disabled={Boolean(busy)}>{busy === `work:${work.id}` ? <LoaderCircle className="northwing-spin" size={14} /> : <Play size={14} />}{t.continue}</button>
                 </article>
               ))}</div>
