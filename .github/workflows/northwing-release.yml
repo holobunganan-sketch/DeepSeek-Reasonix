@@ -156,8 +156,9 @@ jobs:
             Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
           }
 
-      - name: Install NSIS
-        run: choco install nsis -y --no-progress
+      - name: Install pinned NSIS
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/install-nsis.ps1
 
       - name: Package Northwing
         shell: pwsh
