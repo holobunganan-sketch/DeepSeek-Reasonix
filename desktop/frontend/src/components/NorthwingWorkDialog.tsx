@@ -12,7 +12,7 @@ function text() {
   const chinese = typeof navigator !== "undefined" && /^zh\b/i.test(navigator.language);
   return chinese ? {
     title: "开始一项 Work",
-    subtitle: "Northwing会使用Reasonix的目标模式与交付优先模式持续执行。",
+    subtitle: "Northwing会通过目标模式与交付优先模式持续执行。",
     workTitle: "工作名称",
     objective: "目标",
     materials: "资料",
@@ -31,7 +31,7 @@ function text() {
     required: "请填写目标。",
   } : {
     title: "Start a Work",
-    subtitle: "Northwing runs it through Reasonix Goal mode and the Delivery profile.",
+    subtitle: "Northwing runs it through Goal mode and the Delivery profile.",
     workTitle: "Work title",
     objective: "Goal",
     materials: "Materials",

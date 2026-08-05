@@ -1,11 +1,39 @@
 package cowork
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
+
+func TestSyncArtifactsRejectsOutputDirectorySymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	store := NewStore()
+	if _, err := store.Create(root, "Northwing test"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.LinkWork(root, WorkRef{ID: "work123", Title: "Build report", Profile: "delivery"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "report.docx"), []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	deliverables := filepath.Join(root, "deliverables")
+	if err := os.MkdirAll(deliverables, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(deliverables, "work123")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	_, err := store.SyncArtifacts(root)
+	if !errors.Is(err, ErrArtifactOutsideWorkspace) {
+		t.Fatalf("SyncArtifacts() error = %v, want ErrArtifactOutsideWorkspace", err)
+	}
+}
 
 func TestSyncArtifactsIsIncremental(t *testing.T) {
 	root := t.TempDir()
@@ -72,6 +100,17 @@ func TestSyncArtifactsIsIncremental(t *testing.T) {
 	second := project.Artifacts[1]
 	if second.Version != 2 || second.SHA256 == first.SHA256 {
 		t.Fatalf("unexpected second artifact: %#v", second)
+	}
+
+	if err := os.WriteFile(report, []byte("version one"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	project, err = store.SyncArtifacts(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(project.Artifacts) != 2 {
+		t.Fatalf("known content sync artifacts = %d, want 2", len(project.Artifacts))
 	}
 }
 

@@ -44,7 +44,11 @@ type artifactCandidate struct {
 // does not need to be stored in the manifest, which keeps WorkRef small and makes
 // artifact discovery deterministic after a restart.
 func WorkOutputDir(workID string) string {
-	return filepath.ToSlash(filepath.Join("deliverables", strings.TrimSpace(workID)))
+	workID = strings.TrimSpace(workID)
+	if validateWorkID(workID) != nil {
+		return ""
+	}
+	return filepath.ToSlash(filepath.Join("deliverables", workID))
 }
 
 // SyncArtifacts scans each Work's deterministic output directory and appends a
@@ -60,11 +64,18 @@ func (s *Store) SyncArtifacts(workspaceRoot string) (Project, error) {
 	}
 
 	latestByPath := make(map[string]Artifact, len(project.Artifacts))
+	knownHashesByPath := make(map[string]map[string]struct{}, len(project.Artifacts))
 	for _, artifact := range project.Artifacts {
 		current, ok := latestByPath[artifact.Path]
 		if !ok || artifact.Version > current.Version {
 			latestByPath[artifact.Path] = artifact
 		}
+		knownHashes := knownHashesByPath[artifact.Path]
+		if knownHashes == nil {
+			knownHashes = make(map[string]struct{})
+			knownHashesByPath[artifact.Path] = knownHashes
+		}
+		knownHashes[artifact.SHA256] = struct{}{}
 	}
 
 	candidates := make([]artifactCandidate, 0)
@@ -73,7 +84,11 @@ func (s *Store) SyncArtifacts(workspaceRoot string) (Project, error) {
 		if workID == "" {
 			continue
 		}
-		outputDir := filepath.Join(project.Workspace, filepath.FromSlash(WorkOutputDir(workID)))
+		outputRel := WorkOutputDir(workID)
+		if outputRel == "" {
+			return Project{}, fmt.Errorf("%w: %q", ErrInvalidWorkID, workID)
+		}
+		outputDir := filepath.Join(project.Workspace, filepath.FromSlash(outputRel))
 		info, err := os.Stat(outputDir)
 		if os.IsNotExist(err) {
 			continue
@@ -135,10 +150,10 @@ func (s *Store) SyncArtifacts(workspaceRoot string) (Project, error) {
 		if err != nil {
 			return Project{}, err
 		}
-		latest, exists := latestByPath[rel]
-		if exists && latest.SHA256 == digest {
+		if _, exists := knownHashesByPath[rel][digest]; exists {
 			continue
 		}
+		latest, exists := latestByPath[rel]
 		id, err := newID()
 		if err != nil {
 			return Project{}, err
@@ -163,6 +178,12 @@ func (s *Store) SyncArtifacts(workspaceRoot string) (Project, error) {
 		}
 		project.Artifacts = append(project.Artifacts, artifact)
 		latestByPath[rel] = artifact
+		knownHashes := knownHashesByPath[rel]
+		if knownHashes == nil {
+			knownHashes = make(map[string]struct{})
+			knownHashesByPath[rel] = knownHashes
+		}
+		knownHashes[digest] = struct{}{}
 		changed = true
 	}
 
@@ -280,7 +301,7 @@ func writeFinalArtifactIndex(workspaceRoot string, index finalArtifactIndex) err
 		return fmt.Errorf("encode final artifact index: %w", err)
 	}
 	data = append(data, '\n')
-	if err := fileutil.AtomicWriteFile(finalArtifactsPath(workspaceRoot), data, 0o600); err != nil {
+	if err := fileutil.AtomicWriteFileStrict(finalArtifactsPath(workspaceRoot), data, 0o600); err != nil {
 		return fmt.Errorf("write final artifact index: %w", err)
 	}
 	return nil

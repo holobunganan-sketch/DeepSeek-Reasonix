@@ -25,11 +25,46 @@ const DICTS: Partial<Record<Locale, Dict>> = { en };
 const localeLoads = new Map<Locale, Promise<void>>();
 const STORAGE_KEY = "reasonix-lang";
 const PRODUCT_NAME = "Northwing";
-const KERNEL_TERM_MARKERS = [
-  "Reasonix's built-in read-only set",
-  "Reasonix 内置只读集合",
-  "Reasonix 內置唯讀集合",
-] as const;
+const PRODUCT_BRAND_KEYS: ReadonlySet<DictKey> = new Set([
+  "sidebar.navigation",
+  "caps.installedServersHint",
+  "composer.placeholder",
+  "composer.runAnnounceRunning",
+  "status.modelSwitchLeaseHeld",
+  "status.effortSwitchLeaseHeld",
+  "status.tokenModeSwitchLeaseHeld",
+  "heartbeat.noTasks",
+  "heartbeat.configHint",
+  "runtime.workspaceConflictExternal",
+  "approval.revisePlanDesc",
+  "recovery.noticeAdopted",
+  "recovery.noticeAdoptedCovered",
+  "remote.host.passwordHint",
+  "remote.host.removeConfirm",
+  "remote.error.summary.connection_failed",
+  "remote.error.summary.host_key_mismatch",
+  "remote.fingerprint.body",
+  "remote.providerTrust.body",
+  "settings.closeBehavior.quit",
+  "settings.agentRuntimeHint",
+  "settings.botInstallSubtitle",
+  "settings.botInstallManualQQ",
+  "settings.themeLibrary.groupOfficial",
+  "settings.typography.previewMixed",
+  "settings.pageDesc.memory",
+  "settings.providerHeadersPlaceholder",
+  "settings.hooksGlobalHint",
+  "settings.hooksProjectHint",
+  "notice.recoveryPausedBody",
+  "updater.autoCheckHint",
+  "updater.officialReleaseHint",
+  "updater.installing",
+  "onboarding.title",
+  "onboarding.privacy",
+  "crash.title",
+  "performanceReport.title",
+  "mock.askQ2Header",
+]);
 
 // currentLocale mirrors the active locale for callers outside React (lib/tools.ts).
 let currentLocale: Locale = "en";
@@ -101,21 +136,17 @@ export function clearLegacyLangPref(): void {
   }
 }
 
-// Product branding is applied only at the UI translation boundary. Internal
-// config keys, environment variables, file formats, and Reasonix compatibility
-// APIs remain untouched, which keeps the kernel and upstream synchronization
-// stable while preventing inherited product copy from leaking into Northwing.
-// Explicit references to the Reasonix kernel's policy sets remain technical
-// terminology and must not be relabelled as Northwing product behavior.
-export function brandText(value: string): string {
-  if (KERNEL_TERM_MARKERS.some((marker) => value.includes(marker))) return value;
-  return value.replaceAll("Reasonix", PRODUCT_NAME);
+// Product branding is limited to this audited set of product-chrome messages.
+// Kernel-owned config, protocol, policy, and compatibility explanations keep
+// the Reasonix technical term instead of being renamed mechanically.
+export function brandText(key: DictKey, value: string): string {
+  return PRODUCT_BRAND_KEYS.has(key) ? value.replaceAll("Reasonix", PRODUCT_NAME) : value;
 }
 
 // translate resolves a key for a locale and fills {placeholders}. Missing keys fall
 // back to English, then to the raw key, so the UI never renders blank.
 function translate(locale: Locale, key: DictKey, vars?: Record<string, string | number>): string {
-  const s = brandText(DICTS[locale]?.[key] ?? en[key] ?? key);
+  const s = brandText(key, DICTS[locale]?.[key] ?? en[key] ?? key);
   if (!vars) return s;
   return s.replace(/\{(\w+)\}/g, (_, k) => (vars[k] !== undefined ? String(vars[k]) : `{${k}}`));
 }

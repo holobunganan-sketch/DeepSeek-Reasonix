@@ -130,10 +130,12 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.version }}"
-          wails build -platform windows/amd64 -clean -ldflags "-X main.version=$version -X main.channel=stable"
+          $channel = if ($version.Contains("-")) { "preview" } else { "stable" }
+          wails build -platform windows/amd64 -clean -ldflags "-X main.version=$version -X main.channel=$channel"
 
       - name: Verify unified Northwing CLI
         shell: pwsh
+        timeout-minutes: 1
         run: |
           $expected = [regex]::Escape("northwing ${{ steps.version.outputs.version }}")
           $output = & .\desktop\build\bin\northwing.exe version 2>&1
@@ -147,6 +149,10 @@ jobs:
       - name: Package Northwing
         shell: pwsh
         run: ./scripts/package-northwing-windows.ps1 -Version "${{ steps.version.outputs.version }}"
+
+      - name: Verify Windows installer and portable build
+        shell: pwsh
+        run: ./scripts/verify-northwing-windows.ps1 -Version "${{ steps.version.outputs.version }}"
 
       - uses: actions/upload-artifact@v4
         with:

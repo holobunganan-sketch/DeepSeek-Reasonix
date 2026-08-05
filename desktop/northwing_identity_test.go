@@ -16,6 +16,9 @@ func TestNorthwingIdentityConstants(t *testing.T) {
 	if northwingAppID != "io.github.holobunganansketch.northwing" {
 		t.Fatalf("app id = %q", northwingAppID)
 	}
+	if !strings.Contains(singleInstanceIDPrefix, "northwing") || strings.Contains(singleInstanceIDPrefix, "reasonix") {
+		t.Fatalf("single-instance prefix = %q, want Northwing-owned identity", singleInstanceIDPrefix)
+	}
 }
 
 func TestDefaultNorthwingCacheIsProductScoped(t *testing.T) {

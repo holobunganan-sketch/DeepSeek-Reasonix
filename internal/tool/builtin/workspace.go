@@ -61,6 +61,11 @@ func (w Workspace) Tools(enabled ...string) []tool.Tool {
 	}
 	roots := realRoots(writeRoots)
 	forbidRoots := realRoots(w.ForbidReadRoots)
+	projectRoot := strings.TrimSpace(w.Dir)
+	if projectRoot == "" {
+		projectRoot = "."
+	}
+	projectRoots := realRoots([]string{projectRoot})
 
 	overrides := map[string]tool.Tool{
 		"read_file":        readFile{workDir: w.Dir, paths: w.ReadPaths, forbidRoots: forbidRoots, overlay: w.FileOverlay},
@@ -71,7 +76,7 @@ func (w Workspace) Tools(enabled ...string) []tool.Tool {
 		"notebook_edit":    notebookEdit{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
 		"delete_range":     deleteRange{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
 		"delete_symbol":    deleteSymbol{workDir: w.Dir, roots: roots, guard: w.SessionGuard, managed: w.ManagedConfig},
-		"northwing_office": northwingOffice{workDir: w.Dir, roots: roots, forbidRoots: forbidRoots, guard: w.SessionGuard, managed: w.ManagedConfig},
+		"northwing_office": northwingOffice{workDir: w.Dir, projectRoots: projectRoots, roots: roots, forbidRoots: forbidRoots, guard: w.SessionGuard, managed: w.ManagedConfig},
 		"code_index":       codeIndex{workDir: w.Dir, forbidRoots: forbidRoots},
 		"bash":             bash{workDir: w.Dir, sb: w.Bash, timeout: w.BashTimeout, guard: w.SessionGuard, terminal: w.Terminal},
 		"ls":               listDir{workDir: w.Dir, paths: w.ReadPaths, forbidRoots: forbidRoots},

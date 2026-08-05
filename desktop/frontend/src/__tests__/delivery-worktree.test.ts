@@ -64,7 +64,7 @@ ok(/declare module "\.\/bridge"/.test(coworkBridge) && /CoworkProjectState\?/.te
 
 console.log("\nNorthwing Work entry");
 ok(/Goal[\s\S]*Materials[\s\S]*Deliverable[\s\S]*Constraints[\s\S]*Completion criteria/.test(coworkAdapter), "Work Brief preserves the five user-facing contract fields");
-ok(/deliverables\/\$\{workID\.trim\(\)\}/.test(coworkAdapter), "each Work receives a deterministic deliverables directory");
+ok(/coworkWorkOutputDir\(workID: string\)[\s\S]*return `deliverables\/\$\{normalized\}`/.test(coworkAdapter), "each Work receives a validated deterministic deliverables directory");
 ok(/EnsureBlankTab\("project", workspaceRoot\)/.test(coworkAdapter), "new Work reuses a native Reasonix project session");
 ok(/SetTokenModeForTab\(tab\.id, "delivery"\)/.test(coworkAdapter), "Work uses the existing Reasonix Delivery profile");
 ok(/UpsertCoworkWork[\s\S]*submitGoal\(tab, objective, brief, title\)/.test(coworkAdapter), "Work-session binding is durable before the first provider request");
@@ -81,7 +81,7 @@ ok(/create_docx[\s\S]*create_pptx[\s\S]*create_xlsx[\s\S]*create_pdf/.test(offic
 ok(/confineWrite/.test(officeTool) && /confineRead/.test(officeTool), "Office actions retain Reasonix workspace and permission confinement");
 ok(/InspectCoworkArtifact/.test(coworkOffice), "Artifact Center has local deterministic Office inspection");
 ok(/SyncArtifacts\(workspaceRoot string\)/.test(coworkArtifacts), "backend scans Work deliverable directories in one project transaction");
-ok(/latest\.SHA256 == digest/.test(coworkArtifacts), "unchanged files do not create duplicate artifact versions");
+ok(/knownHashesByPath[\s\S]*knownHashesByPath\[rel\]\[digest\][\s\S]*continue/.test(coworkArtifacts), "known file hashes do not create duplicate artifact versions");
 ok(/writeProject\(project\)/.test(coworkArtifacts), "changed artifacts publish one atomic manifest update");
 ok(/SetCoworkArtifactFinal/.test(coworkDesktop), "desktop exposes final artifact selection");
 ok(/openCoworkArtifact\(workspaceRoot, artifact\.path\)/.test(artifactCenter), "Artifact center opens files through the owning project tab");

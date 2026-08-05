@@ -65,13 +65,13 @@ import (
 // `data:` frames.
 const eventChannel = "agent:event"
 
-const singleInstanceIDPrefix = "com.reasonix.desktop"
+const singleInstanceIDPrefix = northwingAppID + ".desktop"
 
 // singleInstanceID is used by Wails to route a second desktop launch back to the
-// process that owns the same Reasonix data home. Basing the identity on the
-// executable path let installed, portable, stable, and canary binaries write the
-// same sessions concurrently. Explicit REASONIX_HOME isolation still produces
-// an independent instance; REASONIX_DEV continues to bypass the lock entirely.
+// process that owns the same Northwing data home. The data-home hash prevents
+// installed, portable, stable, and preview binaries from writing the same
+// sessions concurrently. Explicit runtime-home isolation still produces an
+// independent instance; the development switches continue to bypass the lock.
 func singleInstanceID() string {
 	root := strings.TrimSpace(config.ReasonixHomeDir())
 	if root == "" {

@@ -169,14 +169,13 @@ Completed in the current foundation PR:
 4. **Work restoration** — durable topic/session links and Goal continuation.
 5. **Artifact surface** — discovery, versions, previews, open/reveal, final
    selection, and scoped revision.
-
-Remaining major slices:
-
 6. **Capability packs** — Office first, then research and browser/desktop tools.
 7. **Northwing identity** — isolated app name, data paths, protocol, updater, and
-   Windows packages after the functional seams are stable.
-8. **Full validation and release** — execute the complete test matrix, repair
-   failures, build installers, and perform clean-machine acceptance.
+   Windows packaging configuration.
+
+Release work remains operational: execute the complete test matrix, build the
+Windows installer and portable archive, and complete clean-runner acceptance
+before a release tag is created.
 
 Each slice must preserve the complete Reasonix feature set and remain small
 enough to review, test, and rebase onto upstream changes.

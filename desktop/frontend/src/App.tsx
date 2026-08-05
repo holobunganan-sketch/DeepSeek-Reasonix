@@ -77,8 +77,6 @@ import { AppChrome } from "./components/AppChrome";
 import { ShortcutsCheatsheet } from "./components/ShortcutsCheatsheet";
 import { ProjectTree } from "./components/ProjectTree";
 import { WorktreeBadge } from "./components/WorktreeBadge";
-import { HeartbeatPanel } from "./custom/features/heartbeat/HeartbeatPanel";
-import "./custom/features/heartbeat/heartbeat.css";
 import { CopyButton } from "./components/CopyButton";
 import { ExternalOpener } from "./components/ExternalOpener";
 import { startTerminalEventBridge } from "./lib/terminalEvents";
@@ -286,6 +284,7 @@ const HistoryPanel = lazy(() => import("./components/HistoryPanel").then((module
 const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((module) => ({ default: module.SettingsPanel })));
 const RemotePanel = lazy(() => import("./components/RemotePanel").then((module) => ({ default: module.RemotePanel })));
 const TerminalPanel = lazy(() => import("./components/TerminalPanel").then((module) => ({ default: module.TerminalPanel })));
+const HeartbeatPanel = lazy(() => import("./custom/features/heartbeat/HeartbeatPanel.lazy"));
 
 const CHAT_MIN_WIDTH = 400;
 const CHAT_COMFORT_MIN_WIDTH = 560;
@@ -974,7 +973,7 @@ function fence(label: string, value: string): string {
 }
 
 function sessionItemsToMarkdown(title: string, items: Item[], live?: LiveStream): string {
-  const lines: string[] = [`# ${title.trim() || "Reasonix session"}`, ""];
+  const lines: string[] = [`# ${title.trim() || "Northwing session"}`, ""];
   for (const item of materializeLiveItems(items, live)) {
     switch (item.kind) {
       case "user":
@@ -4198,7 +4197,7 @@ export default function App() {
             <>
               <div className="sidebar__head" aria-hidden={sidebarCollapsed}>
                 <div className="sidebar__brand sidebar__brand--workbench">
-                  <img src={logoWordmark} alt="Reasonix" className="sidebar__brand-logo sidebar__brand-logo--workbench" draggable={false} />
+                  <img src={logoWordmark} alt="Northwing" className="sidebar__brand-logo sidebar__brand-logo--workbench" draggable={false} />
                 </div>
               </div>
 
@@ -4218,7 +4217,7 @@ export default function App() {
           ) : (
             <>
               <div className="sidebar__brand" aria-hidden={sidebarCollapsed}>
-                <img src={logoWordmark} alt="Reasonix" className="sidebar__brand-logo" draggable={false} />
+                <img src={logoWordmark} alt="Northwing" className="sidebar__brand-logo" draggable={false} />
               </div>
 
               <button
@@ -5284,9 +5283,13 @@ export default function App() {
         />
       )}
 
-      <HeartbeatPanel open={heartbeatOpen} onClose={() => setHeartbeatOpen(false)} onOpenTopic={(scope, workspaceRoot, topicId) => {
-        void handleOpenTopic(scope, workspaceRoot, topicId);
-      }} />
+      {heartbeatOpen && (
+        <Suspense fallback={null}>
+          <HeartbeatPanel open onClose={() => setHeartbeatOpen(false)} onOpenTopic={(scope, workspaceRoot, topicId) => {
+            void handleOpenTopic(scope, workspaceRoot, topicId);
+          }} />
+        </Suspense>
+      )}
       <TranscriptSelectionMenu
         enabled={Boolean(activeTabId && !activeTab?.readOnly && !decisionSurface && !sidebarImDetailConnection && !hydratePlaceholderActive)}
         resetKey={activeTabId ?? ""}

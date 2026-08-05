@@ -31,6 +31,7 @@ func TestMain(m *testing.M) {
 	os.Setenv("REASONIX_CREDENTIALS_STORE", "file")
 	os.Setenv("USERPROFILE", dir)
 	os.Setenv("XDG_CONFIG_HOME", dir+"/config")
+	os.Setenv("REASONIX_HOME", filepath.Join(dir, "home"))
 	os.Setenv("REASONIX_STATE_HOME", dir+"/state")
 	os.Setenv("REASONIX_CACHE_HOME", dir+"/cache")
 	os.Setenv("AppData", dir)

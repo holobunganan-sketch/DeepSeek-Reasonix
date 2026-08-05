@@ -23,7 +23,7 @@ function text() {
   return zh ? {
     chat: "Chat",
     work: "Work",
-    chatHint: "用于快速讨论和分析。当前Reasonix会话、模型与全部高级能力保持可用。",
+    chatHint: "用于快速讨论和分析。当前会话、模型与全部高级能力保持可用。",
     switchWork: "切换到Work交付成品",
     idle: "可开始工作",
     working: "正在执行任务",
@@ -33,7 +33,7 @@ function text() {
   } : {
     chat: "Chat",
     work: "Work",
-    chatHint: "Use the current Reasonix conversation for quick discussion and analysis. All advanced capabilities remain available.",
+    chatHint: "Use the current conversation for quick discussion and analysis. All advanced capabilities remain available.",
     switchWork: "Switch to Work for a deliverable",
     idle: "Ready",
     working: "Working",

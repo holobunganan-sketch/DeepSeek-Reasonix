@@ -6,6 +6,7 @@ on:
     branches: [main-v2]
   push:
     branches:
+      - main-v2
       - agent/northwing-cowork-foundation
       - northwing-main
 
@@ -17,22 +18,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  brand-audit:
-    name: Frontend brand audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Capture test references to Reasonix
-        shell: bash
-        run: |
-          grep -RIn -C 2 --include='*.ts' --include='*.tsx' 'Reasonix' desktop/frontend/src/__tests__ > "$RUNNER_TEMP/reasonix-test-references.txt" || true
-      - uses: actions/upload-artifact@v4
-        with:
-          name: northwing-brand-audit-${{ github.sha }}
-          path: ${{ runner.temp }}/reasonix-test-references.txt
-          if-no-files-found: error
-          retention-days: 1
-
   kernel-and-office:
     name: Kernel and Office
     runs-on: ubuntu-latest
@@ -120,22 +105,17 @@ jobs:
 
       - name: Tests
         id: frontend_tests
-        continue-on-error: true
         working-directory: desktop/frontend
         shell: bash
         run: |
-          set +e
+          set -o pipefail
           pnpm test 2>&1 | tee "$RUNNER_TEMP/frontend-test.log"
-          code=${PIPESTATUS[0]}
-          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
-          exit 0
 
       - name: Extract test diagnostic
-        if: steps.frontend_tests.outputs.exit_code != '0'
+        if: failure() && steps.frontend_tests.outcome == 'failure'
         shell: bash
         run: |
           {
-            echo "exit_code=${{ steps.frontend_tests.outputs.exit_code }}"
             echo "--- failure lines ---"
             grep -nE 'FAIL|failed|expected|got|Error:|ELIFECYCLE' "$RUNNER_TEMP/frontend-test.log" | tail -n 180 || true
             echo "--- final 260 lines ---"
@@ -143,16 +123,12 @@ jobs:
           } > "$RUNNER_TEMP/frontend-diagnostic.txt"
 
       - uses: actions/upload-artifact@v4
-        if: steps.frontend_tests.outputs.exit_code != '0'
+        if: failure() && steps.frontend_tests.outcome == 'failure'
         with:
           name: northwing-frontend-diagnostic-${{ github.sha }}
           path: ${{ runner.temp }}/frontend-diagnostic.txt
           if-no-files-found: error
           retention-days: 1
-
-      - name: Preserve test result
-        if: steps.frontend_tests.outputs.exit_code != '0'
-        run: exit 1
 
       - name: Production build
         working-directory: desktop/frontend
@@ -204,6 +180,7 @@ jobs:
 
       - name: Verify unified Northwing CLI
         shell: pwsh
+        timeout-minutes: 1
         run: |
           $output = & .\desktop\build\bin\northwing.exe version 2>&1
           if ($LASTEXITCODE -ne 0) { throw "northwing.exe version exited $LASTEXITCODE`n$output" }
@@ -216,6 +193,10 @@ jobs:
       - name: Package installer and portable build
         shell: pwsh
         run: ./scripts/package-northwing-windows.ps1 -Version 0.1.0
+
+      - name: Verify Windows installer and portable build
+        shell: pwsh
+        run: ./scripts/verify-northwing-windows.ps1 -Version 0.1.0
 
       - uses: actions/upload-artifact@v4
         with:

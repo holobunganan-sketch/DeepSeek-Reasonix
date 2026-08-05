@@ -15,11 +15,12 @@ func init() { tool.RegisterBuiltin(northwingOffice{}) }
 // northwingOffice is one stable schema over the Office capability pack. The
 // per-workspace instance replaces this zero-value template in Workspace.Tools.
 type northwingOffice struct {
-	workDir     string
-	roots       []string
-	forbidRoots []string
-	guard       SessionDataGuard
-	managed     ManagedConfigPaths
+	workDir      string
+	projectRoots []string
+	roots        []string
+	forbidRoots  []string
+	guard        SessionDataGuard
+	managed      ManagedConfigPaths
 }
 
 func (northwingOffice) Name() string { return "northwing_office" }
@@ -60,6 +61,9 @@ func (n northwingOffice) Execute(ctx context.Context, args json.RawMessage) (str
 		return "", fmt.Errorf("path is required")
 	}
 	req.Path = resolveIn(n.workDir, req.Path)
+	if err := confine(n.projectRoots, req.Path); err != nil {
+		return "", fmt.Errorf("Northwing Office path %q is outside the active workspace", req.Path)
+	}
 	switch req.Action {
 	case "inspect", "validate":
 		if confineRead(n.forbidRoots, req.Path) {

@@ -27,6 +27,7 @@ var (
 	ErrProjectExists             = errors.New("cowork project already exists")
 	ErrProjectNotFound           = errors.New("cowork project not found")
 	ErrUnsupportedManifest       = errors.New("unsupported cowork manifest version")
+	ErrInvalidWorkID             = errors.New("invalid cowork work id")
 	ErrArtifactOutsideWorkspace  = errors.New("artifact is outside the project workspace")
 	ErrArtifactIsNotRegularFile  = errors.New("artifact is not a regular file")
 	ErrUnsupportedRuntimeProfile = errors.New("unsupported Reasonix runtime profile")
@@ -154,6 +155,12 @@ func (s *Store) LinkWork(workspaceRoot string, work WorkRef) (Project, error) {
 		return Project{}, err
 	}
 	work.Title = strings.TrimSpace(work.Title)
+	work.ID = strings.TrimSpace(work.ID)
+	if work.ID != "" {
+		if err := validateWorkID(work.ID); err != nil {
+			return Project{}, err
+		}
+	}
 	work.SessionPath = strings.TrimSpace(work.SessionPath)
 	work.GoalID = strings.TrimSpace(work.GoalID)
 	work.Profile = profile
@@ -197,9 +204,9 @@ func (s *Store) LinkWork(workspaceRoot string, work WorkRef) (Project, error) {
 	return project, nil
 }
 
-// RegisterArtifact hashes a file inside the workspace and appends a new version
-// to the project manifest. Re-registering the same relative path creates the next
-// version; existing files are never copied into Northwing metadata.
+// RegisterArtifact hashes a file inside the workspace and appends a new content
+// version to the project manifest. A path/hash pair already in the manifest is
+// returned unchanged; existing files are never copied into Northwing metadata.
 func (s *Store) RegisterArtifact(workspaceRoot string, artifact Artifact) (Project, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -216,15 +223,24 @@ func (s *Store) RegisterArtifact(workspaceRoot string, artifact Artifact) (Proje
 	if err != nil {
 		return Project{}, err
 	}
-	id, err := newID()
-	if err != nil {
-		return Project{}, err
+	artifact.WorkID = strings.TrimSpace(artifact.WorkID)
+	if artifact.WorkID != "" {
+		if err := validateWorkID(artifact.WorkID); err != nil {
+			return Project{}, err
+		}
 	}
 	version := 1
 	for _, existing := range project.Artifacts {
+		if existing.Path == rel && existing.SHA256 == digest {
+			return project, nil
+		}
 		if existing.Path == rel && existing.Version >= version {
 			version = existing.Version + 1
 		}
+	}
+	id, err := newID()
+	if err != nil {
+		return Project{}, err
 	}
 	kind := strings.ToLower(strings.TrimSpace(artifact.Kind))
 	if kind == "" {
@@ -238,7 +254,7 @@ func (s *Store) RegisterArtifact(workspaceRoot string, artifact Artifact) (Proje
 		ID:        id,
 		Path:      rel,
 		Kind:      kind,
-		WorkID:    strings.TrimSpace(artifact.WorkID),
+		WorkID:    artifact.WorkID,
 		Version:   version,
 		SHA256:    digest,
 		Size:      info.Size(),
@@ -275,16 +291,22 @@ func (s *Store) loadUnlocked(workspaceRoot string) (Project, error) {
 	if strings.TrimSpace(project.ID) == "" || strings.TrimSpace(project.Name) == "" {
 		return Project{}, errors.New("invalid cowork project manifest: id and name are required")
 	}
+	if err := validateProjectReferences(project); err != nil {
+		return Project{}, err
+	}
 	project.Workspace = root
 	return project, nil
 }
 
 func writeProject(project Project) error {
+	if err := validateProjectReferences(project); err != nil {
+		return err
+	}
 	data, err := marshalProject(project)
 	if err != nil {
 		return err
 	}
-	if err := fileutil.AtomicWriteFile(ManifestPath(project.Workspace), data, 0o600); err != nil {
+	if err := fileutil.AtomicWriteFileStrict(ManifestPath(project.Workspace), data, 0o600); err != nil {
 		return fmt.Errorf("write project manifest: %w", err)
 	}
 	return nil
@@ -315,10 +337,11 @@ func normalizeWorkspaceRoot(root string) (string, error) {
 	if !info.IsDir() {
 		return "", fmt.Errorf("workspace root is not a directory: %s", abs)
 	}
-	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
-		abs = resolved
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", fmt.Errorf("resolve workspace root symlinks: %w", err)
 	}
-	return filepath.Clean(abs), nil
+	return filepath.Clean(resolved), nil
 }
 
 func normalizeProfile(profile string) (string, error) {
@@ -332,6 +355,58 @@ func normalizeProfile(profile string) (string, error) {
 	default:
 		return "", fmt.Errorf("%w: %s", ErrUnsupportedRuntimeProfile, profile)
 	}
+}
+
+func validateProjectReferences(project Project) error {
+	for i, work := range project.Works {
+		if err := validateWorkID(work.ID); err != nil {
+			return fmt.Errorf("invalid cowork project manifest work %d: %w", i, err)
+		}
+	}
+	for i, artifact := range project.Artifacts {
+		if artifact.WorkID != "" {
+			if err := validateWorkID(artifact.WorkID); err != nil {
+				return fmt.Errorf("invalid cowork project manifest artifact %d work: %w", i, err)
+			}
+		}
+		if err := validateStoredArtifactPath(artifact.Path); err != nil {
+			return fmt.Errorf("invalid cowork project manifest artifact %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func validateWorkID(workID string) error {
+	if workID == "" || workID != strings.TrimSpace(workID) || len(workID) > 128 {
+		return fmt.Errorf("%w: %q", ErrInvalidWorkID, workID)
+	}
+	for i, char := range workID {
+		if char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' {
+			continue
+		}
+		if i > 0 && (char == '-' || char == '_' || char == '.') {
+			continue
+		}
+		return fmt.Errorf("%w: %q", ErrInvalidWorkID, workID)
+	}
+	return nil
+}
+
+func validateStoredArtifactPath(artifactPath string) error {
+	if artifactPath == "" || artifactPath != strings.TrimSpace(artifactPath) || strings.Contains(artifactPath, `\`) {
+		return fmt.Errorf("%w: %s", ErrArtifactOutsideWorkspace, artifactPath)
+	}
+	if filepath.IsAbs(filepath.FromSlash(artifactPath)) || strings.HasPrefix(artifactPath, "/") {
+		return fmt.Errorf("%w: %s", ErrArtifactOutsideWorkspace, artifactPath)
+	}
+	if len(artifactPath) >= 2 && ((artifactPath[0] >= 'a' && artifactPath[0] <= 'z') || (artifactPath[0] >= 'A' && artifactPath[0] <= 'Z')) && artifactPath[1] == ':' {
+		return fmt.Errorf("%w: %s", ErrArtifactOutsideWorkspace, artifactPath)
+	}
+	clean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(artifactPath)))
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || clean != artifactPath {
+		return fmt.Errorf("%w: %s", ErrArtifactOutsideWorkspace, artifactPath)
+	}
+	return nil
 }
 
 func resolveArtifact(root, artifactPath string) (string, string, os.FileInfo, error) {

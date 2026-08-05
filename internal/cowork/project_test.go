@@ -102,6 +102,23 @@ func TestLinkWorkRejectsUnknownProfile(t *testing.T) {
 	}
 }
 
+func TestLinkWorkRejectsUnsafeID(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore()
+	if _, err := store.Create(root, "Project"); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, id := range []string{"../escape", "nested/work", `nested\work`, ".", "..", "work id"} {
+		t.Run(id, func(t *testing.T) {
+			_, err := store.LinkWork(root, WorkRef{ID: id, Title: "Work"})
+			if !errors.Is(err, ErrInvalidWorkID) {
+				t.Fatalf("LinkWork() error = %v, want ErrInvalidWorkID", err)
+			}
+		})
+	}
+}
+
 func TestRegisterArtifactCreatesVersions(t *testing.T) {
 	root := t.TempDir()
 	store := NewStore()
@@ -151,6 +168,71 @@ func TestRegisterArtifactCreatesVersions(t *testing.T) {
 	}
 }
 
+func TestRegisterArtifactDoesNotDuplicateUnchangedContent(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore()
+	if _, err := store.Create(root, "Project"); err != nil {
+		t.Fatal(err)
+	}
+	outputDir := filepath.Join(root, "deliverables")
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	output := filepath.Join(outputDir, "report.docx")
+	if err := os.WriteFile(output, []byte("unchanged"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	firstProject, err := store.RegisterArtifact(root, Artifact{Path: output, WorkID: "work-1"})
+	if err != nil {
+		t.Fatalf("RegisterArtifact() error = %v", err)
+	}
+	secondProject, err := store.RegisterArtifact(root, Artifact{Path: output, WorkID: "work-1"})
+	if err != nil {
+		t.Fatalf("second RegisterArtifact() error = %v", err)
+	}
+	if len(secondProject.Artifacts) != 1 {
+		t.Fatalf("unchanged artifact count = %d, want 1", len(secondProject.Artifacts))
+	}
+	if secondProject.Artifacts[0].ID != firstProject.Artifacts[0].ID || secondProject.Artifacts[0].Version != 1 {
+		t.Fatalf("unchanged artifact = %#v, want original version %#v", secondProject.Artifacts[0], firstProject.Artifacts[0])
+	}
+}
+
+func TestLoadRejectsUnsafeManifestReferences(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore()
+	project, err := store.Create(root, "Project")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	project.Works = []WorkRef{{ID: "../../escape", Title: "Unsafe", Profile: "delivery"}}
+	data, err := marshalProject(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ManifestPath(root), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Load(root); !errors.Is(err, ErrInvalidWorkID) {
+		t.Fatalf("Load() work error = %v, want ErrInvalidWorkID", err)
+	}
+
+	project.Works = nil
+	project.Artifacts = []Artifact{{ID: "artifact-1", Path: "../../secret.txt", Version: 1}}
+	data, err = marshalProject(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ManifestPath(root), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Load(root); !errors.Is(err, ErrArtifactOutsideWorkspace) {
+		t.Fatalf("Load() artifact error = %v, want ErrArtifactOutsideWorkspace", err)
+	}
+}
+
 func TestRegisterArtifactRejectsOutsideWorkspace(t *testing.T) {
 	root := t.TempDir()
 	outsideRoot := t.TempDir()
@@ -164,6 +246,28 @@ func TestRegisterArtifactRejectsOutsideWorkspace(t *testing.T) {
 	}
 
 	_, err := store.RegisterArtifact(root, Artifact{Path: outside})
+	if !errors.Is(err, ErrArtifactOutsideWorkspace) {
+		t.Fatalf("RegisterArtifact() error = %v, want ErrArtifactOutsideWorkspace", err)
+	}
+}
+
+func TestRegisterArtifactRejectsSymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	outsideRoot := t.TempDir()
+	store := NewStore()
+	if _, err := store.Create(root, "Project"); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(outsideRoot, "report.pdf")
+	if err := os.WriteFile(outside, []byte("pdf"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "report.pdf")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	_, err := store.RegisterArtifact(root, Artifact{Path: link})
 	if !errors.Is(err, ErrArtifactOutsideWorkspace) {
 		t.Fatalf("RegisterArtifact() error = %v, want ErrArtifactOutsideWorkspace", err)
 	}

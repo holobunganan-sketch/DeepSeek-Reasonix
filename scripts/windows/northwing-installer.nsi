@@ -6,7 +6,7 @@ RequestExecutionLevel user
 
 !define APP_NAME "Northwing"
 !ifndef APP_VERSION
-  !define APP_VERSION "0.1.0"
+  !error "APP_VERSION must be supplied by the packaging command"
 !endif
 !ifndef APP_SOURCE_EXE
   !define APP_SOURCE_EXE "${__FILEDIR__}\..\..\desktop\build\bin\northwing.exe"
@@ -17,6 +17,8 @@ RequestExecutionLevel user
 
 Name "${APP_NAME}"
 OutFile "${__FILEDIR__}\..\..\Northwing-${APP_VERSION}-windows-x64-setup.exe"
+Icon "${__FILEDIR__}\..\..\desktop\build\windows\icon.ico"
+UninstallIcon "${__FILEDIR__}\..\..\desktop\build\windows\icon.ico"
 InstallDir "$LOCALAPPDATA\Programs\Northwing"
 InstallDirRegKey HKCU "Software\Northwing" "InstallDir"
 BrandingText "Northwing — From intent to finished work."

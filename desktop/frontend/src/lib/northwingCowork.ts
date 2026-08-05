@@ -59,6 +59,8 @@ type CoworkBindings = {
 
 export const coworkApp = app as typeof app & CoworkBindings;
 
+const WORK_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
 function requiredBinding<K extends keyof CoworkBindings>(name: K): NonNullable<CoworkBindings[K]> {
   const method = coworkApp[name];
   if (typeof method !== "function") {
@@ -77,7 +79,11 @@ export function createCoworkWorkID(): string {
 }
 
 export function coworkWorkOutputDir(workID: string): string {
-  return `deliverables/${workID.trim()}`;
+  const normalized = workID.trim();
+  if (!WORK_ID_PATTERN.test(normalized)) {
+    throw new Error(`Invalid Northwing Work ID: ${workID}`);
+  }
+  return `deliverables/${normalized}`;
 }
 
 function cleanLines(values: string[]): string[] {
@@ -109,7 +115,7 @@ export function buildCoworkWorkBrief(workID: string, draft: CoworkWorkDraft): st
     "- Continue until the work is complete or a genuine external blocker is reached.",
     "- Follow the current project instructions and use the provided source material as evidence.",
     `- Save formal deliverables under \`${outputDir}/\` and keep temporary working files outside that directory.`,
-    "- Use the existing Reasonix Delivery profile, including its planning, review, permission, checkpoint, and verification behavior.",
+    "- Use the existing Delivery profile, including its planning, review, permission, checkpoint, and verification behavior.",
     "- Do not claim completion until the deliverables exist and the relevant checks have been performed.",
   ].join("\n"));
   return sections.join("\n");
@@ -214,7 +220,7 @@ export async function continueCoworkWork(workspaceRoot: string, work: CoworkWork
   const resumed = await app.ResumeGoalForTab(tab.id);
   if (!resumed) {
     const input = [
-      `Continue the Northwing work “${work.title}” from the restored Reasonix session.`,
+      `Continue the Northwing work “${work.title}” from the restored project session.`,
       `Inspect the existing conversation, project files, and \`${coworkWorkOutputDir(work.id)}/\`.`,
       "Complete any unresolved requirements, validate the resulting files, and keep formal outputs in that deliverables directory.",
     ].join("\n\n");

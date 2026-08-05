@@ -71,3 +71,25 @@ func TestNorthwingOfficeRejectsOutsideWorkspace(t *testing.T) {
 		t.Fatal("outside-workspace Office write succeeded")
 	}
 }
+
+func TestNorthwingOfficeRejectsOutsideWorkspaceRead(t *testing.T) {
+	dir := t.TempDir()
+	outsideDir := t.TempDir()
+	outside := filepath.Join(outsideDir, "report.docx")
+	createArgs, _ := json.Marshal(map[string]any{
+		"action": "create_docx",
+		"path":   "report.docx",
+		"text":   "Body",
+	})
+	if _, err := (Workspace{Dir: outsideDir}).Tools("northwing_office")[0].Execute(context.Background(), createArgs); err != nil {
+		t.Fatal(err)
+	}
+
+	inspectArgs, _ := json.Marshal(map[string]any{
+		"action": "inspect",
+		"path":   outside,
+	})
+	if _, err := (Workspace{Dir: dir}).Tools("northwing_office")[0].Execute(context.Background(), inspectArgs); err == nil {
+		t.Fatal("outside-workspace Office read succeeded")
+	}
+}

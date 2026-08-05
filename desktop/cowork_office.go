@@ -17,8 +17,9 @@ func (a *App) InspectCoworkArtifact(workspaceRoot, artifactPath string) (office.
 	if err != nil {
 		return office.Report{}, fmt.Errorf("resolve workspace: %w", err)
 	}
-	if real, resolveErr := filepath.EvalSymlinks(root); resolveErr == nil {
-		root = real
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return office.Report{}, fmt.Errorf("resolve workspace symlinks: %w", err)
 	}
 	path := strings.TrimSpace(artifactPath)
 	if path == "" {

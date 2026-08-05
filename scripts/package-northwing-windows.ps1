@@ -1,5 +1,7 @@
 param(
-  [string]$Version = "0.1.0",
+  [Parameter(Mandatory = $true)]
+  [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$')]
+  [string]$Version,
   [string]$OutputDir = "dist"
 )
 
@@ -26,6 +28,7 @@ if (Test-Path (Join-Path $root "THIRD_PARTY_NOTICES.md")) {
 $portableZip = Join-Path $out "Northwing-$Version-windows-x64-portable.zip"
 Remove-Item -Force -ErrorAction SilentlyContinue $portableZip
 Compress-Archive -Path (Join-Path $portableDir "*") -DestinationPath $portableZip -CompressionLevel Optimal
+Remove-Item -Recurse -Force $portableDir
 
 $makensis = Get-Command makensis -ErrorAction SilentlyContinue
 if (-not $makensis) {

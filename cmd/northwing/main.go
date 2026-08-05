@@ -38,7 +38,9 @@ func runWithCrashCapture(args []string, buildVersion string) (exitCode int) {
 }
 
 func applyNorthwingCLIIdentity() {
-	if strings.TrimSpace(os.Getenv("REASONIX_HOME")) != "" {
+	if strings.TrimSpace(os.Getenv("REASONIX_HOME")) != "" ||
+		strings.TrimSpace(os.Getenv("REASONIX_STATE_HOME")) != "" ||
+		strings.TrimSpace(os.Getenv("REASONIX_CACHE_HOME")) != "" {
 		return
 	}
 	home := strings.TrimSpace(os.Getenv("NORTHWING_HOME"))
@@ -55,7 +57,11 @@ func applyNorthwingCLIIdentity() {
 		return
 	}
 	_ = os.Setenv("REASONIX_HOME", home)
-	_ = os.Setenv("REASONIX_STATE_HOME", home)
+	state := strings.TrimSpace(os.Getenv("NORTHWING_STATE_HOME"))
+	if state == "" {
+		state = home
+	}
+	_ = os.Setenv("REASONIX_STATE_HOME", state)
 	cache := strings.TrimSpace(os.Getenv("NORTHWING_CACHE_HOME"))
 	if cache == "" {
 		if dir, err := os.UserCacheDir(); err == nil && dir != "" {
