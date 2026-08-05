@@ -138,10 +138,23 @@ jobs:
         timeout-minutes: 1
         run: |
           $expected = [regex]::Escape("northwing ${{ steps.version.outputs.version }}")
-          $output = & .\desktop\build\bin\northwing.exe version 2>&1
-          if ($LASTEXITCODE -ne 0) { throw "northwing.exe version exited $LASTEXITCODE`n$output" }
-          $text = $output -join "`n"
-          if ($text -notmatch $expected) { throw "unexpected CLI output: $text" }
+          $stdout = Join-Path $env:RUNNER_TEMP "northwing-version.out"
+          $stderr = Join-Path $env:RUNNER_TEMP "northwing-version.err"
+          $process = Start-Process -FilePath .\desktop\build\bin\northwing.exe -ArgumentList version -PassThru `
+            -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          try {
+            if (-not $process.WaitForExit(15000)) {
+              Stop-Process -Id $process.Id -Force
+              throw "northwing.exe version did not exit; the CLI path may have started the GUI"
+            }
+            $process.WaitForExit()
+            $output = @((Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue), (Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue))
+            if ($process.ExitCode -ne 0) { throw "northwing.exe version exited $($process.ExitCode)`n$($output -join "`n")" }
+            $text = $output -join "`n"
+            if ($text -notmatch $expected) { throw "unexpected CLI output: $text" }
+          } finally {
+            Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
+          }
 
       - name: Install NSIS
         run: choco install nsis -y --no-progress
