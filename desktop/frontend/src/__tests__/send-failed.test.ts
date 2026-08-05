@@ -226,8 +226,8 @@ eq(recoveryNotice.kind === "notice" && recoveryNotice.level, "info", "recovery_p
 eq(recoveryNotice.kind === "notice" && Boolean(recoveryNotice.title), true, "recovery_paused shows a product title");
 eq(
   recoveryNotice.kind === "notice" && recoveryNotice.text,
-  "Reasonix stopped repeated attempts and kept completed work. Send “Continue” to start a fresh attempt, or add instructions to change direction.",
-  "recovery_paused uses the localized product copy",
+  "Northwing stopped repeated attempts and kept completed work. Send “Continue” to start a fresh attempt, or add instructions to change direction.",
+  "recovery_paused uses the localized Northwing product copy",
 );
 eq(
   recoveryNotice.kind === "notice" && Boolean(recoveryNotice.detail),

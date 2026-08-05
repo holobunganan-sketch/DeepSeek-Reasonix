@@ -2,10 +2,16 @@ import { createContext, createElement, useCallback, useContext, useEffect, useRe
 import { app, onUpdaterProgress } from "./bridge";
 import type { UpdateInfo } from "./types";
 
-// useUpdater drives the auto-update state machine shared by the top banner and the
-// Settings panel. v1.20+ uses a single "update and restart" action that downloads,
-// verifies, installs, and relaunches. There is no durable cross-restart pending
-// state: failures leave the current version running and the user simply retries.
+type NorthwingUpdateBindings = {
+  CheckNorthwingUpdate?: () => Promise<UpdateInfo | null>;
+  OpenNorthwingDownloadPage?: () => Promise<void>;
+};
+
+const productUpdater = app as typeof app & NorthwingUpdateBindings;
+
+// useUpdater drives the update state shared by the top banner and Settings.
+// Real Northwing builds use the fork-specific manual release checker; browser
+// mocks and upstream-compatible tests fall back to the complete Reasonix updater.
 
 export type UpdateStatus =
   | { kind: "idle" }
@@ -23,7 +29,6 @@ export type UpdateStatus =
 export interface Updater {
   status: UpdateStatus;
   check: () => Promise<void>;
-  /** Single-action update: download + verify + install + relaunch. */
   apply: (info: UpdateInfo) => void;
   openDownload: () => void;
   reset: () => void;
@@ -42,6 +47,21 @@ function offersManualFallback(message: string): boolean {
     low.includes("pkexec") ||
     low.includes("sudo apt install")
   );
+}
+
+async function checkProductUpdate(): Promise<UpdateInfo | null> {
+  if (typeof productUpdater.CheckNorthwingUpdate === "function") {
+    return productUpdater.CheckNorthwingUpdate();
+  }
+  return app.CheckUpdate("stable");
+}
+
+function openProductDownload(): void {
+  if (typeof productUpdater.OpenNorthwingDownloadPage === "function") {
+    void productUpdater.OpenNorthwingDownloadPage();
+    return;
+  }
+  void app.OpenDownloadPage();
 }
 
 const UpdaterContext = createContext<Updater | null>(null);
@@ -113,9 +133,6 @@ function useUpdaterInternal(): Updater {
     }
   }, [isCurrentOperation]);
 
-  // A single long-lived subscription advances the state machine through apply
-  // phases. Channel and operation-kind checks prevent a superseded native call
-  // from publishing into a newly selected channel.
   useEffect(() => {
     return onUpdaterProgress((p) => {
       const operation = operationRef.current;
@@ -137,7 +154,6 @@ function useUpdaterInternal(): Updater {
           p.phase === "relaunching" ||
           p.phase === "done" ||
           p.phase === "error" ||
-          // Tolerate legacy backend phases during the migration window.
           p.phase === "downloaded" ||
           p.phase === "recovering"
         );
@@ -154,8 +170,6 @@ function useUpdaterInternal(): Updater {
           case "verifying":
             return info ? { kind: "verifying", info } : cur;
           case "downloaded":
-            // Intermediate cache-ready signal: keep showing verifying/installing
-            // rather than a separate user action.
             return info ? { kind: "installing", info } : cur;
           case "authorizing":
             return { kind: "authorizing", info };
@@ -184,7 +198,7 @@ function useUpdaterInternal(): Updater {
     const operation = beginOperation("stable", "checking");
     setStatus({ kind: "checking" });
     try {
-      const info = await app.CheckUpdate("stable");
+      const info = await checkProductUpdate();
       if (!isCurrentOperation(operation)) return;
       if (!info) {
         completeOperation(operation);
@@ -228,7 +242,7 @@ function useUpdaterInternal(): Updater {
     const active = operationRef.current;
     if (isBusyOperation(active.kind) || (active.channel && active.channel !== selectedChannel)) return;
     if (!info.canSelfUpdate) {
-      void app.OpenDownloadPage();
+      openProductDownload();
       return;
     }
     const operation = beginOperation(selectedChannel, "applying", info.latest);
@@ -246,7 +260,7 @@ function useUpdaterInternal(): Updater {
   }, [beginOperation, completeOperation, isCurrentOperation]);
 
   const openDownload = useCallback(() => {
-    void app.OpenDownloadPage();
+    openProductDownload();
   }, []);
 
   const reset = useCallback(() => {

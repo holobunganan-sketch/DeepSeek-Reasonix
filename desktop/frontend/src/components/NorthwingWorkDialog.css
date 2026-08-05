@@ -1,0 +1,162 @@
+.northwing-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1900;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg, #111) 68%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.northwing-work-dialog {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--border, #666) 75%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--panel, #1d1d1d) 96%, transparent);
+  box-shadow: 0 28px 80px rgb(0 0 0 / 38%);
+}
+
+.northwing-work-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border, #666) 50%, transparent);
+}
+
+.northwing-work-dialog__header h2 {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.25;
+}
+
+.northwing-work-dialog__header p {
+  margin: 6px 0 0;
+  color: var(--muted, #aaa);
+  font-size: 12px;
+}
+
+.northwing-work-dialog__header button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+}
+
+.northwing-work-dialog__header button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--fg, #fff) 8%, transparent);
+}
+
+.northwing-work-dialog__form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 20px 24px;
+}
+
+.northwing-work-dialog__form label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.northwing-work-dialog__form label > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted, #aaa);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.northwing-work-dialog__wide {
+  grid-column: 1 / -1;
+}
+
+.northwing-work-dialog input,
+.northwing-work-dialog textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--border, #666) 72%, transparent);
+  border-radius: 10px;
+  padding: 10px 11px;
+  color: inherit;
+  background: color-mix(in srgb, var(--bg, #111) 64%, transparent);
+  font: inherit;
+  line-height: 1.45;
+  resize: vertical;
+  outline: none;
+}
+
+.northwing-work-dialog input:focus,
+.northwing-work-dialog textarea:focus {
+  border-color: color-mix(in srgb, var(--accent, #5c8dff) 75%, white 8%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #5c8dff) 16%, transparent);
+}
+
+.northwing-work-dialog__error {
+  margin: 0 24px 8px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  color: var(--danger, #ff7b7b);
+  background: color-mix(in srgb, var(--danger, #ff5d5d) 10%, transparent);
+  font-size: 12px;
+}
+
+.northwing-work-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px 22px;
+}
+
+.northwing-work-dialog__footer button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  border-radius: 10px;
+  padding: 0 15px;
+  font: inherit;
+  font-weight: 600;
+}
+
+.northwing-work-dialog__secondary {
+  border: 1px solid color-mix(in srgb, var(--border, #666) 72%, transparent);
+  color: inherit;
+  background: transparent;
+}
+
+.northwing-work-dialog__primary {
+  border: 1px solid color-mix(in srgb, var(--accent, #5c8dff) 82%, white 8%);
+  color: white;
+  background: var(--accent, #4e7cff);
+}
+
+.northwing-work-dialog__footer button:disabled {
+  opacity: 0.55;
+}
+
+.northwing-spin {
+  animation: northwing-spin 0.9s linear infinite;
+}
+
+@keyframes northwing-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 640px) {
+  .northwing-modal-backdrop { padding: 10px; }
+  .northwing-work-dialog { max-height: calc(100vh - 20px); }
+  .northwing-work-dialog__form { grid-template-columns: 1fr; }
+  .northwing-work-dialog__wide { grid-column: auto; }
+}

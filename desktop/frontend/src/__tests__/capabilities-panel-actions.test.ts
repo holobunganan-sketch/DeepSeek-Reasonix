@@ -538,7 +538,7 @@ console.log("capabilities panel MCP actions");
   await waitFor("trusted project MCP", () => Boolean(document.querySelector('[data-status="connected"]')));
   ok(document.body.textContent?.includes("This project"), "project MCP is grouped under This project");
   ok(document.body.textContent?.includes("Global MCP"), "user-installed MCP is grouped by its global scope");
-  ok(document.body.textContent?.includes("Install once and use automatically in every Reasonix project."), "global MCP explains its cross-project availability");
+  ok(document.body.textContent?.includes("Install once and use automatically in every Northwing project."), "global MCP explains its cross-project availability");
   ok(document.body.textContent?.includes("Project"), "project MCP row shows a project source badge");
   ok(document.body.textContent?.includes("Declared by this project and available automatically."), "project MCP explains zero-confirmation availability");
   ok(!findButton("Install and use"), "trusted project MCP has no install confirmation");

@@ -16,11 +16,15 @@ func TestBuiltinToolContractDocumentation(t *testing.T) {
 	if len(entries) == 0 {
 		t.Fatal("no built-in tool contract entries")
 	}
-	doc, err := os.ReadFile("../../docs/TOOL_CONTRACT.md")
+	base, err := os.ReadFile("../../docs/TOOL_CONTRACT.md")
 	if err != nil {
 		t.Fatalf("read docs/TOOL_CONTRACT.md: %v", err)
 	}
-	text := string(doc)
+	extension, err := os.ReadFile("../../docs/NORTHWING_TOOL_CONTRACT.md")
+	if err != nil {
+		t.Fatalf("read docs/NORTHWING_TOOL_CONTRACT.md: %v", err)
+	}
+	text := string(base) + "\n" + string(extension)
 	for _, e := range entries {
 		if !strings.Contains(text, "| `"+e.Name+"` |") {
 			t.Errorf("documentation missing table row for %s", e.Name)
@@ -57,19 +61,20 @@ func boolString(v bool) string {
 // which is the guard against a context-maintenance strategy silently desyncing
 // from the tool surface.
 var acceptsDefaultSnip = map[string]bool{
-	"bash_output":   true, // streamed job output; tailing handled by the job, not the snip pass
-	"code_index":    true,
-	"complete_step": true,
-	"delete_range":  true,
-	"delete_symbol": true,
-	"edit_file":     true,
-	"kill_shell":    true,
-	"move_file":     true,
-	"multi_edit":    true,
-	"notebook_edit": true,
-	"todo_write":    true,
-	"wait":          true,
-	"write_file":    true,
+	"bash_output":      true, // streamed job output; tailing handled by the job, not the snip pass
+	"code_index":       true,
+	"complete_step":    true,
+	"delete_range":     true,
+	"delete_symbol":    true,
+	"edit_file":        true,
+	"kill_shell":       true,
+	"move_file":        true,
+	"multi_edit":       true,
+	"northwing_office": true, // compact structured validation report; generic head/tail remains readable
+	"notebook_edit":    true,
+	"todo_write":       true,
+	"wait":             true,
+	"write_file":       true,
 }
 
 func TestEveryBuiltinDeclaresSnipStance(t *testing.T) {

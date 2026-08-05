@@ -1,0 +1,16 @@
+.northwing-artifact-preview__office {
+  display: grid;
+  gap: 8px;
+  padding: 13px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border, #666) 55%, transparent);
+  background: color-mix(in srgb, var(--accent, #5c8dff) 6%, transparent);
+  font-size: 11px;
+}
+
+.northwing-artifact-preview__office > strong { font-size: 12px; }
+.northwing-artifact-preview__office > strong.is-valid { color: #52b788; }
+.northwing-artifact-preview__office > strong.is-invalid { color: var(--danger, #ff7b7b); }
+.northwing-artifact-preview__office > span { color: var(--muted, #aaa); }
+.northwing-artifact-preview__office ul { display: grid; gap: 4px; margin: 0; padding-left: 18px; max-height: 150px; overflow: auto; }
+.northwing-artifact-preview__office li { line-height: 1.35; }
+.northwing-artifact-preview__office ul.is-warning { color: #d79b42; }

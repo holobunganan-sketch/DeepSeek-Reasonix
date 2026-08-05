@@ -1,0 +1,223 @@
+name: Northwing CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main-v2]
+  push:
+    branches:
+      - main-v2
+      - agent/northwing-cowork-foundation
+      - northwing-main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: northwing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kernel-and-office:
+    name: Kernel and Office
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.5
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Go format
+        shell: bash
+        run: |
+          targets=(
+            internal/office
+            internal/cowork
+            internal/tool/builtin
+            internal/agent
+            cmd/northwing
+            cmd/northwing-icon
+            desktop/cowork_projects.go
+            desktop/cowork_office.go
+            desktop/northwing_identity.go
+            desktop/northwing_protocol.go
+            desktop/northwing_cli.go
+            desktop/northwing_updater.go
+            desktop/single_instance.go
+            desktop/main.go
+            desktop/menu.go
+            desktop/tray.go
+          )
+          gofmt -w "${targets[@]}"
+          git diff -- "${targets[@]}"
+          git diff --exit-code -- "${targets[@]}"
+
+      - name: Kernel tests
+        run: go test ./...
+
+      - name: Generate Office interoperability fixtures
+        env:
+          NORTHWING_OFFICE_FIXTURE_DIR: ${{ runner.temp }}/northwing-office
+        run: go test ./internal/office -run TestWriteExternalFixtures -count=1
+
+      - name: Verify Office fixtures with independent parsers
+        env:
+          NORTHWING_OFFICE_FIXTURE_DIR: ${{ runner.temp }}/northwing-office
+        run: |
+          python -m pip install --disable-pip-version-check --quiet \
+            python-docx==1.2.0 \
+            python-pptx==1.0.2 \
+            openpyxl==3.1.5 \
+            pypdf==5.9.0
+          python scripts/verify_northwing_office.py "$NORTHWING_OFFICE_FIXTURE_DIR"
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/frontend/pnpm-lock.yaml
+
+      - name: Install frontend
+        working-directory: desktop/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: desktop/frontend
+        run: pnpm typecheck
+
+      - name: Tests
+        id: frontend_tests
+        working-directory: desktop/frontend
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test 2>&1 | tee "$RUNNER_TEMP/frontend-test.log"
+
+      - name: Extract test diagnostic
+        if: failure() && steps.frontend_tests.outcome == 'failure'
+        shell: bash
+        run: |
+          {
+            echo "--- failure lines ---"
+            grep -nE 'FAIL|failed|expected|got|Error:|ELIFECYCLE' "$RUNNER_TEMP/frontend-test.log" | tail -n 180 || true
+            echo "--- final 260 lines ---"
+            tail -n 260 "$RUNNER_TEMP/frontend-test.log"
+          } > "$RUNNER_TEMP/frontend-diagnostic.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: failure() && steps.frontend_tests.outcome == 'failure'
+        with:
+          name: northwing-frontend-diagnostic-${{ github.sha }}
+          path: ${{ runner.temp }}/frontend-diagnostic.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Production build
+        working-directory: desktop/frontend
+        run: pnpm build
+
+  windows-desktop:
+    name: Windows desktop and packages
+    runs-on: windows-latest
+    needs:
+      - kernel-and-office
+      - frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.5
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/frontend/pnpm-lock.yaml
+
+      - name: Install frontend
+        working-directory: desktop/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Desktop tests
+        working-directory: desktop
+        run: go test ./...
+
+      - name: Generate Northwing icons
+        run: go run ./cmd/northwing-icon -root .
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+
+      - name: Build Northwing Windows x64
+        working-directory: desktop
+        run: wails build -platform windows/amd64 -clean -ldflags "-X main.version=0.1.0 -X main.channel=preview"
+
+      - name: Verify unified Northwing CLI
+        shell: pwsh
+        timeout-minutes: 1
+        run: |
+          $stdout = Join-Path $env:RUNNER_TEMP "northwing-version.out"
+          $stderr = Join-Path $env:RUNNER_TEMP "northwing-version.err"
+          $process = Start-Process -FilePath .\desktop\build\bin\northwing.exe -ArgumentList version -PassThru `
+            -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          try {
+            if (-not $process.WaitForExit(15000)) {
+              Stop-Process -Id $process.Id -Force
+              throw "northwing.exe version did not exit; the CLI path may have started the GUI"
+            }
+            $process.WaitForExit()
+            $output = @((Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue), (Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue))
+            if ($process.ExitCode -ne 0) { throw "northwing.exe version exited $($process.ExitCode)`n$($output -join "`n")" }
+            $text = $output -join "`n"
+            if ($text -notmatch "northwing 0\.1\.0") { throw "unexpected CLI output: $text" }
+          } finally {
+            Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Install pinned NSIS
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/install-nsis.ps1
+
+      - name: Package installer and portable build
+        shell: pwsh
+        run: ./scripts/package-northwing-windows.ps1 -Version 0.1.0
+
+      - name: Verify Windows installer and portable build
+        shell: pwsh
+        run: ./scripts/verify-northwing-windows.ps1 -Version 0.1.0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Northwing-0.1.0-windows-x64
+          path: |
+            dist/Northwing-0.1.0-windows-x64-setup.exe
+            dist/Northwing-0.1.0-windows-x64-portable.zip
+            dist/Northwing-0.1.0-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
