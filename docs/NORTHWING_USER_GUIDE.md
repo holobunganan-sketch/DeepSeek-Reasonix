@@ -2,121 +2,179 @@
 
 > From intent to finished work. / 从目标到成品。
 
-Northwing is a local-first CoWork desktop application powered by the complete Reasonix kernel. It keeps Reasonix sessions, Goal mode, Planner/Executor collaboration, Skills, MCP, Hooks, subagents, permissions, sandboxing, checkpoints, rewind, recovery, terminal, Git, remote workspaces, ACP, bots, and developer workflows.
+Northwing is a local-first desktop application powered by the complete Reasonix kernel. Chat and Work use the same configured Providers, models, project tabs, sessions, tools, permissions, checkpoints, and recovery system.
 
 ## 1. Install on Windows
 
 Northwing publishes two Windows x64 packages:
 
-- `Northwing-<version>-windows-x64-setup.exe` — per-user installer. Administrator rights are not required.
+- `Northwing-<version>-windows-x64-setup.exe` — per-user installer;
 - `Northwing-<version>-windows-x64-portable.zip` — portable package.
 
-Verify the downloaded file against `Northwing-<version>-SHA256SUMS.txt` before running it.
+Verify the selected file against `Northwing-<version>-SHA256SUMS.txt`. Preview builds may display a Windows SmartScreen warning because they are unsigned.
 
-The installer adds:
+## 2. Configure models once
 
-- a Start Menu shortcut;
-- an uninstaller;
-- the `northwing://` URL protocol;
-- a per-user installation under `%LOCALAPPDATA%\Programs\Northwing`.
+Open **Settings → Model** and configure any Provider supported by Reasonix. Northwing Work can use every model shown by the normal Reasonix model catalog.
 
-Unsigned preview builds may trigger Windows SmartScreen. Inspect the release page and SHA-256 checksum before choosing **More info → Run anyway**.
+The Work dialog does not request a second API key and has no required OpenCode Go account. OpenCode Go remains available as an optional Reasonix Provider preset alongside DeepSeek, OpenAI-compatible, Anthropic-compatible, GLM, Kimi, and other configured endpoints.
 
-## 2. First launch and OpenCode Go
-
-Open the **Work** tab in the left sidebar. The OpenCode Go card uses Reasonix's existing secure Provider configuration and installs two official presets:
-
-- OpenCode Go OpenAI-compatible protocol;
-- OpenCode Go Anthropic-compatible protocol.
-
-Enter your own OpenCode Go API key. Northwing configures these default roles:
-
-- execution: `deepseek-v4-flash`;
-- planning and review: `deepseek-v4-pro`;
-- subagent work: `qwen3.7-plus`.
-
-OpenCode Zen remains optional. Existing third-party Providers are preserved and can still be edited in **Settings → Model**.
+Planner, subagent, and reviewer model behavior follows the Reasonix settings. A Work stores its selected executor model and optional reasoning effort so the same binding can be restored later.
 
 ## 3. Chat and Work
 
 ### Chat
 
-Use Chat for questions, discussion, analysis, short drafting, coding, and direct Reasonix operation. It keeps the ordinary Reasonix tool prefix and does not load Northwing Office tools unless explicitly enabled.
+Use an ordinary Reasonix session for questions, discussion, short drafting, coding, analysis, terminal work, and direct tool operation.
 
 ### Work
 
-Use Work when the result should be a completed file or multi-step outcome. A Work brief contains:
+Use **New Work** in the project sidebar when the outcome should be a finished file or a multi-step deliverable. Work creates a native Reasonix project session with:
 
-1. goal;
-2. source materials;
-3. deliverable format;
-4. constraints;
-5. completion criteria.
+- Goal enabled;
+- Delivery enabled;
+- the selected Reasonix model;
+- a deterministic formal-output directory;
+- a structured quality policy;
+- Artifact version tracking.
 
-Northwing stores the Work link before the first model request, creates or reuses a native Reasonix project session, activates Goal mode, and applies the existing Delivery profile. Reasonix remains the authoritative execution state.
-
-## 4. Projects
-
-Choose an existing local folder in the Reasonix project tree and select **Enable CoWork**. Northwing creates only:
+The project does not need a separate “Enable CoWork” step. Creating the first Work adds only:
 
 ```text
 <workspace>/.northwing/project.json
 ```
 
-It does not copy source files, session transcripts, model context, or tool output. Existing Reasonix workspaces remain usable without enabling CoWork.
+Source files, transcripts, Provider configuration, credentials, and tool output are not copied.
 
-## 5. Deliverables and versions
+## 4. Create a Work
 
-Every Work receives a deterministic output directory:
+The short form asks for:
+
+1. **Goal** — one clear description of the result;
+2. **Materials** — optional project-relative file paths;
+3. **Work type**;
+4. **Delivery quality**;
+5. **Evidence policy**;
+6. **Executor model** from the configured Reasonix catalog.
+
+Advanced settings contain title, audience, deliverable override, constraints, extra completion criteria, pause policy, and reasoning effort.
+
+### Work types
+
+- **General task** — general finished outputs;
+- **Research and evidence** — source-backed research briefs and evidence synthesis;
+- **Report / Word** — editable DOCX reports;
+- **Presentation / PowerPoint** — editable PPTX decks;
+- **Data analysis / Excel** — editable XLSX workbooks and interpretation summaries;
+- **Review and revision** — review and scoped modification of existing files;
+- **File batch** — deterministic processing of multiple inputs.
+
+### Quality levels
+
+**Quick** uses:
+
+```text
+inspect → produce → validate
+```
+
+**Standard** uses:
+
+```text
+inventory → plan → produce → review → repair → validate
+```
+
+**Deep** uses:
+
+```text
+inventory → evidence ledger → plan → produce → review
+→ independent review → repair → validate → requirement audit
+```
+
+Standard is the default.
+
+### Evidence policies
+
+- **Project materials only** — no unsupported external facts;
+- **Project-first with web supplementation** — external research fills material gaps and receives citations;
+- **Verified web research with citations** — current authoritative sources verify externally checkable claims.
+
+## 5. Harness behavior
+
+The guided form is compiled into one Reasonix task contract containing Context, Request, Materials, Output format, Source policy, Constraints, Acceptance criteria, Pause policy, and Harness execution requirements.
+
+The Harness uses Reasonix Delivery. It requires the agent to:
+
+- create an acceptance list before formal output work;
+- save finished files under the Work directory;
+- follow the selected evidence policy;
+- review and repair at the selected quality depth;
+- validate after the latest content change;
+- finish only after every acceptance item has evidence.
+
+This structure increases the reliability of low-cost models by reducing ambiguity, separating stages, requiring evidence, and using deterministic validation. Final quality still depends on the selected model, available evidence, and task difficulty.
+
+## 6. Deliverables and versions
+
+Every Work receives:
 
 ```text
 <workspace>/deliverables/<work-id>/
 ```
 
-After a Reasonix turn completes, Northwing scans that directory locally. Files are hashed with SHA-256. Unchanged content does not create a duplicate version; changed content creates the next Artifact version.
+After a Reasonix turn completes, Northwing scans this directory locally. Changed files receive the next Artifact version. Unchanged content does not create duplicates.
 
-Use **Work and Artifacts** to:
+Open **Work and artifacts** to:
 
-- continue a Work in its exact Reasonix topic/session;
+- continue the exact Reasonix Work session;
+- see the Work type, quality, evidence policy, model, and effort;
 - inspect versions;
 - preview text, images, PDFs, and Office structure;
 - open a file in its system application;
-- reveal the file in Explorer;
-- mark one version as final;
+- reveal it in Explorer;
+- mark a version as final;
 - request a scoped revision in the original Work session.
 
-Final selections are stored in `.northwing/final-artifacts.json`. Files are not copied or moved.
+Final selections are stored in:
 
-## 6. Office deliverables
+```text
+<workspace>/.northwing/final-artifacts.json
+```
 
-Northwing adds one stable Reasonix tool named `northwing_office`. It is exposed automatically only in CoWork projects, keeping ordinary Chat sessions' tool schema and cache prefix unchanged.
+Files are not copied or moved when a final version is selected.
 
-Supported actions:
+## 7. Office deliverables
+
+Northwing includes the stable Reasonix tool `northwing_office` for Work projects. Supported actions include:
 
 - create editable DOCX;
 - create editable PPTX;
 - create editable XLSX;
 - create searchable PDF;
-- inspect and validate document structure;
-- replace exact text in DOCX, PPTX, or XLSX.
+- inspect and validate package structure;
+- replace exact text in DOCX, PPTX, and XLSX.
 
-All writes remain subject to Reasonix workspace confinement, permissions, approvals, sandboxing, and subagent path reservations.
+Ordinary Chat sessions do not receive this tool automatically. Work projects receive it through the existing `.northwing/project.json` exposure rule.
 
-## 7. Permissions and safety
+## 8. Resume and model restoration
 
-Northwing retains Reasonix permission modes. High-impact operations such as destructive file changes, external publication, Git pushes, credential access, or paid services should still require the applicable approval.
+A saved Work links to its Reasonix topic and exact session path. Opening the Work:
 
-Northwing project metadata and Artifact inspection are local operations. They do not make model calls and do not add document bodies to model context.
+1. restores the same Reasonix session;
+2. reapplies the saved executor model and optional effort;
+3. switches to Delivery;
+4. resumes an active Goal or starts one explicit continuation turn.
 
-## 8. Resume and recovery
+If the saved model no longer exists in the configured catalog, Northwing reports the missing model reference. Configure or replace the model in **Settings → Model**, then continue the Work.
 
-A saved Work links to its Reasonix topic and exact session path. Opening or continuing the Work restores that session. If an active Goal exists, Northwing resumes it. If the Goal is complete or stopped, it continues in the same session with a new Goal turn.
+## 9. Permissions and safety
 
-Reasonix checkpoint, rewind, conflict recovery, autosave, detached runtime, and session lease behavior remain unchanged.
+Work uses Reasonix permission modes, approval prompts, sandbox rules, path confinement, checkpoints, and recovery behavior. External publication, Git pushes, destructive operations, credential access, payments, and other externally visible actions remain subject to the existing policy.
 
-## 9. CLI
+Northwing project metadata and Artifact synchronization are local operations. They do not make model calls and do not inject file bodies into model context.
 
-The packaged executable supports both desktop and CLI operation:
+## 10. CLI
+
+The packaged executable supports desktop and CLI operation:
 
 ```powershell
 northwing.exe version
@@ -126,31 +184,35 @@ northwing.exe doctor
 northwing.exe mcp list
 ```
 
-Running `northwing.exe` without arguments opens the desktop. `northwing.exe update` prints the official Northwing release page. All advanced Reasonix kernel commands remain available.
+Running `northwing.exe` without arguments opens the desktop. Advanced Reasonix kernel commands remain available.
 
-## 10. Updates
+## 11. Updates
 
-Northwing checks only the Northwing fork's `northwing-v*` GitHub Releases. Version 0.1 uses manual updates because Northwing does not yet have an independent signed update manifest. The inherited Reasonix updater remains in the source tree for upstream compatibility but is not used by the Northwing product UI.
+Northwing checks the fork's `northwing-v*` GitHub Releases. Version 0.1 uses manual updates because it does not yet publish an independently signed update manifest.
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
-### OpenCode Go card reports a conflict
+### New Work shows no model
 
-A Provider with the same name was modified or created manually. Northwing preserves it instead of overwriting it. Open **Settings → Model** and resolve or rename the conflicting Provider.
+Open **Settings → Model**, configure a Provider, and confirm the model appears in the normal Composer model switcher.
+
+### A saved Work model is unavailable
+
+The Provider or model was removed after the Work was created. Restore it in Reasonix settings or create a replacement Work with another configured model.
 
 ### A generated file is not registered
 
-Confirm that it is inside `deliverables/<work-id>/`, then open **Work and Artifacts** and select **Sync artifacts**. Hidden files, temporary downloads, `.tmp`, `.part`, and incomplete browser downloads are ignored.
+Confirm that the file is inside `deliverables/<work-id>/`, then open **Work and artifacts** and select **Sync artifacts**. Hidden files, partial downloads, and temporary files are ignored.
 
 ### Office preview reports an invalid structure
 
-Open the Artifact in its system application and request a revision. Northwing's deterministic validator checks package entries, XML structure, page/slide/sheet counts, and external relationships.
+Open the Artifact in its system application and request a revision. Northwing checks package entries, XML structure, page/slide/sheet counts, and external relationships.
 
 ### Existing Reasonix data is missing
 
-Northwing intentionally uses independent data directories. Existing Reasonix configuration is not overwritten. Explicit `REASONIX_HOME`, `REASONIX_STATE_HOME`, and `REASONIX_CACHE_HOME` variables remain supported for advanced compatibility.
+Northwing uses independent application directories. Existing Reasonix configuration is not overwritten. Explicit `REASONIX_HOME`, `REASONIX_STATE_HOME`, and `REASONIX_CACHE_HOME` variables remain available for compatibility.
 
-## 12. Data locations
+## 13. Data locations
 
 Defaults:
 
@@ -158,7 +220,7 @@ Defaults:
 - Windows cache: `%LOCALAPPDATA%\Northwing` or the platform cache directory;
 - Unix-like systems: `~/.northwing` plus the platform cache directory.
 
-Override with:
+Overrides:
 
 - `NORTHWING_HOME`;
 - `NORTHWING_STATE_HOME`;
