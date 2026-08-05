@@ -1,6 +1,12 @@
 import { app } from "./bridge";
 import { workbenchTargetToken } from "./goalSubmit";
 import type { FilePreview, TabMeta } from "./types";
+import {
+  compileWorkBrief,
+  normalizeWorkSpec,
+  workOutputDir,
+  type WorkSpecDraft,
+} from "./northwingWorkSpec";
 
 export type CoworkWorkRef = {
   id: string;
@@ -8,6 +14,12 @@ export type CoworkWorkRef = {
   sessionPath?: string;
   goalId?: string;
   profile: "economy" | "balanced" | "delivery" | string;
+  kind?: string;
+  quality?: string;
+  sourcePolicy?: string;
+  modelRef?: string;
+  reasoningEffort?: string;
+  harnessVersion?: number;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -40,14 +52,7 @@ export type CoworkProjectState = {
   error?: string;
 };
 
-export type CoworkWorkDraft = {
-  title: string;
-  objective: string;
-  materials: string[];
-  deliverable: string;
-  constraints: string;
-  completionCriteria: string;
-};
+export type CoworkWorkDraft = WorkSpecDraft;
 
 type CoworkBindings = {
   CreateCoworkProject?: (workspaceRoot: string, name: string) => Promise<CoworkProject>;
@@ -59,14 +64,17 @@ type CoworkBindings = {
 
 export const coworkApp = app as typeof app & CoworkBindings;
 
-const WORK_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-
 function requiredBinding<K extends keyof CoworkBindings>(name: K): NonNullable<CoworkBindings[K]> {
   const method = coworkApp[name];
   if (typeof method !== "function") {
     throw new Error(`Northwing desktop binding ${String(name)} is unavailable; rebuild the Wails desktop app.`);
   }
   return method as NonNullable<CoworkBindings[K]>;
+}
+
+function basename(path: string): string {
+  const parts = path.replace(/\\/g, "/").split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? path;
 }
 
 export function createCoworkWorkID(): string {
@@ -79,46 +87,11 @@ export function createCoworkWorkID(): string {
 }
 
 export function coworkWorkOutputDir(workID: string): string {
-  const normalized = workID.trim();
-  if (!WORK_ID_PATTERN.test(normalized)) {
-    throw new Error(`Invalid Northwing Work ID: ${workID}`);
-  }
-  return `deliverables/${normalized}`;
-}
-
-function cleanLines(values: string[]): string[] {
-  return values.map((value) => value.trim()).filter(Boolean);
+  return workOutputDir(workID);
 }
 
 export function buildCoworkWorkBrief(workID: string, draft: CoworkWorkDraft): string {
-  const title = draft.title.trim() || "Untitled work";
-  const objective = draft.objective.trim();
-  const materials = cleanLines(draft.materials);
-  const deliverable = draft.deliverable.trim() || "A polished, directly usable deliverable in the requested format.";
-  const constraints = draft.constraints.trim();
-  const completion = draft.completionCriteria.trim() || "The deliverable opens correctly, satisfies the brief, and has been checked before completion is reported.";
-  const outputDir = coworkWorkOutputDir(workID);
-
-  const sections = [
-    "# Northwing Work Brief",
-    `\n## Work\n${title}`,
-    `\n## Goal\n${objective}`,
-  ];
-  if (materials.length > 0) {
-    sections.push(`\n## Materials\n${materials.map((path) => `- @${path.replace(/^@/, "")}`).join("\n")}`);
-  }
-  sections.push(`\n## Deliverable\n${deliverable}`);
-  if (constraints) sections.push(`\n## Constraints\n${constraints}`);
-  sections.push(`\n## Completion criteria\n${completion}`);
-  sections.push([
-    "\n## Execution contract",
-    "- Continue until the work is complete or a genuine external blocker is reached.",
-    "- Follow the current project instructions and use the provided source material as evidence.",
-    `- Save formal deliverables under \`${outputDir}/\` and keep temporary working files outside that directory.`,
-    "- Use the existing Delivery profile, including its planning, review, permission, checkpoint, and verification behavior.",
-    "- Do not claim completion until the deliverables exist and the relevant checks have been performed.",
-  ].join("\n"));
-  return sections.join("\n");
+  return compileWorkBrief(workID, normalizeWorkSpec(draft));
 }
 
 async function localTargetToken() {
@@ -158,6 +131,34 @@ async function submitGoal(tab: TabMeta, goal: string, input: string, displayText
   await app.SetActiveTab(tab.id);
 }
 
+async function ensureCoworkProject(workspaceRoot: string): Promise<CoworkProject> {
+  const state = await readCoworkProjectState(workspaceRoot, false);
+  if (state.exists && state.project) return state.project;
+  return createCoworkProject(workspaceRoot, basename(workspaceRoot));
+}
+
+async function applyWorkBinding(
+  tab: TabMeta,
+  binding: Pick<CoworkWorkRef, "modelRef" | "reasoningEffort">,
+): Promise<void> {
+  const modelRef = binding.modelRef?.trim() ?? "";
+  if (modelRef) {
+    try {
+      await app.SetModelForTab(tab.id, modelRef);
+    } catch (error) {
+      throw new Error(`The model saved for this Work is unavailable: ${modelRef}. Select a replacement in Reasonix model settings.`, { cause: error });
+    }
+  }
+  const effort = binding.reasoningEffort?.trim() ?? "";
+  if (effort) {
+    try {
+      await app.SetEffortForTab(tab.id, effort);
+    } catch (error) {
+      throw new Error(`The reasoning effort saved for this Work is unavailable: ${effort}.`, { cause: error });
+    }
+  }
+}
+
 export async function readCoworkProjectState(workspaceRoot: string, syncArtifacts = true): Promise<CoworkProjectState> {
   return requiredBinding("CoworkProjectState")(workspaceRoot, syncArtifacts);
 }
@@ -166,33 +167,49 @@ export async function createCoworkProject(workspaceRoot: string, name: string): 
   return requiredBinding("CreateCoworkProject")(workspaceRoot, name);
 }
 
-export async function launchCoworkWork(workspaceRoot: string, draft: CoworkWorkDraft): Promise<{ project: CoworkProject; work: CoworkWorkRef; tab: TabMeta }> {
+export async function launchCoworkWork(
+  workspaceRoot: string,
+  draft: CoworkWorkDraft,
+): Promise<{ project: CoworkProject; work: CoworkWorkRef; tab: TabMeta }> {
+  const spec = normalizeWorkSpec(draft);
   const workID = createCoworkWorkID();
-  const title = draft.title.trim() || draft.objective.trim().slice(0, 72) || "Untitled work";
-  const objective = draft.objective.trim() || title;
-  const brief = buildCoworkWorkBrief(workID, { ...draft, title });
+  const brief = compileWorkBrief(workID, spec);
 
   await localTargetToken();
+  await ensureCoworkProject(workspaceRoot);
   const tab = await app.EnsureBlankTab("project", workspaceRoot);
-  if (tab.topicId) await app.RenameTopic(tab.topicId, title).catch(() => undefined);
+  if (tab.topicId) await app.RenameTopic(tab.topicId, spec.title).catch(() => undefined);
+  if (spec.modelRef) await app.SetModelForTab(tab.id, spec.modelRef);
+  if (spec.reasoningEffort) await app.SetEffortForTab(tab.id, spec.reasoningEffort);
   await app.SetTokenModeForTab(tab.id, "delivery");
 
   const work: CoworkWorkRef = {
     id: workID,
-    title,
+    title: spec.title,
     sessionPath: await sessionPathForTab(tab),
-    // Reasonix currently exposes a durable topic anchor rather than a separate
-    // Goal identifier, so the compatibility field stores that topic ID.
+    // Reasonix exposes a durable topic anchor rather than a separate Goal ID.
     goalId: tab.topicId || "",
     profile: "delivery",
+    kind: spec.kind,
+    quality: spec.quality,
+    sourcePolicy: spec.sourcePolicy,
+    modelRef: spec.modelRef,
+    reasoningEffort: spec.reasoningEffort,
+    harnessVersion: spec.harnessVersion,
   };
-  const project = await requiredBinding("UpsertCoworkWork")(workspaceRoot, work);
+  let project = await requiredBinding("UpsertCoworkWork")(workspaceRoot, work);
 
-  // The Work link is durable before the first provider request. The compact
-  // title is shown in the transcript, the objective remains the Goal state,
-  // and the full Work Brief is the actual user input sent to the model.
-  await submitGoal(tab, objective, brief, title);
-  return { project, work, tab };
+  // The native Work link, model binding, and Harness policy are durable before
+  // the first provider request. Reasonix remains the sole execution runtime.
+  await submitGoal(tab, spec.objective, brief, spec.title);
+
+  const linked: CoworkWorkRef = {
+    ...work,
+    sessionPath: await sessionPathForTab(tab),
+    goalId: tab.topicId || work.goalId,
+  };
+  project = await requiredBinding("UpsertCoworkWork")(workspaceRoot, linked);
+  return { project, work: linked, tab };
 }
 
 export async function openCoworkWork(workspaceRoot: string, work: CoworkWorkRef): Promise<TabMeta> {
@@ -210,6 +227,7 @@ export async function openCoworkWork(workspaceRoot: string, work: CoworkWorkRef)
     if (work.sessionPath) await app.ResumeSessionForTab(tab.id, work.sessionPath);
     if (tab.topicId && work.title) await app.RenameTopic(tab.topicId, work.title).catch(() => undefined);
   }
+  await applyWorkBinding(tab, work);
   await app.SetTokenModeForTab(tab.id, "delivery");
   await app.SetActiveTab(tab.id);
   return tab;
@@ -220,9 +238,9 @@ export async function continueCoworkWork(workspaceRoot: string, work: CoworkWork
   const resumed = await app.ResumeGoalForTab(tab.id);
   if (!resumed) {
     const input = [
-      `Continue the Northwing work “${work.title}” from the restored project session.`,
-      `Inspect the existing conversation, project files, and \`${coworkWorkOutputDir(work.id)}/\`.`,
-      "Complete any unresolved requirements, validate the resulting files, and keep formal outputs in that deliverables directory.",
+      `Continue the Work “${work.title}” from the restored Reasonix project session.`,
+      `Inspect the existing conversation, project files, saved policy, and \`${coworkWorkOutputDir(work.id)}/\`.`,
+      "Complete unresolved acceptance items, run the required review and validation stages, and keep formal outputs in that deliverables directory.",
     ].join("\n\n");
     await submitGoal(tab, work.title, input, `Continue ${work.title}`);
   }
@@ -272,7 +290,7 @@ export async function reviseCoworkArtifact(
   const input = [
     `Revise @${artifact.path} according to the following instruction:`,
     instruction.trim(),
-    "Preserve correct existing content, make the smallest sufficient change, and validate the revised file.",
+    "Preserve correct existing content, make the smallest sufficient change, review the result, and validate the revised file after the latest mutation.",
     `Keep the formal output under \`${artifact.workId ? coworkWorkOutputDir(artifact.workId) : "deliverables"}/\` so Northwing can register the next version automatically.`,
   ].join("\n\n");
   await submitGoal(tab, `Revise ${artifact.path}`, input, `Revise ${artifact.path}`);
