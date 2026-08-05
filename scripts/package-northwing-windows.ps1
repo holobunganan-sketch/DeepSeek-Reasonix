@@ -30,15 +30,29 @@ Remove-Item -Force -ErrorAction SilentlyContinue $portableZip
 Compress-Archive -Path (Join-Path $portableDir "*") -DestinationPath $portableZip -CompressionLevel Optimal
 Remove-Item -Recurse -Force $portableDir
 
-$makensis = Get-Command makensis -ErrorAction SilentlyContinue
-if (-not $makensis) {
+$makensisCommand = Get-Command makensis.exe -ErrorAction SilentlyContinue
+$makensisPath = if ($makensisCommand) { $makensisCommand.Source } else { $null }
+if (-not $makensisPath) {
+  $programFilesRoots = @(
+    $env:ProgramFiles,
+    ${env:ProgramFiles(x86)}
+  ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+  foreach ($programFilesRoot in $programFilesRoots) {
+    $candidate = Join-Path $programFilesRoot "NSIS\makensis.exe"
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+      $makensisPath = $candidate
+      break
+    }
+  }
+}
+if (-not $makensisPath) {
   throw "makensis was not found. Install NSIS before creating the installer."
 }
 $installer = Join-Path $root "Northwing-$Version-windows-x64-setup.exe"
 Remove-Item -Force -ErrorAction SilentlyContinue $installer
 Push-Location $root
 try {
-  & $makensis.Source "/DAPP_VERSION=$Version" "scripts\windows\northwing-installer.nsi"
+  & $makensisPath "/DAPP_VERSION=$Version" "scripts\windows\northwing-installer.nsi"
   if ($LASTEXITCODE -ne 0) {
     throw "makensis exited with code $LASTEXITCODE"
   }
