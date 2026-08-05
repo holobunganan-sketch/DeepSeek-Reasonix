@@ -351,15 +351,13 @@ jobs:
         timeout-minutes: 15
         run: go test ./...
 
-      # Installer packaging is packaging validation, not a code gate: run it
-      # on pushes to main-v2 (the release pipeline builds installers again
-      # anyway), but let pull requests stop after the test step.
+      # Keep the inherited Reasonix packaging contract green before merge.
+      # Northwing has its own package lane, but desktop-build.sh still feeds
+      # upstream-compatible release and updater payloads.
       - name: Install NSIS
-        if: github.event_name != 'pull_request'
         run: pwsh -NoProfile -File ../scripts/install-nsis.ps1
 
       - name: Build Windows installer and portable archive
-        if: github.event_name != 'pull_request'
         timeout-minutes: 20
         run: ../scripts/desktop-build.sh windows/amd64 v0.0.0-ci canary
 

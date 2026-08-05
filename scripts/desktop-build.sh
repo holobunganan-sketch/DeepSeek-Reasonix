@@ -135,6 +135,12 @@ if [ "$os" = windows ]; then
 fi
 build_args=()
 [ "${DESKTOP_BUILD_CLEAN:-1}" != "0" ] && build_args+=(-clean)
+# Northwing's direct desktop builds intentionally use the default output name
+# from wails.json. This inherited Reasonix release builder has a separate,
+# stable compatibility payload contract, so do not couple it to that default.
+wails_output="$BINNAME"
+[ "$os" = windows ] && wails_output="$BINNAME.exe"
+build_args+=(-o "$wails_output")
 build_args+=(-platform "$PLATFORM" -ldflags "$ldflags")
 [ "$os" = windows ] && build_args+=(-nsis -webview2 embed)
 # Link cgo against WebKitGTK 4.1: 4.0 (libwebkit2gtk-4.0.so.37) is gone on
