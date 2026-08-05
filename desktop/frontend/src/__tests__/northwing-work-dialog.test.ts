@@ -23,7 +23,7 @@ ok(/<details/.test(source) && /advanced/i.test(source), "advanced free-text cont
 ok(/launchCoworkWork\(workspaceRoot, draft\)/.test(source), "guided draft launches the native Work session");
 ok(!/API Key/i.test(source), "dialog never asks for an API key");
 ok(!/opencode-go/i.test(source), "dialog has no OpenCode-specific model dependency");
-ok(/materials/.test(source) && /placeholder=.*sources\//s.test(source), "material paths remain optional and project-relative");
+ok(/materialsPlaceholder:[\s\S]*sources\/protocol\.pdf/.test(source), "material paths remain optional and project-relative");
 ok(/modelRef/.test(source) && /reasoningEffort/.test(source), "model and effort binding are part of the Work draft");
 
 if (failed) process.exit(1);
