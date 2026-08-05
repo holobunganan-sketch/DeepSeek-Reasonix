@@ -246,11 +246,9 @@ if sed -n '/^  desktop-windows:/,/^  lint:/p' "$repo_root/.github/workflows/ci.y
 	echo "Windows desktop packaging changes must be validated before merging" >&2
 	exit 1
 fi
-windows_smoke_block="$(
-	sed -n '/- name: test (Windows smoke)/,/- name: test (full)/p' \
-		"$repo_root/.github/workflows/ci.yml"
-)"
-grep -Fq './internal/tool/builtin/...' <<<"$windows_smoke_block"
+grep -Fq 'name: test (Windows process tree)' "$repo_root/.github/workflows/ci.yml"
+grep -Fq "go test -count=1 -timeout=3m ./internal/tool/builtin -run '^TestBash" \
+	"$repo_root/.github/workflows/ci.yml"
 
 desktop_generated_validation_line="$(
 	grep -n -m1 'name: Validate generated manifest before publication' \
