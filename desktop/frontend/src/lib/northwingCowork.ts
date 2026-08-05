@@ -145,16 +145,16 @@ async function applyWorkBinding(
   if (modelRef) {
     try {
       await app.SetModelForTab(tab.id, modelRef);
-    } catch (error) {
-      throw new Error(`The model saved for this Work is unavailable: ${modelRef}. Select a replacement in Reasonix model settings.`, { cause: error });
+    } catch {
+      throw new Error(`The model saved for this Work is unavailable: ${modelRef}. Select a replacement in Reasonix model settings.`);
     }
   }
   const effort = binding.reasoningEffort?.trim() ?? "";
   if (effort) {
     try {
       await app.SetEffortForTab(tab.id, effort);
-    } catch (error) {
-      throw new Error(`The reasoning effort saved for this Work is unavailable: ${effort}.`, { cause: error });
+    } catch {
+      throw new Error(`The reasoning effort saved for this Work is unavailable: ${effort}.`);
     }
   }
 }
