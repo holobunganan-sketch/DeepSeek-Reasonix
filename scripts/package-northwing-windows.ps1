@@ -50,14 +50,10 @@ if (-not $makensisPath) {
 }
 $installer = Join-Path $root "Northwing-$Version-windows-x64-setup.exe"
 Remove-Item -Force -ErrorAction SilentlyContinue $installer
-Push-Location $root
-try {
-  & $makensisPath "/DAPP_VERSION=$Version" "scripts\windows\northwing-installer.nsi"
-  if ($LASTEXITCODE -ne 0) {
-    throw "makensis exited with code $LASTEXITCODE"
-  }
-} finally {
-  Pop-Location
+$nsisScript = Join-Path $root "scripts\windows\northwing-installer.nsi"
+& $makensisPath "/DAPP_VERSION=$Version" $nsisScript
+if ($LASTEXITCODE -ne 0) {
+  throw "makensis exited with code $LASTEXITCODE"
 }
 if (-not (Test-Path $installer)) {
   throw "NSIS did not produce the expected installer: $installer"
