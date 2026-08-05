@@ -51,13 +51,19 @@ type Project struct {
 // remain the authoritative execution state. No second task state machine lives
 // in the project manifest.
 type WorkRef struct {
-	ID          string    `json:"id"`
-	Title       string    `json:"title"`
-	SessionPath string    `json:"sessionPath,omitempty"`
-	GoalID      string    `json:"goalId,omitempty"`
-	Profile     string    `json:"profile"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID              string    `json:"id"`
+	Title           string    `json:"title"`
+	SessionPath     string    `json:"sessionPath,omitempty"`
+	GoalID          string    `json:"goalId,omitempty"`
+	Profile         string    `json:"profile"`
+	Kind            string    `json:"kind,omitempty"`
+	Quality         string    `json:"quality,omitempty"`
+	SourcePolicy    string    `json:"sourcePolicy,omitempty"`
+	ModelRef        string    `json:"modelRef,omitempty"`
+	ReasoningEffort string    `json:"reasoningEffort,omitempty"`
+	HarnessVersion  int       `json:"harnessVersion,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
 // Artifact records a versioned file produced by a work item. The path is always
@@ -164,6 +170,9 @@ func (s *Store) LinkWork(workspaceRoot string, work WorkRef) (Project, error) {
 	work.SessionPath = strings.TrimSpace(work.SessionPath)
 	work.GoalID = strings.TrimSpace(work.GoalID)
 	work.Profile = profile
+	if err := NormalizeWorkPolicy(&work); err != nil {
+		return Project{}, err
+	}
 
 	index := -1
 	for i := range project.Works {
@@ -291,6 +300,11 @@ func (s *Store) loadUnlocked(workspaceRoot string) (Project, error) {
 	if strings.TrimSpace(project.ID) == "" || strings.TrimSpace(project.Name) == "" {
 		return Project{}, errors.New("invalid cowork project manifest: id and name are required")
 	}
+	for i := range project.Works {
+		if err := NormalizeWorkPolicy(&project.Works[i]); err != nil {
+			return Project{}, fmt.Errorf("invalid cowork project manifest work %d policy: %w", i, err)
+		}
+	}
 	if err := validateProjectReferences(project); err != nil {
 		return Project{}, err
 	}
@@ -361,6 +375,9 @@ func validateProjectReferences(project Project) error {
 	for i, work := range project.Works {
 		if err := validateWorkID(work.ID); err != nil {
 			return fmt.Errorf("invalid cowork project manifest work %d: %w", i, err)
+		}
+		if err := ValidateWorkPolicy(work); err != nil {
+			return fmt.Errorf("invalid cowork project manifest work %d policy: %w", i, err)
 		}
 	}
 	for i, artifact := range project.Artifacts {
