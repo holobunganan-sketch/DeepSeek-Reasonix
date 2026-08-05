@@ -32,6 +32,7 @@ ok(/launchCoworkWork\(workspaceRoot, draft\)/.test(workDialog), "guided dialog l
 ok(/ensureCoworkProject\(workspaceRoot\)/.test(adapter), "first Work lazily creates project metadata");
 ok(/continueCoworkWork\(workspaceRoot, work\)/.test(artifactCenter), "Work list resumes saved sessions");
 ok(/openCoworkArtifact\(workspaceRoot, artifact\.path\)/.test(artifactCenter), "Artifact actions stay scoped to their project");
+ok(/work\.modelRef/.test(artifactCenter) && /work\.quality/.test(artifactCenter), "Work management exposes model and Harness policy");
 ok(/<NorthwingProjectCenter[\s\S]*<ReasonixProjectTree/.test(wrapper), "ProjectCenter integrates directly beside the complete Reasonix tree");
 ok(!/NorthwingCoworkRail/.test(wrapper), "separate Chat and Work rail is removed");
 ok(!/NorthwingOpenCodeSetup/.test(center) && !/NorthwingOpenCodeSetup/.test(wrapper), "Work surface has no OpenCode setup card");
@@ -40,3 +41,7 @@ ok(/session transcripts, artifact bodies, or Reasonix execution state/.test(desk
 
 if (failed) process.exit(1);
 console.log("Northwing native project integration tests passed");
+
+await import("./northwing-work-spec.test");
+await import("./northwing-native-session.test");
+await import("./northwing-work-dialog.test");
