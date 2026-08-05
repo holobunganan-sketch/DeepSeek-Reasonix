@@ -139,6 +139,13 @@ jobs:
           WINDOWS_SANDBOX_WAIT_MS: "20000"
         run: go test -p 4 -timeout=3m ./internal/agent/... ./internal/cli/... ./internal/control/... ./internal/desktoplauncher/... ./internal/filelock/... ./internal/fileutil/... ./internal/hook/... ./internal/instruction/... ./internal/mcplaunch/... ./internal/notify/... ./internal/proc/... ./internal/remote/... ./internal/repair/... ./internal/sandbox/... ./internal/sysproxy/... ./internal/workspacelease/... ./cmd/...
 
+      - name: test (Windows process tree)
+        if: env.RUN_STEPS == 'true' && runner.os == 'Windows' && github.event_name == 'pull_request'
+        timeout-minutes: 5
+        env:
+          WINDOWS_SANDBOX_WAIT_MS: "20000"
+        run: go test -count=1 -timeout=3m ./internal/tool/builtin -run '^TestBash(CancelKillsWindowsChildProcessTree|WindowsReapsChildAfterForegroundShellExit|CancelKillsGitBashHereDocPython)$'
+
       - name: test (full)
         if: env.RUN_STEPS == 'true' && runner.os == 'Windows' && github.event_name != 'pull_request'
         timeout-minutes: 10

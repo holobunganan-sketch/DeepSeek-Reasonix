@@ -43,7 +43,7 @@ func TestBashCancelKillsWindowsChildProcessTree(t *testing.T) {
 		done <- runErr
 	}()
 
-	childPID := waitForWindowsPIDFile(t, pidFile)
+	childPID := waitForWindowsPIDFile(t, pidFile, done)
 	cancel()
 	select {
 	case err = <-done:
@@ -82,7 +82,7 @@ func TestBashWindowsReapsChildAfterForegroundShellExit(t *testing.T) {
 	out, err := (bash{
 		shell: sandbox.Shell{Kind: sandbox.ShellPowerShell, Path: powershell},
 	}).Execute(context.Background(), args)
-	childPID := waitForWindowsPIDFile(t, pidFile)
+	childPID := waitForWindowsPIDFile(t, pidFile, nil)
 	if err != nil {
 		killWindowsPID(childPID)
 		t.Fatalf("foreground command failed: %v (out=%q)", err, out)
@@ -117,7 +117,7 @@ func TestBashCancelKillsGitBashHereDocPython(t *testing.T) {
 		done <- runErr
 	}()
 
-	childPID := waitForWindowsPIDFile(t, pidFile)
+	childPID := waitForWindowsPIDFile(t, pidFile, done)
 	time.Sleep(300 * time.Millisecond) // let the tracker observe the Git Bash child tree.
 	cancel()
 	select {
@@ -139,9 +139,12 @@ func TestBashCancelKillsGitBashHereDocPython(t *testing.T) {
 	t.Fatalf("Git Bash here-doc python process %d survived bash cancel", childPID)
 }
 
-func waitForWindowsPIDFile(t *testing.T, path string) int {
+func waitForWindowsPIDFile(t *testing.T, path string, done <-chan error) int {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	// Starting a nested PowerShell can take longer than ten seconds on a busy
+	// Windows runner. Keep this readiness window above the CI sandbox wait while
+	// still failing immediately when the shell exits before creating the file.
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		data, err := os.ReadFile(path)
 		if err == nil {
@@ -149,6 +152,11 @@ func waitForWindowsPIDFile(t *testing.T, path string) int {
 			if parseErr == nil && pid > 0 {
 				return pid
 			}
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("bash exited before writing child pid file %s: %v", path, err)
+		default:
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
