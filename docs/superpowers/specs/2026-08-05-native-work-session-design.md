@@ -2,11 +2,11 @@
 
 ## Goal
 
-Integrate CoWork into Reasonix as a native Work session type. A Work reuses the existing Reasonix project, tab, session, model catalog, Goal runtime, Delivery profile, permissions, tools, checkpoints, recovery, and provider configuration. Northwing contributes a structured Work specification, persisted model and quality policy, artifact lifecycle, and document-focused Harness.
+Integrate CoWork into Reasonix as a native Work session type. A Work reuses the existing Reasonix project, tab, session, model catalog, Goal runtime, Delivery profile, permissions, tools, checkpoints, recovery, and provider configuration. Northwing contributes a structured Work specification, persisted executor-model and quality policy, artifact lifecycle, and document-focused Harness.
 
 ## Product contract
 
-A workspace can create Chat sessions and Work sessions without a separate “Enable CoWork” step. Creating the first Work lazily creates `.northwing/project.json`. Work sessions appear beside ordinary Reasonix sessions and continue through the existing session path and topic anchor.
+A workspace can create Chat sessions and Work sessions without a separate “Enable CoWork” step. Creating the first Work lazily creates `.northwing/project.json`. Work sessions continue through the existing Reasonix session path and topic anchor.
 
 The main Work entry contains:
 
@@ -17,7 +17,7 @@ The main Work entry contains:
 - a source policy;
 - an executor model selected from the Reasonix model catalog.
 
-Advanced fields contain title, audience, deliverables, constraints, completion criteria, pause policy, reasoning effort, and optional planner/reviewer preferences. Defaults are compiled from the selected Work type and quality level.
+Advanced fields contain title, audience, deliverables, constraints, completion criteria, pause policy, and reasoning effort. Planner, subagent, and review-model behavior continues to inherit the user's existing Reasonix configuration so a Work never rewrites global model settings.
 
 ## Architecture
 
@@ -28,6 +28,7 @@ Reasonix remains authoritative for:
 - provider credentials and model catalog;
 - tabs, topics, sessions, and transcript persistence;
 - model switching and reasoning effort;
+- Planner, subagent, and profile-level model settings;
 - Goal, Planner, Executor, subagents, Skills, MCP, and tools;
 - Delivery runtime enforcement;
 - permissions, approvals, sandboxing, checkpoints, rewind, and recovery.
@@ -37,7 +38,7 @@ Reasonix remains authoritative for:
 Northwing owns:
 
 - `WorkSpec`: the user goal, audience, materials, deliverables, constraints, completion criteria, source policy, and pause policy;
-- `ModelBinding`: executor model, reasoning effort, and inherited planner/subagent behavior;
+- `ModelBinding`: the executor model and optional reasoning effort applied to the Work tab;
 - `WorkPolicy`: Work type, quality level, Harness version, stage requirements, review requirements, and verification requirements;
 - `ArtifactRegistry`: versioned files and final selection.
 
@@ -64,12 +65,12 @@ quality=standard
 sourcePolicy=project_only
 modelRef="" (inherit current/default Reasonix model)
 reasoningEffort="" (inherit current/default effort)
-harnessVersion=1
+harnessVersion=2
 ```
 
 ## Model selection
 
-The Work dialog reads `app.Models()` and presents every configured Reasonix model. It never requests or stores API keys. “Use current/default model” leaves `modelRef` empty. A selected model is applied to the new tab with `SetModelForTab` before the initial Goal request. Opening or continuing the Work reapplies the persisted model and effort.
+The Work dialog reads `app.Models()` and presents every configured Reasonix model. It never requests or stores API keys. The catalog's current model is selected initially; the user can choose any other configured model. A selected model is applied to the new tab with `SetModelForTab` before the initial Goal request. Opening or continuing the Work reapplies the persisted executor model and effort.
 
 OpenCode Go remains an optional Reasonix provider preset in Settings. The Work surface contains no OpenCode-specific setup card.
 
@@ -100,7 +101,7 @@ Work-type defaults:
 Quality policies:
 
 - `quick`: inspect, produce, validate;
-- `standard`: inventory, plan, produce, review, revise, validate;
+- `standard`: inventory, plan, produce, review, repair, validate;
 - `deep`: evidence ledger, full plan, staged production, independent review when available, targeted repair, requirement-by-requirement audit, deterministic file validation.
 
 ## Harness behavior
@@ -109,7 +110,7 @@ The Harness extends the existing Delivery contract. It does not create another a
 
 Every Work requires:
 
-- a concrete acceptance list before mutation;
+- a concrete acceptance list before formal output work;
 - formal files under `deliverables/<work-id>/`;
 - source-policy compliance;
 - validation after the latest change;
@@ -117,7 +118,7 @@ Every Work requires:
 
 Standard and Deep require a structured self-review. Deep requests an isolated reviewer or review Skill when available and requires a targeted repair pass for unresolved findings. Office deliverables use `northwing_office` inspection and independent package parsers already present in CI.
 
-Low-cost models receive stronger decomposition through explicit stages, smaller bounded actions, evidence-first drafting, deterministic checks, and repair codes. The policy is model-agnostic and works with any configured provider.
+Low-cost models receive stronger decomposition through explicit stages, smaller bounded actions, evidence-first drafting, deterministic checks, and targeted repair instructions. The policy is model-agnostic and works with any configured provider.
 
 ## User interface
 
@@ -138,7 +139,7 @@ Artifact management remains scoped to the workspace and linked Reasonix session.
 1. ensure a local workspace target;
 2. lazily create the Northwing project manifest when missing;
 3. create a native project tab;
-4. apply selected model and effort;
+4. apply selected executor model and effort;
 5. apply Delivery runtime profile;
 6. persist the Work link and policy before provider execution;
 7. submit the Goal and compiled WorkSpec through the existing atomic Goal method;
