@@ -25,7 +25,9 @@ import {
 } from "../lib/northwingWorkSpec";
 import { launchCoworkWork, type CoworkProject, type CoworkWorkDraft } from "../lib/northwingCowork";
 import type { ModelInfo } from "../lib/types";
-import "./NorthwingWorkDialog.css";
+if (typeof document !== "undefined") {
+  void import("./NorthwingWorkDialog.css");
+}
 
 function lines(value: string): string[] {
   return value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);

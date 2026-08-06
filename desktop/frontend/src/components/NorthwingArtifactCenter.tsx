@@ -25,7 +25,9 @@ import {
 import { inspectCoworkArtifact, isOfficeArtifact, type NorthwingOfficeReport } from "../lib/northwingOffice";
 import type { FilePreview } from "../lib/types";
 import { ResizableDrawer } from "./ResizableDrawer";
-import "./NorthwingArtifactCenter.css";
+if (typeof document !== "undefined") {
+  void import("./NorthwingArtifactCenter.css");
+}
 
 function localText() {
   const chinese = typeof navigator !== "undefined" && /^zh\b/i.test(navigator.language);

@@ -9,7 +9,9 @@ import {
 } from "../lib/northwingCowork";
 import type { TabMeta } from "../lib/types";
 import { NorthwingArtifactCenter } from "./NorthwingArtifactCenter";
-import "./NorthwingWorkSessionSurface.css";
+if (typeof document !== "undefined") {
+  void import("./NorthwingWorkSessionSurface.css");
+}
 
 function localText() {
   const chinese = typeof navigator !== "undefined" && /^zh\b/i.test(navigator.language);
