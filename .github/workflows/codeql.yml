@@ -70,7 +70,14 @@ jobs:
           gzip -d -c /tmp/northwing-change.patch.gz > /tmp/northwing-change.patch
           git config user.name "Northwing Agent"
           git config user.email "northwing-agent@users.noreply.github.com"
-          git am --3way /tmp/northwing-change.patch
+          if ! git am --3way /tmp/northwing-change.patch; then
+            git status --short
+            git rm -f --ignore-unmatch \
+              .github/workflows/northwing-agent-apply.yml \
+              .github/workflows/northwing-agent-snapshot.yml
+            git add -A
+            GIT_EDITOR=true git am --continue
+          fi
           git show "$BASE_SHA":.github/workflows/codeql.yml > .github/workflows/codeql.yml
           git rm -r --ignore-unmatch .northwing-agent
           git add .github/workflows/codeql.yml
