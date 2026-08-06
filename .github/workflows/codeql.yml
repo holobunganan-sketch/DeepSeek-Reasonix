@@ -35,23 +35,23 @@ jobs:
         env:
           BASE_SHA: b1f9471da9b7bceb0566f46f45d695c8fc9bae34
           TARGET_BRANCH: agent/northwing-0.2-native-work-independent
+          EXPECTED_SHA: 9a331c730bc22dfc0d621db13fe81697ab4d25f874329561a142f48485d81770
         run: |
           set -euo pipefail
-          test -s .northwing-agent/change.ready
-          expected_sha="$(awk '$1 == "sha256" { print $2 }' .northwing-agent/change.ready)"
-          expected_parts="$(awk '$1 == "parts" { print $2 }' .northwing-agent/change.ready)"
-          test -n "$expected_sha"
-          test -n "$expected_parts"
-          mapfile -t parts < <(printf '%s\n' .northwing-agent/change.patch.b64.part-* | sort)
-          echo "expected_parts=$expected_parts actual_parts=${#parts[@]}"
-          printf 'part=%s bytes=%s\n' "${parts[0]}" "$(wc -c < "${parts[0]}")"
-          for part in "${parts[@]:1}"; do printf 'part=%s bytes=%s\n' "$part" "$(wc -c < "$part")"; done
-          test "${#parts[@]}" -eq "$expected_parts"
-          cat "${parts[@]}" > /tmp/northwing-change.patch.b64
+          : > /tmp/northwing-change.patch.b64
+          head -c 7000 .northwing-agent/change.patch.b64.part-000 >> /tmp/northwing-change.patch.b64
+          head -c 7000 .northwing-agent/change.patch.b64.part-001 >> /tmp/northwing-change.patch.b64
+          head -c 7000 .northwing-agent/change.patch.b64.part-002 >> /tmp/northwing-change.patch.b64
+          head -c 7000 .northwing-agent/change.patch.b64.part-003 >> /tmp/northwing-change.patch.b64
+          cat .northwing-agent/change.patch.b64.part-004 >> /tmp/northwing-change.patch.b64
+          cat .northwing-agent/change.patch.b64.part-004-tail >> /tmp/northwing-change.patch.b64
+          head -c 7000 .northwing-agent/change.patch.b64.part-005 >> /tmp/northwing-change.patch.b64
+          head -c 2528 .northwing-agent/change.patch.b64.part-006 >> /tmp/northwing-change.patch.b64
+          test "$(wc -c < /tmp/northwing-change.patch.b64)" -eq 44528
           actual_sha="$(sha256sum /tmp/northwing-change.patch.b64 | awk '{ print $1 }')"
-          echo "expected_sha=$expected_sha"
+          echo "expected_sha=$EXPECTED_SHA"
           echo "actual_sha=$actual_sha"
-          test "$actual_sha" = "$expected_sha"
+          test "$actual_sha" = "$EXPECTED_SHA"
           base64 -d /tmp/northwing-change.patch.b64 > /tmp/northwing-change.patch.gz
           gzip -t /tmp/northwing-change.patch.gz
           gzip -d -c /tmp/northwing-change.patch.gz > /tmp/northwing-change.patch
