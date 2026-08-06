@@ -22,6 +22,7 @@ type ProjectSummary struct {
 	ArtifactCount  int       `json:"artifactCount"`
 	LatestWork     *WorkRef  `json:"latestWork,omitempty"`
 	LatestArtifact *Artifact `json:"latestArtifact,omitempty"`
+	Works          []WorkRef `json:"works,omitempty"`
 	Error          string    `json:"error,omitempty"`
 }
 
@@ -63,6 +64,7 @@ func (s *Store) Summaries(workspaceRoots []string) []ProjectSummary {
 			UpdatedAt:     project.UpdatedAt,
 			WorkCount:     len(project.Works),
 			ArtifactCount: len(project.Artifacts),
+			Works:         append([]WorkRef(nil), project.Works...),
 		}
 		if len(project.Works) > 0 {
 			works := append([]WorkRef(nil), project.Works...)

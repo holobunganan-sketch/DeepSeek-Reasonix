@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	ManifestVersion  = 1
-	MetadataDirName  = ".northwing"
-	ManifestFileName = "project.json"
+	ManifestVersion              = 2
+	MetadataDirName              = ".northwing"
+	ManifestFileName             = "project.json"
+	LegacyManifestBackupFileName = "project.v1.backup.json"
 )
 
 var (
@@ -31,39 +32,44 @@ var (
 	ErrArtifactOutsideWorkspace  = errors.New("artifact is outside the project workspace")
 	ErrArtifactIsNotRegularFile  = errors.New("artifact is not a regular file")
 	ErrUnsupportedRuntimeProfile = errors.New("unsupported Reasonix runtime profile")
+	ErrProjectReadOnly           = errors.New("cowork project is read-only after a failed legacy migration")
 )
 
 // Project is a thin CoWork index over existing Reasonix resources. It links
 // sessions, goals, and deliverables without copying their content or duplicating
 // Reasonix runtime state.
 type Project struct {
-	Version   int        `json:"version"`
-	ID        string     `json:"id"`
-	Name      string     `json:"name"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt time.Time  `json:"updatedAt"`
-	Works     []WorkRef  `json:"works,omitempty"`
-	Artifacts []Artifact `json:"artifacts,omitempty"`
-	Workspace string     `json:"-"`
+	Version        int        `json:"version"`
+	ID             string     `json:"id"`
+	Name           string     `json:"name"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
+	Works          []WorkRef  `json:"works,omitempty"`
+	Artifacts      []Artifact `json:"artifacts,omitempty"`
+	Workspace      string     `json:"-"`
+	LegacyReadOnly bool       `json:"-"`
 }
 
 // WorkRef links one Northwing work item to the Reasonix session and Goal that
 // remain the authoritative execution state. No second task state machine lives
 // in the project manifest.
 type WorkRef struct {
-	ID              string    `json:"id"`
-	Title           string    `json:"title"`
-	SessionPath     string    `json:"sessionPath,omitempty"`
-	GoalID          string    `json:"goalId,omitempty"`
-	Profile         string    `json:"profile"`
-	Kind            string    `json:"kind,omitempty"`
-	Quality         string    `json:"quality,omitempty"`
-	SourcePolicy    string    `json:"sourcePolicy,omitempty"`
-	ModelRef        string    `json:"modelRef,omitempty"`
-	ReasoningEffort string    `json:"reasoningEffort,omitempty"`
-	HarnessVersion  int       `json:"harnessVersion,omitempty"`
-	CreatedAt       time.Time `json:"createdAt"`
-	UpdatedAt       time.Time `json:"updatedAt"`
+	ID                string    `json:"id"`
+	Title             string    `json:"title"`
+	SessionPath       string    `json:"sessionPath,omitempty"`
+	GoalID            string    `json:"goalId,omitempty"`
+	Profile           string    `json:"profile"`
+	Kind              string    `json:"kind,omitempty"`
+	Quality           string    `json:"quality,omitempty"`
+	SourcePolicy      string    `json:"sourcePolicy,omitempty"`
+	ModelRef          string    `json:"modelRef,omitempty"`
+	ReasoningEffort   string    `json:"reasoningEffort,omitempty"`
+	HarnessVersion    int       `json:"harnessVersion,omitempty"`
+	Stage             string    `json:"stage,omitempty"`
+	CompletedCriteria int       `json:"completedCriteria,omitempty"`
+	TotalCriteria     int       `json:"totalCriteria,omitempty"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 // Artifact records a versioned file produced by a work item. The path is always
@@ -156,6 +162,9 @@ func (s *Store) LinkWork(workspaceRoot string, work WorkRef) (Project, error) {
 	if err != nil {
 		return Project{}, err
 	}
+	if project.LegacyReadOnly {
+		return Project{}, ErrProjectReadOnly
+	}
 	profile, err := normalizeProfile(work.Profile)
 	if err != nil {
 		return Project{}, err
@@ -223,6 +232,9 @@ func (s *Store) RegisterArtifact(workspaceRoot string, artifact Artifact) (Proje
 	project, err := s.loadUnlocked(workspaceRoot)
 	if err != nil {
 		return Project{}, err
+	}
+	if project.LegacyReadOnly {
+		return Project{}, ErrProjectReadOnly
 	}
 	rel, full, info, err := resolveArtifact(project.Workspace, artifact.Path)
 	if err != nil {
@@ -294,7 +306,8 @@ func (s *Store) loadUnlocked(workspaceRoot string) (Project, error) {
 	if err := json.Unmarshal(data, &project); err != nil {
 		return Project{}, fmt.Errorf("decode project manifest: %w", err)
 	}
-	if project.Version != ManifestVersion {
+	legacy := project.Version == 1
+	if !legacy && project.Version != ManifestVersion {
 		return Project{}, fmt.Errorf("%w: got %d, want %d", ErrUnsupportedManifest, project.Version, ManifestVersion)
 	}
 	if strings.TrimSpace(project.ID) == "" || strings.TrimSpace(project.Name) == "" {
@@ -305,11 +318,38 @@ func (s *Store) loadUnlocked(workspaceRoot string) (Project, error) {
 			return Project{}, fmt.Errorf("invalid cowork project manifest work %d policy: %w", i, err)
 		}
 	}
+	project.Version = ManifestVersion
+	project.Workspace = root
 	if err := validateProjectReferences(project); err != nil {
 		return Project{}, err
 	}
-	project.Workspace = root
+	if legacy {
+		if err := migrateLegacyManifest(path, data, project); err != nil {
+			// Preserve a usable read-only projection when disk permissions prevent a
+			// safe backup or atomic migration. No legacy bytes are modified.
+			project.LegacyReadOnly = true
+		}
+	}
 	return project, nil
+}
+
+func migrateLegacyManifest(path string, legacy []byte, project Project) error {
+	backupPath := filepath.Join(filepath.Dir(path), LegacyManifestBackupFileName)
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		if err := fileutil.AtomicCreateFile(backupPath, legacy, 0o600); err != nil {
+			return fmt.Errorf("back up legacy project manifest: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("inspect legacy project backup: %w", err)
+	}
+	data, err := marshalProject(project)
+	if err != nil {
+		return err
+	}
+	if err := fileutil.AtomicWriteFileStrict(path, data, 0o600); err != nil {
+		return fmt.Errorf("migrate legacy project manifest: %w", err)
+	}
+	return nil
 }
 
 func writeProject(project Project) error {
