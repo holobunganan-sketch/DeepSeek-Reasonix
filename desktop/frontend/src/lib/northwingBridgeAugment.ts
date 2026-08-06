@@ -27,6 +27,14 @@ export type NorthwingLaunch = {
   mode?: "chat" | "work" | string;
 };
 
+// These methods are generated as required Wails bindings. Referencing them
+// here keeps the Northwing-specific bridge contract explicit without merging
+// duplicate optional properties into AppBindings.
+export type NorthwingGeneratedUpdateBindings = Pick<
+  import("./bridge").AppBindings,
+  "CheckNorthwingUpdate" | "ApplyNorthwingUpdateRequest"
+>;
+
 declare module "./bridge" {
   interface AppBindings {
     CreateCoworkProject?(workspaceRoot: string, name: string): Promise<CoworkProject>;
