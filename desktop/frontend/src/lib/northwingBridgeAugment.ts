@@ -1,12 +1,9 @@
-import type { UpdateInfo } from "./types";
 import type {
-  CoworkArtifact,
   CoworkProject,
   CoworkProjectState,
   CoworkProjectSummary,
   CoworkWorkRef,
 } from "./northwingCowork";
-
 
 export type NorthwingOfficeReport = {
   path: string;
@@ -44,9 +41,6 @@ declare module "./bridge" {
     RegisterCoworkArtifact?(workspaceRoot: string, path: string, kind: string, workID: string): Promise<CoworkProject>;
     InspectCoworkArtifact?(workspaceRoot: string, artifactPath: string): Promise<NorthwingOfficeReport>;
     PendingNorthwingLaunches?(): Promise<NorthwingLaunch[]>;
-    CheckNorthwingUpdate?(): Promise<UpdateInfo | null>;
-    ApplyNorthwingUpdateRequest?(expectedVersion: string, requestID: string): Promise<void>;
-    OpenNorthwingDownloadPage?(): Promise<void>;
   }
 }
 
