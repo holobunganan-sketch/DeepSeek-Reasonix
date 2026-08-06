@@ -43,9 +43,14 @@ jobs:
           test -n "$expected_sha"
           test -n "$expected_parts"
           mapfile -t parts < <(printf '%s\n' .northwing-agent/change.patch.b64.part-* | sort)
+          echo "expected_parts=$expected_parts actual_parts=${#parts[@]}"
+          printf 'part=%s bytes=%s\n' "${parts[0]}" "$(wc -c < "${parts[0]}")"
+          for part in "${parts[@]:1}"; do printf 'part=%s bytes=%s\n' "$part" "$(wc -c < "$part")"; done
           test "${#parts[@]}" -eq "$expected_parts"
           cat "${parts[@]}" > /tmp/northwing-change.patch.b64
           actual_sha="$(sha256sum /tmp/northwing-change.patch.b64 | awk '{ print $1 }')"
+          echo "expected_sha=$expected_sha"
+          echo "actual_sha=$actual_sha"
           test "$actual_sha" = "$expected_sha"
           base64 -d /tmp/northwing-change.patch.b64 > /tmp/northwing-change.patch.gz
           gzip -t /tmp/northwing-change.patch.gz
