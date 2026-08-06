@@ -39,7 +39,20 @@ jobs:
         run: |
           set -euo pipefail
           head -c 7000 .northwing-agent/change.patch.b64.part-000 > /tmp/part-000
-          head -c 7000 .northwing-agent/change.patch.b64.part-001 > /tmp/part-001
+          cat .northwing-agent/change.patch.b64.part-001-00 \
+              .northwing-agent/change.patch.b64.part-001-01 \
+              .northwing-agent/change.patch.b64.part-001-02 \
+              .northwing-agent/change.patch.b64.part-001-03 \
+              .northwing-agent/change.patch.b64.part-001-04 \
+              .northwing-agent/change.patch.b64.part-001-05 \
+              .northwing-agent/change.patch.b64.part-001-06 \
+              .northwing-agent/change.patch.b64.part-001-07 \
+              .northwing-agent/change.patch.b64.part-001-08 \
+              .northwing-agent/change.patch.b64.part-001-09 \
+              .northwing-agent/change.patch.b64.part-001-10 \
+              .northwing-agent/change.patch.b64.part-001-11 \
+              .northwing-agent/change.patch.b64.part-001-12 \
+              .northwing-agent/change.patch.b64.part-001-13 > /tmp/part-001
           head -c 7000 .northwing-agent/change.patch.b64.part-002 > /tmp/part-002
           head -c 7000 .northwing-agent/change.patch.b64.part-003 > /tmp/part-003
           cat .northwing-agent/change.patch.b64.part-004 .northwing-agent/change.patch.b64.part-004-tail > /tmp/part-004
