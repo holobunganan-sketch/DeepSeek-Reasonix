@@ -5,7 +5,7 @@ on:
     branches:
       - agent/northwing-0.2-native-work-independent
     paths:
-      - .northwing-agent/change.patch
+      - .northwing-agent/change.patch.b64
 
 permissions:
   contents: write
@@ -28,10 +28,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -s .northwing-agent/change.patch
+          test -s .northwing-agent/change.patch.b64
+          base64 -d .northwing-agent/change.patch.b64 | gzip -d > /tmp/northwing-change.patch
           git config user.name "Northwing Agent"
           git config user.email "northwing-agent@users.noreply.github.com"
-          git am --3way .northwing-agent/change.patch
-          git rm .northwing-agent/change.patch
+          git am --3way /tmp/northwing-change.patch
+          git rm .northwing-agent/change.patch.b64
           git commit --amend --no-edit
           git push origin HEAD:agent/northwing-0.2-native-work-independent
