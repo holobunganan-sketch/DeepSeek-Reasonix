@@ -111,10 +111,6 @@ var (
 	executed   []string
 )
 
-type stuckStreamProvider struct{}
-
-func (stuckStreamProvider) Name() string { return "stuck-stream" }
-
 type signalingStuckStreamProvider struct {
 	started chan struct{}
 }
