@@ -20,7 +20,9 @@ import { Tooltip } from "./Tooltip";
 import { WorktreeBadge } from "./WorktreeBadge";
 import { NorthwingWorkDialog } from "./NorthwingWorkDialog";
 import { readCoworkProjectSummaries, type CoworkProjectSummary, type CoworkWorkRef } from "../lib/northwingCowork";
-import "./ReasonixProjectTree.css";
+if (typeof document !== "undefined") {
+  void import("./ReasonixProjectTree.css");
+}
 
 type ProjectTreeVariant = "classic" | "workbench" | "creation";
 
