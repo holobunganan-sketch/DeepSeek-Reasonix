@@ -1,8 +1,8 @@
 import { lazy, Suspense, type ComponentProps } from "react";
 import { ProjectTree as ReasonixProjectTree } from "./ReasonixProjectTree";
 
-const NorthwingCoworkRail = lazy(() => import("./NorthwingCoworkRail").then((module) => ({
-  default: module.NorthwingCoworkRail,
+const NorthwingProjectCenter = lazy(() => import("./NorthwingProjectCenter").then((module) => ({
+  default: module.NorthwingProjectCenter,
 })));
 
 export {
@@ -33,15 +33,15 @@ export type {
 
 type ProjectTreeProps = ComponentProps<typeof ReasonixProjectTree>;
 
-// Northwing adds a compact Chat/Work control surface above the complete
-// Reasonix project tree. Loading the product rail separately keeps the mature
-// Reasonix navigation path in the initial bundle while CoWork capabilities load
-// on demand without changing execution or project-tree ownership.
+// Work is a native project action that creates an ordinary Reasonix project tab
+// with Goal and Delivery enabled. The complete Reasonix tree remains the sole
+// owner of navigation, topics, sessions, and project lifecycle. The Work UI is
+// loaded on demand so document previews do not expand the initial app chunk.
 export function ProjectTree(props: ProjectTreeProps) {
   return (
     <>
       <Suspense fallback={null}>
-        <NorthwingCoworkRail
+        <NorthwingProjectCenter
           activeWorkspaceRoot={props.activeWorkspaceRoot}
           refreshSignal={props.refreshSignal}
           onAddProject={props.onAddProject}

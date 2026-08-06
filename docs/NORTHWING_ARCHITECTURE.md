@@ -1,181 +1,214 @@
-# Northwing CoWork Architecture
+# Northwing Native Work Architecture
 
-Northwing is a CoWork-focused distribution and product layer built on the full
-Reasonix engine. The engine remains intact. Northwing adds a small amount of
-software that helps knowledge workers organize projects, delegate multi-step
-work, and receive versioned artifacts.
+Northwing is a local-first knowledge-work distribution built on the complete Reasonix engine. A Work is a native Reasonix project session with a structured task contract, a persisted model binding, a Delivery quality policy, and a versioned artifact boundary.
 
-## Product contract
+## Product model
 
-Northwing turns a user goal and selected source material into a finished,
-reviewable file while preserving Reasonix's existing development, terminal,
-remote, and advanced-agent capabilities.
+The desktop exposes two session intents through the same Reasonix workspace:
 
-The primary desktop concepts are deliberately limited to:
+1. **Chat** — ordinary Reasonix conversations and direct tool work.
+2. **Work** — a Reasonix session configured for Goal and Delivery, linked to a formal output directory and compact Work policy.
 
-1. **Project** — links one workspace to its sessions, Goals, and artifacts.
-2. **Work** — links a user-facing work item to the authoritative Reasonix session
-   and Goal. Reasonix continues to own execution and progress.
-3. **Artifact** — records a versioned file produced inside the workspace.
+There is no separate CoWork runtime, Provider store, Agent Loop, planner, task state machine, memory, permission system, checkpoint system, or recovery system.
 
-## Architecture boundary
+## Ownership boundary
 
-Northwing must not create replacements for these Reasonix systems:
+Reasonix remains authoritative for:
 
-- agent loop and controller
-- Planner, Executor, and subagents
-- Goal, Todo, Plan, and runtime profiles
-- provider and model routing
-- Skills, MCP, Hooks, and tools
-- permission, approval, and sandbox policy
-- session, memory, context, checkpoint, rewind, and recovery
-- CLI, ACP, remote workbench, bot, and developer workflows
+- projects, tabs, topics, sessions, and transcripts;
+- configured Providers, credentials, model catalog, model switching, and reasoning effort;
+- Goal, Planner, Executor, subagents, Skills, MCP, Hooks, and tools;
+- runtime profiles and Delivery enforcement;
+- permissions, approvals, sandboxing, checkpoints, rewind, and recovery;
+- CLI, ACP, Remote Workbench, bots, terminal, Git, and developer workflows.
 
-The CoWork layer links these resources through stable identifiers and paths. It
-stores no transcript copies, model context copies, tool output copies, or shadow
-progress state.
+Northwing stores only:
+
+- Project/Work links;
+- compact Work type, quality, source policy, model reference, effort, and Harness version;
+- artifact hashes, versions, and final selection.
+
+No transcript, provider secret, model configuration, tool output, or shadow progress state is copied into the Northwing manifest.
 
 ## Storage
 
-Each project has one lightweight manifest and one optional final-selection
-sidecar:
+Each workspace receives metadata only after its first Work is created:
 
 ```text
 <workspace>/.northwing/project.json
 <workspace>/.northwing/final-artifacts.json
 ```
 
-Each Work has a deterministic formal-output boundary:
+Each Work has one deterministic formal-output directory:
 
 ```text
 <workspace>/deliverables/<work-id>/
 ```
 
-The project manifest contains project metadata, Reasonix work references, and
-artifact records. Source files and generated files stay in their original
-workspace locations. Artifact paths are workspace-relative and each registered
-version is identified by SHA-256. Re-scanning an unchanged file does not create
-a duplicate version.
+The project manifest remains movable because every artifact path is workspace-relative. Registered versions use SHA-256 content hashes. Re-scanning unchanged content does not create another version.
 
-This layout keeps projects movable, avoids duplicate file trees, and prevents
-project organization from increasing provider context.
+## Work reference
 
-## Work lifecycle
+A Work reference links to an ordinary Reasonix session and contains compact restoration policy:
 
-The desktop Work entry collects only:
+```text
+id
+sessionPath
+goalId/topic anchor
+profile=delivery
+kind=general|research|report|presentation|analysis|review|batch
+quality=quick|standard|deep
+sourcePolicy=project_only|project_plus_web|verified_web
+modelRef=configured Reasonix model reference
+reasoningEffort=optional provider-supported effort
+harnessVersion=2
+```
 
-- goal
-- material references
-- requested deliverable
-- constraints
-- completion criteria
+Legacy Work references without these fields load as:
 
-Northwing compiles these fields into one compact Work Brief. The brief is the
-first normal user input in an existing Reasonix project session; it is not added
-to the stable system prompt. The transcript displays the compact Work title, the
-Reasonix Goal stores the concise objective, and the full Work Brief remains the
-actual model input and durable session context.
+```text
+kind=general
+quality=standard
+sourcePolicy=project_only
+modelRef=current/default Reasonix model
+reasoningEffort=current/default model effort
+harnessVersion=2
+```
 
-Before the provider request starts, Northwing:
+## Native Work startup
 
-1. creates a durable Work ID;
-2. opens a normal Reasonix project topic and session;
-3. switches that session to the existing Delivery runtime profile;
-4. links the Work to the Reasonix topic and session in `project.json`;
-5. submits the first Goal through Reasonix's atomic target-aware Goal method.
+Creating a Work performs one ordered product transaction:
 
-Tool approval uses Reasonix Auto rather than YOLO. Permission rules, fresh
-approvals, sandbox boundaries, checkpoints, Planner/Executor routing, reviews,
-and Delivery completion gates remain active.
+1. establish the local Reasonix workspace target;
+2. lazily create `.northwing/project.json` when absent;
+3. create a native Reasonix project tab;
+4. apply the selected Reasonix model and optional effort;
+5. switch the tab to Delivery;
+6. persist the Work/session link and policy;
+7. submit the compiled task contract through Reasonix Goal;
+8. activate the tab.
 
-Opening a saved Work restores its Reasonix topic and exact session. An active
-Goal resumes directly. A completed or stopped Goal receives one explicit
-continuation turn in the same session.
+The Work link is durable before the first Provider request. A successful first request refreshes the saved session path. Opening or continuing the Work restores the same topic/session, reapplies the saved model and effort, and resumes the existing Goal when available.
+
+If a saved model is no longer configured, Work restoration reports that binding explicitly so the user can configure or replace the model. Northwing never requests a Provider key in the Work surface.
+
+## Guided Work specification
+
+The short form contains:
+
+- one free-text goal;
+- optional project-relative material paths;
+- Work type;
+- quality level;
+- source policy;
+- executor model selected from `app.Models()`.
+
+Advanced fields contain:
+
+- title;
+- audience;
+- deliverable override;
+- constraints;
+- extra completion criteria;
+- pause policy;
+- reasoning effort.
+
+The compiler turns these inputs into a deterministic Reasonix task contract with Context, Request, Materials, Output format, Source policy, Constraints, Acceptance criteria, Pause policy, and Harness execution contract sections.
+
+## Work types
+
+- **General** — directly usable output in the requested format.
+- **Research** — evidence inventory, claim-source traceability, uncertainty disclosure, and concise conclusions.
+- **Report** — editable DOCX defaults, coherent sections, and checked facts, figures, citations, tables, and headings.
+- **Presentation** — editable PPTX defaults, slide-level narrative, legibility, and file validation.
+- **Analysis** — editable XLSX defaults, reproducible calculations, checked formulas and totals, and interpretation.
+- **Review** — preservation of valid content, scoped revisions, issue resolution, and revalidation.
+- **Batch** — deterministic processing for every input item plus a success/failure manifest.
+
+## Quality policies
+
+### Quick
+
+```text
+inspect → produce → validate
+```
+
+Quick keeps scope bounded and performs the minimum deterministic verification needed for a usable result.
+
+### Standard
+
+```text
+inventory → plan → produce → review → repair → validate
+```
+
+Standard requires an acceptance list, a structured self-review, a targeted repair pass, and validation after the latest mutation.
+
+### Deep
+
+```text
+inventory → evidence ledger → plan → produce → review
+→ independent review → repair → validate → requirement audit
+```
+
+Deep requests an isolated reviewer, review Skill, or read-only subagent when available. Completion requires a requirement-by-requirement evidence audit and resolution of every high-priority finding.
+
+## Harness relationship to Delivery
+
+The Harness extends the existing Reasonix Delivery contract. It does not implement another controller.
+
+Every Work instructs the runtime to:
+
+- create a concrete `todo_write` acceptance list before formal output work;
+- save formal files under the Work output directory;
+- keep intermediate material outside that directory;
+- follow the selected evidence policy;
+- review and repair the result at the selected quality depth;
+- validate after the latest change;
+- use `complete_step` only after all acceptance items have evidence.
+
+Delivery continues to enforce its native acceptance, mutation, review, verification, permission, lease, and completion gates.
+
+## Model adaptation
+
+Northwing uses the same Harness with every configured Reasonix model. Low-cost models receive stronger explicit decomposition, evidence-first drafting, smaller stages, deterministic checks, and targeted repair instructions. Stronger models can complete the same contract with fewer internal iterations.
+
+Planner, subagent, and reviewer models continue to follow the user's Reasonix configuration. Northwing persists the executor binding and optional effort for reliable restoration.
 
 ## Artifact lifecycle
 
-After a Reasonix turn completes, Northwing performs a debounced local scan of
-`deliverables/<work-id>/`. The scanner:
+After a Reasonix turn completes, Northwing scans the Work output directories locally. The scanner:
 
 - skips hidden and temporary files;
-- remains confined to the project workspace after symlink resolution;
-- hashes candidate files without loading their bodies into the desktop UI or
-  model context;
-- appends one Artifact version only when a file's hash changed;
-- publishes all changes through one atomic project-manifest write.
+- resolves symlinks and rejects workspace escape;
+- hashes files without injecting their bodies into model context;
+- appends a version only when content changes;
+- writes manifests atomically.
 
-The Artifact surface provides:
+The Artifact surface supports:
 
 - Work continuation;
-- artifact version history;
-- text, image, and PDF preview through the owning project tab;
-- open and reveal actions scoped to the owning project;
-- final-version selection through a small sidecar index;
-- scoped revision requests that return to the linked Reasonix session and run
-  through Goal plus Delivery.
-
-Office formats that do not have a safe embedded preview continue to open in the
-registered desktop application. Format-aware Office generation and validation
-remain a separate capability-pack slice.
+- visible Work type, quality, evidence policy, model binding, and effort;
+- text, image, PDF, and Office structure preview;
+- open and reveal actions;
+- version history and final selection;
+- scoped revision in the original Reasonix session.
 
 ## Desktop integration
 
-The desktop shell exposes a narrow binding surface:
+The detached Chat/Work rail and OpenCode Go setup card have been removed. The project sidebar now contains a compact native Work launcher directly beside the complete Reasonix project tree.
 
-- `CreateCoworkProject`
-- `LoadCoworkProject`
-- `CoworkProjectState`
-- `CoworkProjectSummaries`
-- `UpsertCoworkWork`
-- `LinkCoworkWork`
-- `SyncCoworkArtifacts`
-- `SetCoworkArtifactFinal`
-- `RegisterCoworkArtifact`
+The Work launcher does not own navigation or project lifecycle. It opens the guided Work dialog and the existing Work/Artifact manager. Ordinary Reasonix Composer controls remain available in the resulting session, including model, effort, Goal, Delivery, permissions, and tool access.
 
-The React layer augments the generated Wails contract with optional Northwing
-methods, preserving the existing browser-development mock. The complete
-Reasonix project tree remains the base component; Northwing adds one thin Project
-Center wrapper above it.
+## Cache and token rules
 
-## Token and cache rules
-
-Northwing follows the existing Reasonix cache-first design:
-
-- Project manifests never enter the stable system prompt wholesale.
-- Work briefs contain only the goal, selected source references, output request,
-  constraints, and acceptance criteria.
-- Work briefs enter once as normal user-turn content and then remain in the
-  existing Reasonix session history.
+- Project manifests do not enter the stable system prompt.
+- The compiled Work contract enters once as a normal user turn.
 - File contents are read on demand through existing tools.
-- Artifact synchronization uses filesystem hashes and metadata, with no model
-  call and no context injection.
-- Dynamic Office, research, browser, and connector capabilities are exposed
-  through stable capability brokers instead of permanently expanding tool
-  schemas.
-- Planner and subagents receive the minimum context required for their task.
-- Artifact revisions operate on the smallest addressable document region when a
-  format supports it.
+- Artifact synchronization makes no model call.
+- Stable Reasonix tool schemas and capability brokers remain authoritative.
+- Model switching uses the existing per-session cache boundary.
+- Planner and subagents receive only the context required by their Reasonix task.
 
-Token reduction is an architectural outcome. Required evidence, source reading,
-validation, and instruction-following remain mandatory.
+## Compatibility
 
-## Vertical slices
-
-Completed in the current foundation PR:
-
-1. **CoWork foundation** — project manifest, work links, artifact registry.
-2. **Project Center** — enable projects and restore their linked resources.
-3. **Work entry** — compact brief mapped directly to Goal and Delivery.
-4. **Work restoration** — durable topic/session links and Goal continuation.
-5. **Artifact surface** — discovery, versions, previews, open/reveal, final
-   selection, and scoped revision.
-6. **Capability packs** — Office first, then research and browser/desktop tools.
-7. **Northwing identity** — isolated app name, data paths, protocol, updater, and
-   Windows packaging configuration.
-
-Release work remains operational: execute the complete test matrix, build the
-Windows installer and portable archive, and complete clean-runner acceptance
-before a release tag is created.
-
-Each slice must preserve the complete Reasonix feature set and remain small
-enough to review, test, and rebase onto upstream changes.
+Existing Reasonix workspaces remain valid. Existing Northwing manifests remain readable. Existing Works inherit Standard quality and the current/default Reasonix model. Artifact paths, versions, final selections, and Office tooling keep their existing format.

@@ -22,20 +22,26 @@ function ok(value: unknown, label: string) {
   }
 }
 
-console.log("\nNorthwing project center");
+console.log("\nNorthwing native project integration");
 ok(/CoworkProjectState\(workspaceRoot string, syncArtifacts bool\)/.test(desktop), "desktop exposes one current-project state binding");
-ok(!/ListProjectTree\(/.test(center), "center does not rebuild the Reasonix project tree");
+ok(!/ListProjectTree\(/.test(center), "Work launcher does not rebuild the Reasonix project tree");
 ok(/readCoworkProjectState\(workspaceRoot, syncArtifacts\)/.test(center), "one state call loads and optionally syncs the active project");
-ok(/createCoworkProject\(activeWorkspaceRoot/.test(center), "active regular workspace can opt into CoWork");
-ok(/<NorthwingWorkDialog/.test(center) && /<NorthwingArtifactCenter/.test(center), "project center exposes Work and Artifact entry points");
-ok(/launchCoworkWork\(workspaceRoot, draft\)/.test(workDialog), "Work dialog launches the Goal and Delivery lifecycle");
-ok(/submitGoal\(tab, objective, brief, title\)/.test(adapter), "Work title, Goal objective, and full Brief keep separate responsibilities");
-ok(/WORK_ID_PATTERN/.test(adapter) && /Invalid Northwing Work ID/.test(adapter), "Work output directories reject unsafe identifiers before path construction");
+ok(!/createCoworkProject\(activeWorkspaceRoot/.test(center), "sidebar has no explicit Enable CoWork action");
+ok(/<NorthwingWorkDialog/.test(center) && /<NorthwingArtifactCenter/.test(center), "native launcher exposes Work and Artifact entry points");
+ok(/launchCoworkWork\(workspaceRoot, draft\)/.test(workDialog), "guided dialog launches the native Goal and Delivery lifecycle");
+ok(/ensureCoworkProject\(workspaceRoot\)/.test(adapter), "first Work lazily creates project metadata");
 ok(/continueCoworkWork\(workspaceRoot, work\)/.test(artifactCenter), "Work list resumes saved sessions");
 ok(/openCoworkArtifact\(workspaceRoot, artifact\.path\)/.test(artifactCenter), "Artifact actions stay scoped to their project");
-ok(/<NorthwingCoworkRail[\s\S]*<ReasonixProjectTree/.test(wrapper), "Northwing remains a thin wrapper around the Reasonix tree");
+ok(/work\.modelRef/.test(artifactCenter) && /work\.quality/.test(artifactCenter), "Work management exposes model and Harness policy");
+ok(/<NorthwingProjectCenter[\s\S]*<ReasonixProjectTree/.test(wrapper), "ProjectCenter integrates directly beside the complete Reasonix tree");
+ok(!/NorthwingCoworkRail/.test(wrapper), "separate Chat and Work rail is removed");
+ok(!/NorthwingOpenCodeSetup/.test(center) && !/NorthwingOpenCodeSetup/.test(wrapper), "Work surface has no OpenCode setup card");
 ok(/export function ProjectTree\(/.test(base), "complete Reasonix project tree stays present as the base component");
 ok(/session transcripts, artifact bodies, or Reasonix execution state/.test(desktop), "binding documents the no-duplication boundary");
 
 if (failed) process.exit(1);
-console.log("Northwing project center tests passed");
+console.log("Northwing native project integration tests passed");
+
+await import("./northwing-work-spec.test");
+await import("./northwing-native-session.test");
+await import("./northwing-work-dialog.test");
