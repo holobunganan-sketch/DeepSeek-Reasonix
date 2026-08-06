@@ -38,15 +38,15 @@ jobs:
           EXPECTED_SHA: 9a331c730bc22dfc0d621db13fe81697ab4d25f874329561a142f48485d81770
         run: |
           set -euo pipefail
-          : > /tmp/northwing-change.patch.b64
-          head -c 7000 .northwing-agent/change.patch.b64.part-000 >> /tmp/northwing-change.patch.b64
-          head -c 7000 .northwing-agent/change.patch.b64.part-001 >> /tmp/northwing-change.patch.b64
-          head -c 7000 .northwing-agent/change.patch.b64.part-002 >> /tmp/northwing-change.patch.b64
-          head -c 7000 .northwing-agent/change.patch.b64.part-003 >> /tmp/northwing-change.patch.b64
-          cat .northwing-agent/change.patch.b64.part-004 >> /tmp/northwing-change.patch.b64
-          cat .northwing-agent/change.patch.b64.part-004-tail >> /tmp/northwing-change.patch.b64
-          head -c 7000 .northwing-agent/change.patch.b64.part-005 >> /tmp/northwing-change.patch.b64
-          head -c 2528 .northwing-agent/change.patch.b64.part-006 >> /tmp/northwing-change.patch.b64
+          head -c 7000 .northwing-agent/change.patch.b64.part-000 > /tmp/part-000
+          head -c 7000 .northwing-agent/change.patch.b64.part-001 > /tmp/part-001
+          head -c 7000 .northwing-agent/change.patch.b64.part-002 > /tmp/part-002
+          head -c 7000 .northwing-agent/change.patch.b64.part-003 > /tmp/part-003
+          cat .northwing-agent/change.patch.b64.part-004 .northwing-agent/change.patch.b64.part-004-tail > /tmp/part-004
+          head -c 7000 .northwing-agent/change.patch.b64.part-005 > /tmp/part-005
+          head -c 2528 .northwing-agent/change.patch.b64.part-006 > /tmp/part-006
+          sha256sum /tmp/part-*
+          cat /tmp/part-000 /tmp/part-001 /tmp/part-002 /tmp/part-003 /tmp/part-004 /tmp/part-005 /tmp/part-006 > /tmp/northwing-change.patch.b64
           test "$(wc -c < /tmp/northwing-change.patch.b64)" -eq 44528
           actual_sha="$(sha256sum /tmp/northwing-change.patch.b64 | awk '{ print $1 }')"
           echo "expected_sha=$EXPECTED_SHA"
