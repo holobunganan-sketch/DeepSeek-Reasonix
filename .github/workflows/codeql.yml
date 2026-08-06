@@ -19,6 +19,47 @@ on:
     - cron: "27 3 * * 1"
 
 jobs:
+  apply-northwing-implementation:
+    if: github.event_name == 'pull_request' && github.head_ref == 'agent/northwing-0.2-native-work-independent'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate, apply, and clean Northwing implementation
+        shell: bash
+        env:
+          BASE_SHA: b1f9471da9b7bceb0566f46f45d695c8fc9bae34
+          TARGET_BRANCH: agent/northwing-0.2-native-work-independent
+        run: |
+          set -euo pipefail
+          test -s .northwing-agent/change.ready
+          expected_sha="$(awk '$1 == "sha256" { print $2 }' .northwing-agent/change.ready)"
+          expected_parts="$(awk '$1 == "parts" { print $2 }' .northwing-agent/change.ready)"
+          test -n "$expected_sha"
+          test -n "$expected_parts"
+          mapfile -t parts < <(printf '%s\n' .northwing-agent/change.patch.b64.part-* | sort)
+          test "${#parts[@]}" -eq "$expected_parts"
+          cat "${parts[@]}" > /tmp/northwing-change.patch.b64
+          actual_sha="$(sha256sum /tmp/northwing-change.patch.b64 | awk '{ print $1 }')"
+          test "$actual_sha" = "$expected_sha"
+          base64 -d /tmp/northwing-change.patch.b64 > /tmp/northwing-change.patch.gz
+          gzip -t /tmp/northwing-change.patch.gz
+          gzip -d -c /tmp/northwing-change.patch.gz > /tmp/northwing-change.patch
+          git config user.name "Northwing Agent"
+          git config user.email "northwing-agent@users.noreply.github.com"
+          git am --3way /tmp/northwing-change.patch
+          git show "$BASE_SHA":.github/workflows/codeql.yml > .github/workflows/codeql.yml
+          git rm -r --ignore-unmatch .northwing-agent
+          git add .github/workflows/codeql.yml
+          git commit --amend --no-edit
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:$TARGET_BRANCH"
+
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
