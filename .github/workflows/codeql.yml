@@ -19,40 +19,6 @@ on:
     - cron: "27 3 * * 1"
 
 jobs:
-  apply-northwing-fix:
-    if: github.event_name == 'pull_request' && github.head_ref == 'agent/northwing-0.2-native-work-independent'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Apply focused frontend fix
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s .northwing-fix.patch
-          python - <<'PY'
-          from pathlib import Path
-          path = Path("desktop/frontend/src/components/ReasonixProjectTree.tsx")
-          source = path.read_text(encoding="utf-8")
-          old = 'import "./ReasonixProjectTree.css";'
-          new = 'if (typeof document !== "undefined") {\n  void import("./ReasonixProjectTree.css");\n}'
-          if source.count(old) != 1:
-              raise SystemExit(f"expected exactly one static project-tree CSS import, got {source.count(old)}")
-          path.write_text(source.replace(old, new), encoding="utf-8")
-          PY
-          git config user.name "Northwing Agent"
-          git config user.email "northwing-agent@users.noreply.github.com"
-          git add desktop/frontend/src/components/ReasonixProjectTree.tsx
-          git rm .northwing-fix.patch
-          git diff --cached --check
-          git commit -m "fix(frontend): load project tree styles only in browser"
-          git push origin HEAD:agent/northwing-0.2-native-work-independent
-
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
