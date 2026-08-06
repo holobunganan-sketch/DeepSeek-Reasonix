@@ -115,7 +115,19 @@ type stuckStreamProvider struct{}
 
 func (stuckStreamProvider) Name() string { return "stuck-stream" }
 
-func (stuckStreamProvider) Stream(context.Context, provider.Request) (<-chan provider.Chunk, error) {
+type signalingStuckStreamProvider struct {
+	started chan struct{}
+}
+
+func (p signalingStuckStreamProvider) Name() string { return "stuck-stream" }
+
+func (p signalingStuckStreamProvider) Stream(context.Context, provider.Request) (<-chan provider.Chunk, error) {
+	if p.started != nil {
+		select {
+		case p.started <- struct{}{}:
+		default:
+		}
+	}
 	return make(chan provider.Chunk), nil
 }
 
@@ -143,7 +155,8 @@ func TestCanceledContextClosedProviderStreamReturnsCancel(t *testing.T) {
 }
 
 func TestCancelDuringStuckProviderStreamReturnsPromptly(t *testing.T) {
-	a := New(stuckStreamProvider{}, tool.NewRegistry(), NewSession(""), Options{}, &recordSink{})
+	started := make(chan struct{}, 1)
+	a := New(signalingStuckStreamProvider{started: started}, tool.NewRegistry(), NewSession(""), Options{}, &recordSink{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -151,7 +164,11 @@ func TestCancelDuringStuckProviderStreamReturnsPromptly(t *testing.T) {
 		done <- a.Run(ctx, "wait on provider")
 	}()
 
-	time.Sleep(50 * time.Millisecond)
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("provider stream did not start promptly")
+	}
 	cancel()
 
 	select {
