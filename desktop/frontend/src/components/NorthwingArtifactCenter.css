@@ -2,13 +2,12 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  width: min(860px, calc(100vw - 32px));
-  max-height: calc(100vh - 48px);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border, #666) 75%, transparent);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--panel, #1d1d1d) 97%, transparent);
-  box-shadow: 0 28px 80px rgb(0 0 0 / 38%);
+  color: var(--text-primary, var(--fg, #fff));
+  background: var(--panel, #1d1d1d);
 }
 
 .northwing-artifact-center__header {
@@ -109,7 +108,8 @@
 }
 
 .northwing-artifact-center__body {
-  min-height: 260px;
+  min-height: 0;
+  flex: 1 1 auto;
   overflow: auto;
   padding: 14px 22px 22px;
 }
@@ -303,4 +303,73 @@
   .northwing-artifact-center__header { flex-direction: column; }
   .northwing-artifact-center__header-actions { width: 100%; }
   .northwing-work-row { align-items: flex-start; flex-direction: column; }
+}
+
+.northwing-work-overview {
+  display: grid;
+  gap: 12px;
+  margin: 14px 22px 0;
+  border: 1px solid color-mix(in srgb, var(--border, #666) 55%, transparent);
+  border-radius: 10px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--bg, #111) 38%, transparent);
+}
+
+.northwing-work-overview > div {
+  display: grid;
+  gap: 3px;
+}
+
+.northwing-work-overview > div span,
+.northwing-work-overview dt {
+  color: var(--text-secondary, var(--muted, #aaa));
+  font-size: 10px;
+}
+
+.northwing-work-overview dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.northwing-work-overview dl > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.northwing-work-overview dt,
+.northwing-work-overview dd { margin: 0; }
+.northwing-work-overview dd { font-size: 11px; overflow-wrap: anywhere; }
+
+.northwing-work-overview > button,
+.northwing-artifact-center__section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.northwing-work-overview > button {
+  justify-self: start;
+  min-height: 30px;
+  border: 1px solid color-mix(in srgb, var(--border, #666) 66%, transparent);
+  border-radius: 8px;
+  padding: 0 10px;
+  color: inherit;
+  background: color-mix(in srgb, var(--fg, #fff) 5%, transparent);
+}
+
+.northwing-artifact-center__section-title {
+  margin-bottom: 10px;
+  color: var(--text-secondary, var(--muted, #aaa));
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.northwing-artifact-center__section-title span {
+  min-width: 18px;
+  border-radius: 999px;
+  padding: 1px 5px;
+  background: color-mix(in srgb, var(--fg, #fff) 8%, transparent);
+  text-align: center;
 }

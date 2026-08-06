@@ -1,0 +1,62 @@
+.northwing-work-session-surface {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  padding: 0 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  font-size: 10px;
+}
+
+.northwing-work-session-surface__identity,
+.northwing-work-session-surface__status {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+}
+
+.northwing-work-session-surface__identity strong {
+  color: var(--text-primary);
+  font-size: 10px;
+}
+
+.northwing-work-session-surface__identity span,
+.northwing-work-session-surface__status span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.northwing-work-session-surface__status {
+  flex: 1 1 auto;
+}
+
+.northwing-work-session-surface button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  border: 0;
+  border-radius: 5px;
+  padding: 0 7px;
+  color: var(--text-secondary);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.northwing-work-session-surface button:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.northwing-work-session-surface button > span {
+  min-width: 16px;
+  border-radius: 999px;
+  padding: 1px 4px;
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  text-align: center;
+}

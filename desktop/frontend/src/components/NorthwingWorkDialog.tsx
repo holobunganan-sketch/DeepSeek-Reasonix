@@ -35,7 +35,7 @@ function text() {
   const chinese = typeof navigator !== "undefined" && /^zh\b/i.test(navigator.language);
   return chinese ? {
     title: "新建 Work",
-    subtitle: "使用 Reasonix 原生会话、模型、Goal 与 Delivery 完成交付。",
+    subtitle: "使用 Northwing 原生会话、模型、Goal 与 Delivery 完成交付。",
     objective: "你希望完成什么",
     objectivePlaceholder: "例如：根据项目中的临床研究方案，制作一份面向内部医学团队的中文解读报告和PPT。",
     materials: "资料路径（可选）",
@@ -44,7 +44,7 @@ function text() {
     quality: "交付质量",
     sourcePolicy: "资料策略",
     model: "执行模型",
-    currentModel: "使用当前／默认 Reasonix 模型",
+    currentModel: "使用当前／默认模型",
     noModels: "当前没有可用模型，请先在“设置 → 模型”完成配置。",
     summary: "将按以下方式执行",
     advanced: "高级设置",
@@ -66,7 +66,7 @@ function text() {
     starting: "正在启动",
     cancel: "取消",
     required: "请填写工作目标。",
-    modelRequired: "没有可用的 Reasonix 模型。",
+    modelRequired: "没有可用模型。",
     kindLabels: {
       general: "通用任务", research: "研究与证据整理", report: "报告／Word",
       presentation: "演示文稿／PPT", analysis: "数据分析／Excel",
@@ -80,7 +80,7 @@ function text() {
     } satisfies Record<SourcePolicy, string>,
   } : {
     title: "New Work",
-    subtitle: "Use a native Reasonix session, model, Goal, and Delivery workflow.",
+    subtitle: "Use a native Northwing session, model, Goal, and Delivery workflow.",
     objective: "What should be completed",
     objectivePlaceholder: "Example: turn the clinical study protocol in this project into an internal medical report and presentation.",
     materials: "Material paths (optional)",
@@ -89,7 +89,7 @@ function text() {
     quality: "Delivery quality",
     sourcePolicy: "Evidence policy",
     model: "Executor model",
-    currentModel: "Use current/default Reasonix model",
+    currentModel: "Use the current/default model",
     noModels: "No configured model is available. Configure one in Settings → Model.",
     summary: "Execution summary",
     advanced: "Advanced settings",
@@ -111,7 +111,7 @@ function text() {
     starting: "Starting",
     cancel: "Cancel",
     required: "A Work goal is required.",
-    modelRequired: "No configured Reasonix model is available.",
+    modelRequired: "No configured model is available.",
     kindLabels: {
       general: "General", research: "Research and evidence", report: "Report / Word",
       presentation: "Presentation / PowerPoint", analysis: "Data analysis / Excel",

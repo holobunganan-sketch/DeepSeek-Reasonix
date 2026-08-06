@@ -2,6 +2,7 @@ package cowork
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -118,5 +119,60 @@ func TestProjectSummaryIncludesCompactWorks(t *testing.T) {
 	work := summaries[0].Works[0]
 	if work.GoalID != "topic-1" || work.Stage != WorkStageReviewing || work.CompletedCriteria != 3 || work.TotalCriteria != 5 {
 		t.Fatalf("compact work = %#v", work)
+	}
+}
+
+func TestLinkWorkPreservesDurableProgressWhenBindingIsRefreshed(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore()
+	if _, err := store.Create(root, "Project"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.LinkWork(root, WorkRef{
+		ID:                "work-1",
+		Title:             "Native Work",
+		GoalID:            "topic-1",
+		Profile:           "delivery",
+		Stage:             WorkStageReviewing,
+		CompletedCriteria: 3,
+		TotalCriteria:     5,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	project, err := store.LinkWork(root, WorkRef{
+		ID:          "work-1",
+		Title:       "Native Work",
+		SessionPath: "sessions/refreshed.jsonl",
+		GoalID:      "topic-1",
+		Profile:     "delivery",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	work := project.Works[0]
+	if work.Stage != WorkStageReviewing || work.CompletedCriteria != 3 || work.TotalCriteria != 5 {
+		t.Fatalf("refreshed work lost progress: %#v", work)
+	}
+}
+
+func TestUpdateWorkProgressPersistsValidatedStageAndAcceptance(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore()
+	if _, err := store.Create(root, "Project"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.LinkWork(root, WorkRef{ID: "work-1", Title: "Native Work", Profile: "delivery", TotalCriteria: 4}); err != nil {
+		t.Fatal(err)
+	}
+	project, err := store.UpdateWorkProgress(root, "work-1", WorkStageValidating, 3, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	work := project.Works[0]
+	if work.Stage != WorkStageValidating || work.CompletedCriteria != 3 || work.TotalCriteria != 4 {
+		t.Fatalf("progress = %#v", work)
+	}
+	if _, err := store.UpdateWorkProgress(root, "work-1", WorkStageCompleted, 5, 4); !errors.Is(err, ErrInvalidAcceptanceProgress) {
+		t.Fatalf("invalid acceptance error = %v", err)
 	}
 }

@@ -66,6 +66,7 @@ import { onRemoteStatus, onRemoteForwards, onRemoteServer } from "./lib/bridge";
 import { RemoteConnectionTimeoutError, useRemoteStore, waitForRemoteConnection } from "./store/remote";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { NorthwingWorkSessionSurface } from "./components/NorthwingWorkSessionSurface";
 import { UpdaterProvider } from "./lib/useUpdater";
 import { ContextPanel } from "./components/ContextPanel";
 import { WorkspacePanel } from "./components/WorkspacePanel";
@@ -4661,6 +4662,7 @@ export default function App() {
               )}
             </div>
           </header>
+          <NorthwingWorkSessionSurface activeTab={activeTab} />
 
           {state.meta?.startupErr && (
             <div className="banner banner--error">{t("topbar.startupError", { msg: state.meta.startupErr })}</div>

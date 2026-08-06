@@ -43,15 +43,15 @@ func TestEvaluateNorthwingReleaseDoesNotDowngrade(t *testing.T) {
 
 func TestEvaluateNorthwingReleaseSelectsVerifiedWindowsInstaller(t *testing.T) {
 	info := newNorthwingUpdateInfo("0.1.0")
-	evaluateNorthwingRelease(info, northwingGitHubRelease{
+	evaluateNorthwingReleaseForPlatform(info, northwingGitHubRelease{
 		TagName: "northwing-v0.2.0",
-		HTMLURL: "https://github.com/holobunganan-sketch/Northwing/releases/tag/northwing-v0.2.0",
+		HTMLURL: "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/tag/northwing-v0.2.0",
 		Body:    "Release notes",
 		Assets: []northwingGitHubAsset{
-			{Name: "Northwing-0.2.0-windows-x64-setup.exe", BrowserDownloadURL: "https://github.com/holobunganan-sketch/Northwing/releases/download/northwing-v0.2.0/Northwing-0.2.0-windows-x64-setup.exe", Size: 42},
-			{Name: "Northwing-0.2.0-SHA256SUMS.txt", BrowserDownloadURL: "https://github.com/holobunganan-sketch/Northwing/releases/download/northwing-v0.2.0/Northwing-0.2.0-SHA256SUMS.txt", Size: 128},
+			{Name: "Northwing-0.2.0-windows-x64-setup.exe", BrowserDownloadURL: "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/download/northwing-v0.2.0/Northwing-0.2.0-windows-x64-setup.exe", Size: 42},
+			{Name: "Northwing-0.2.0-SHA256SUMS.txt", BrowserDownloadURL: "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/download/northwing-v0.2.0/Northwing-0.2.0-SHA256SUMS.txt", Size: 128},
 		},
-	})
+	}, "windows", "amd64")
 	if !info.Available || !info.CanSelfUpdate || info.ManualOnly || info.InstallMode != "installer" || info.AssetSize != 42 {
 		t.Fatalf("info = %+v", info)
 	}
@@ -59,14 +59,37 @@ func TestEvaluateNorthwingReleaseSelectsVerifiedWindowsInstaller(t *testing.T) {
 
 func TestNorthwingReleaseRejectsForeignAssetHost(t *testing.T) {
 	info := newNorthwingUpdateInfo("0.1.0")
-	evaluateNorthwingRelease(info, northwingGitHubRelease{
+	evaluateNorthwingReleaseForPlatform(info, northwingGitHubRelease{
 		TagName: "northwing-v0.2.0",
-		HTMLURL: "https://github.com/holobunganan-sketch/Northwing/releases/tag/northwing-v0.2.0",
+		HTMLURL: "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/tag/northwing-v0.2.0",
 		Assets: []northwingGitHubAsset{
 			{Name: "Northwing-0.2.0-windows-x64-setup.exe", BrowserDownloadURL: "https://evil.invalid/Northwing-0.2.0-windows-x64-setup.exe", Size: 42},
 		},
-	})
+	}, "windows", "amd64")
 	if info.CanSelfUpdate {
 		t.Fatalf("foreign asset was accepted: %+v", info)
+	}
+}
+
+func TestParseNorthwingChecksumSelectsExactInstaller(t *testing.T) {
+	hash := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	data := []byte(hash + "  Northwing-0.2.0-windows-x64-portable.zip\n" + hash + "  Northwing-0.2.0-windows-x64-setup.exe\n")
+	got, err := parseNorthwingChecksum(data, "Northwing-0.2.0-windows-x64-setup.exe")
+	if err != nil || got != hash {
+		t.Fatalf("got %q, err %v", got, err)
+	}
+}
+
+func TestEvaluateNorthwingReleaseKeepsOtherPlatformsManual(t *testing.T) {
+	info := newNorthwingUpdateInfo("0.1.0")
+	evaluateNorthwingReleaseForPlatform(info, northwingGitHubRelease{
+		TagName: "northwing-v0.2.0",
+		Assets: []northwingGitHubAsset{
+			{Name: "Northwing-0.2.0-windows-x64-setup.exe", BrowserDownloadURL: "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/download/northwing-v0.2.0/Northwing-0.2.0-windows-x64-setup.exe", Size: 42},
+			{Name: "Northwing-0.2.0-SHA256SUMS.txt", BrowserDownloadURL: "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/download/northwing-v0.2.0/Northwing-0.2.0-SHA256SUMS.txt", Size: 128},
+		},
+	}, "linux", "amd64")
+	if !info.Available || info.CanSelfUpdate || !info.ManualOnly {
+		t.Fatalf("info = %+v", info)
 	}
 }

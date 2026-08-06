@@ -117,11 +117,15 @@ try {
   $portableFiles = @(Get-ChildItem -LiteralPath $portableDir -File -Recurse | ForEach-Object {
     [IO.Path]::GetRelativePath($portableDir, $_.FullName).Replace('\', '/')
   } | Sort-Object)
-  $allowedPortableFiles = @("LICENSE", "THIRD_PARTY_NOTICES.md", "northwing.exe") | Sort-Object
+  $allowedPortableFiles = @("LICENSE", "THIRD_PARTY_NOTICES.md", "northwing-update-helper.exe", "northwing.exe") | Sort-Object
   if (($portableFiles -join "`n") -ne ($allowedPortableFiles -join "`n")) {
     throw "Portable archive has unexpected contents:`n$($portableFiles -join "`n")"
   }
   $portableExe = Join-Path $portableDir "northwing.exe"
+  $portableHelper = Join-Path $portableDir "northwing-update-helper.exe"
+  if (-not (Test-Path -LiteralPath $portableHelper -PathType Leaf)) {
+    throw "Portable Northwing update helper is missing: $portableHelper"
+  }
   Assert-NorthwingVersion $portableExe
   Assert-GuiStarts $portableExe
 
@@ -133,8 +137,48 @@ try {
   if (-not (Test-Path -LiteralPath $installedExe -PathType Leaf)) {
     throw "Installed Northwing executable is missing: $installedExe"
   }
+  $installedHelper = Join-Path $installDir "northwing-update-helper.exe"
+  if (-not (Test-Path -LiteralPath $installedHelper -PathType Leaf)) {
+    throw "Installed Northwing update helper is missing: $installedHelper"
+  }
   Assert-NorthwingVersion $installedExe
   Assert-GuiStarts $installedExe
+
+  # Exercise the actual failure mode that prompted the installer repair: run
+  # Northwing, then perform a silent overwrite into the same directory. The
+  # installer must close the app, replace it without an Ignore path, preserve a
+  # valid executable, and return without hanging on a locked file.
+  $runningNorthwing = Start-Process -FilePath $installedExe -PassThru
+  try {
+    Start-Sleep -Seconds 5
+    if ($runningNorthwing.HasExited) {
+      throw "Installed Northwing exited before overwrite testing with code $($runningNorthwing.ExitCode)"
+    }
+    $overwrite = Start-Process -FilePath $installer -ArgumentList @("/S", "/NORTHWING_UPDATE=1", "/D=$installDir") -PassThru
+    if (-not $overwrite.WaitForExit(90000)) {
+      Stop-Process -Id $overwrite.Id -Force
+      throw "Northwing overwrite installer did not exit within 90 seconds"
+    }
+    $overwrite.WaitForExit()
+    if ($overwrite.ExitCode -ne 0) {
+      throw "Northwing overwrite installer exited $($overwrite.ExitCode)"
+    }
+    if (-not $runningNorthwing.WaitForExit(15000)) {
+      throw "Northwing remained running after the overwrite installer requested a normal close"
+    }
+  } finally {
+    if (-not $runningNorthwing.HasExited) {
+      Stop-Process -Id $runningNorthwing.Id -Force
+      $runningNorthwing.WaitForExit()
+    }
+  }
+  Assert-NorthwingVersion $installedExe
+  if (-not (Test-Path -LiteralPath $installedHelper -PathType Leaf)) {
+    throw "Northwing update helper was lost during overwrite installation"
+  }
+  if (Test-Path -LiteralPath "$installedExe.previous") {
+    throw "Northwing installer left its executable rollback file after a successful overwrite"
+  }
 
   $uninstall = Get-ItemProperty -LiteralPath $uninstallKey
   if ($uninstall.DisplayName -ne "Northwing" -or $uninstall.DisplayVersion -ne $Version) {
@@ -177,4 +221,4 @@ try {
   Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host "Verified Northwing $Version installer, portable archive, protocol registration, uninstall, GUI startup, and SHA-256 checksums."
+Write-Host "Verified Northwing $Version installer, running overwrite replacement, update helper, portable archive, protocol registration, uninstall, GUI startup, and SHA-256 checksums."

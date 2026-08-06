@@ -1,34 +1,41 @@
-Northwing is a local-first Work desktop application powered by the complete Reasonix kernel.
+# Northwing 0.2.0
 
-## Included in the 0.1 product line
+Northwing 0.2.0 promotes Work into the native Reasonix project/session architecture and establishes an independent Northwing distribution chain.
 
-- Native Work sessions over Reasonix project tabs, sessions, Goal, Delivery, permissions, checkpoints, and recovery.
-- Direct selection of any configured Reasonix model; Work never requires a second API key.
-- Persisted executor model and reasoning-effort restoration for saved Works.
-- Guided Work creation with Work type, Quick/Standard/Deep quality, evidence policy, optional materials, and collapsed advanced settings.
-- Deterministic WorkSpec compilation with acceptance criteria, pause policy, staged review, repair, and verification requirements.
-- Project, Work, and Artifact organization with lazy `.northwing/project.json` creation.
-- Durable Work/session recovery and deterministic `deliverables/<work-id>/` directories.
-- Native editable DOCX, PPTX, XLSX, and searchable PDF generation.
-- Local Office structure validation and independent interoperability checks.
-- Artifact versioning, preview, final selection, open, reveal, scoped revision, and visible Work policy.
-- Compact Work actions integrated directly beside the complete Reasonix project tree.
-- Independent Northwing data directories, branding, URL protocol, update source, CLI, and Windows packaging.
-- Per-user Windows installer, portable package, and SHA-256 checksums.
+## Native Work sessions
 
-## Migration from the initial CoWork foundation
+- Work is represented by the existing Reasonix project topic and session, with compact Northwing Work metadata layered onto it.
+- The detached `NorthwingProjectCenter` toolbar has been removed.
+- The project create menu now exposes Chat, Work, and Add project folder in one native entry.
+- Work creation applies the selected configured model, optional reasoning effort, Delivery profile, Goal contract, Harness policy, and deterministic `deliverables/<work-id>/` boundary before the first provider request.
+- Work rows reuse project-tree runtime states and display Work quality plus acceptance progress.
+- The active Work shows a compact context header and a Work-scoped Artifact drawer.
+- Artifact sync, preview, Office inspection, final selection, open, reveal, revision, and continuation remain bound to the owning Work session.
+- Work stage and acceptance progress persist across restarts and session rebinding.
 
-- The detached Chat/Work rail has been removed.
-- The Work surface no longer contains an OpenCode Go API-key card. OpenCode Go remains an optional Reasonix Provider preset.
-- Existing manifests load with `general`, `standard`, `project_only`, the current/default Reasonix model, and Harness version 2.
-- Existing Artifact paths, versions, final selections, and Reasonix sessions remain unchanged.
+## Migration
 
-## Installation
+- Project manifests advance to version 2.
+- Existing version-1 manifests are backed up byte-for-byte as `.northwing/project.v1.backup.json` before atomic migration.
+- Migration is idempotent. When a safe backup or write is impossible, the legacy project remains available as a read-only projection instead of being modified.
+- Existing session paths, topic/Goal links, Artifact versions, hashes, and final selections are preserved.
 
-Use the Windows x64 installer for a normal per-user installation, or download the portable ZIP. Verify the selected package with `SHA256SUMS.txt` before running it.
+## Independent updates and Windows installation
 
-Preview and unsigned builds may display a Windows SmartScreen warning. Review the release source and checksum before proceeding.
+- Northwing checks only the `northwing-v*` release line and exact Northwing package names.
+- The inherited Reasonix update endpoints and apply path are not used by the Northwing product flow.
+- Automatic Windows x64 updates require the exact setup asset and the matching Northwing SHA-256 checksum entry.
+- A dedicated `northwing-update-helper.exe` waits for the running app to exit, applies the verified installer, validates `northwing 0.2.0`, restarts the application, and removes staging files.
+- The installer requests a normal Northwing shutdown before replacement, retries locked executable writes, provides no Ignore path, and restores the previous executable when replacement fails.
+- Windows acceptance runs a real silent overwrite while Northwing is running, followed by CLI version, GUI startup, protocol, uninstall, portable-content, and checksum checks.
 
-## Compatibility and attribution
+## Packages
 
-Northwing preserves the complete Reasonix feature set and MIT license. See `LICENSE`, `THIRD_PARTY_NOTICES.md`, and `docs/NORTHWING_USER_GUIDE.md` for details.
+The release contains only Northwing distribution assets:
+
+- `Northwing-0.2.0-windows-x64-setup.exe`
+- `Northwing-0.2.0-windows-x64-portable.zip`
+- `Northwing-0.2.0-SHA256SUMS.txt`
+- `northwing-update.json`
+
+Northwing remains local-first and retains the complete frozen Reasonix kernel, applicable MIT license, and third-party notices.

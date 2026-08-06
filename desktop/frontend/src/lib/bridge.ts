@@ -470,6 +470,9 @@ export interface AppBindings {
   SetBypass(on: boolean): Promise<void>;
   Version(): Promise<string>;
   CheckUpdate(channel: string): Promise<UpdateInfo | null>;
+  CheckNorthwingUpdate(): Promise<UpdateInfo | null>;
+  ApplyNorthwingUpdateRequest(expectedVersion: string, requestId: string): Promise<void>;
+  OpenNorthwingDownloadPage(): Promise<void>;
   /** v1.20+ single-action update: download, verify, install, relaunch. */
   ApplyUpdateRequest(channel: string, expectedVersion: string, requestId: string): Promise<void>;
   OpenDownloadPage(): Promise<void>;
@@ -905,7 +908,7 @@ function bridgeBreadcrumb(method: string): string {
     return `settings ${method}`;
   if (/^(SaveProvider|SaveProviderModelCatalogs|AddOfficialProviderAccess|AddProviderPresetAccess|ResetProviderPresetAccess|RemoveProviderAccess|DeleteProvider|SaveProviderKey|SetProviderKey|ClearProviderKey|FetchProviderModels|FetchAllProviderModels|ConnectKey)/.test(method))
     return `provider ${method}`;
-  if (/^(CheckUpdate|ApplyUpdateRequest|OpenDownloadPage|OpenUserConfigPath|ReloadUserConfig)/.test(method)) return `update ${method}`;
+  if (/^(CheckUpdate|CheckNorthwingUpdate|ApplyUpdateRequest|ApplyNorthwingUpdateRequest|OpenDownloadPage|OpenNorthwingDownloadPage|OpenUserConfigPath|ReloadUserConfig)/.test(method)) return `update ${method}`;
   if (/^(AddMCPServer|InstallMCPServer|UpdateMCPServer|RemoveMCPServer|AuthorizeAndConnectMCPServer|ReconnectMCPServer|ClearMCPServerAuthentication|SetMCPServer)/.test(method))
     return `mcp ${method}`;
   if (/^(AddSkillPath|RemoveSkillPath|RefreshSkills|SetSkillEnabled|AcceptSkillSuggestion|AvailableSubagentTools|CreateSubagentProfile|UpdateSubagentProfile|DeleteSubagentProfile|SetSubagentProfileModel|SetSubagentProfileEffort|TrySubagentProfile|CancelTrySubagentProfile)/.test(method))
@@ -4489,6 +4492,17 @@ function makeMockApp(): AppBindings {
         downloadUrl: "",
         assetSize: 0,
       };
+    },
+    async CheckNorthwingUpdate() {
+      return this.CheckUpdate("stable");
+    },
+    async ApplyNorthwingUpdateRequest(expectedVersion: string, requestId: string) {
+      return this.ApplyUpdateRequest("stable", expectedVersion, requestId);
+    },
+    async OpenNorthwingDownloadPage() {
+      if (typeof window !== "undefined") {
+        window.open("https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases", "_blank", "noopener");
+      }
     },
     async ApplyUpdateRequest(channel: string, expectedVersion: string, requestId: string) {
       void channel;

@@ -3,21 +3,10 @@ import type {
   CoworkArtifact,
   CoworkProject,
   CoworkProjectState,
+  CoworkProjectSummary,
   CoworkWorkRef,
 } from "./northwingCowork";
 
-type CoworkProjectSummary = {
-  workspace: string;
-  exists: boolean;
-  id?: string;
-  name?: string;
-  updatedAt?: string;
-  workCount: number;
-  artifactCount: number;
-  latestWork?: CoworkWorkRef;
-  latestArtifact?: CoworkArtifact;
-  error?: string;
-};
 
 export type NorthwingOfficeReport = {
   path: string;
@@ -48,6 +37,7 @@ declare module "./bridge" {
     CoworkProjectState?(workspaceRoot: string, syncArtifacts: boolean): Promise<CoworkProjectState>;
     CoworkProjectSummaries?(workspaceRoots: string[]): Promise<CoworkProjectSummary[]>;
     UpsertCoworkWork?(workspaceRoot: string, work: CoworkWorkRef): Promise<CoworkProject>;
+    UpdateCoworkWorkProgress?(workspaceRoot: string, workID: string, stage: string, completedCriteria: number, totalCriteria: number): Promise<CoworkProject>;
     LinkCoworkWork?(workspaceRoot: string, title: string, sessionPath: string, goalID: string, profile: string): Promise<CoworkProject>;
     SyncCoworkArtifacts?(workspaceRoot: string): Promise<CoworkProject>;
     SetCoworkArtifactFinal?(workspaceRoot: string, artifactID: string): Promise<CoworkProjectState>;
@@ -55,6 +45,7 @@ declare module "./bridge" {
     InspectCoworkArtifact?(workspaceRoot: string, artifactPath: string): Promise<NorthwingOfficeReport>;
     PendingNorthwingLaunches?(): Promise<NorthwingLaunch[]>;
     CheckNorthwingUpdate?(): Promise<UpdateInfo | null>;
+    ApplyNorthwingUpdateRequest?(expectedVersion: string, requestID: string): Promise<void>;
     OpenNorthwingDownloadPage?(): Promise<void>;
   }
 }

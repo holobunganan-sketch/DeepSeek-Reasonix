@@ -18,6 +18,9 @@ import type { ShortcutPlatform } from "../lib/keyboardShortcuts";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuItem, type ContextMenuPoint } from "./ContextMenu";
 import { Tooltip } from "./Tooltip";
 import { WorktreeBadge } from "./WorktreeBadge";
+import { NorthwingWorkDialog } from "./NorthwingWorkDialog";
+import { readCoworkProjectSummaries, type CoworkProjectSummary, type CoworkWorkRef } from "../lib/northwingCowork";
+import "./ReasonixProjectTree.css";
 
 type ProjectTreeVariant = "classic" | "workbench" | "creation";
 
@@ -61,6 +64,22 @@ function isRuntimeSessionNode(node: ProjectNode): boolean {
 
 function isTopicNode(node: ProjectNode): boolean {
   return node.kind === "topic" || node.kind === "global_topic";
+}
+
+function projectWorkspaceRoots(nodes: ProjectNode[]): string[] {
+  const roots = new Set<string>();
+  const visit = (rows: ProjectNode[]) => {
+    for (const node of rows) {
+      if (node.kind === "project" && node.root) roots.add(node.root);
+      visit(asArray(node.children));
+    }
+  };
+  visit(nodes);
+  return Array.from(roots);
+}
+
+function workTopicKey(workspaceRoot: string, topicId: string): string {
+  return `${workspaceRoot}\u001f${topicId}`;
 }
 
 export type ProjectTreeTopicOpenRequest = {
@@ -616,6 +635,8 @@ export function ProjectTree({
   const compactTopics = variant === "workbench";
   const creationTopics = variant === "creation";
   const [tree, setTree] = useState<ProjectNode[]>([]);
+  const [workSummaries, setWorkSummaries] = useState<CoworkProjectSummary[]>([]);
+  const [workDialogRoot, setWorkDialogRoot] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [manuallyCollapsed, setManuallyCollapsed] = useState<Set<string>>(new Set());
   const [creatingProject, setCreatingProject] = useState<string | null>(null);
@@ -699,6 +720,9 @@ export function ProjectTree({
       const nodes = await app.ListProjectTree();
       const list = asArray(nodes);
       setTree(list);
+      const roots = projectWorkspaceRoots(list);
+      const summaries = await readCoworkProjectSummaries(roots);
+      setWorkSummaries(asArray(summaries));
       setExpanded((prev) => {
         const next = new Set(prev);
         const collapsed = manuallyCollapsedRef.current;
@@ -1286,6 +1310,17 @@ export function ProjectTree({
     });
   }, [activeAncestorKeys, manuallyCollapsed]);
 
+  const workByTopic = useMemo(() => {
+    const index = new Map<string, CoworkWorkRef>();
+    for (const summary of workSummaries) {
+      for (const work of asArray(summary.works)) {
+        if (work.goalId) index.set(workTopicKey(summary.workspace, work.goalId), work);
+        if (work.sessionPath) index.set(`session\u001f${work.sessionPath}`, work);
+      }
+    }
+    return index;
+  }, [workSummaries]);
+
   const renderNode = (node: ProjectNode | null | undefined, depth: number, section: "pinned" | "projects" = "projects", isVisible = true) => {
     if (!node) return null;
     const key = projectNodeKey(node, depth);
@@ -1297,6 +1332,10 @@ export function ProjectTree({
     if (isTopicNode(node) || isRuntimeSessionNode(node)) {
       const isSessionNode = isRuntimeSessionNode(node);
       const openRequest = projectTreeTopicOpenRequest(node);
+      const work = openRequest?.scope === "project"
+        ? workByTopic.get(workTopicKey(openRequest.workspaceRoot, openRequest.topicId))
+          || (openRequest.sessionPath ? workByTopic.get(`session\u001f${openRequest.sessionPath}`) : undefined)
+        : undefined;
       const scope = openRequest?.scope ?? "project";
       const scopeClass = scope === "global" ? " project-tree__topic--global" : " project-tree__topic--project";
       const accentStyle = projectAccentStyle(node.projectColor, scope === "global" ? "var(--project-tree-global-accent)" : undefined);
@@ -1328,7 +1367,10 @@ export function ProjectTree({
       const imSourceTitle = imSourceLabel ? t("msg.fromIm", { source: imSourceLabel }) : "";
       const imSourcePlatform = (imSource?.platform || "im").replace(/[^a-z0-9_-]/gi, "").toLowerCase() || "im";
       const conflictCopyTitle = isSessionNode && node.recovered ? t("recovery.branch") : "";
-      const title = [label, conflictCopyTitle, imSourceTitle, statusLabel, metaFull, projectTreeDedupedExactTime(metaFull, exactTimeLabel)].filter(Boolean).join(" · ");
+      const workMeta = work
+        ? [work.quality || "standard", `${work.completedCriteria ?? 0}/${work.totalCriteria ?? 0}`].join(" · ")
+        : "";
+      const title = [label, workMeta, conflictCopyTitle, imSourceTitle, statusLabel, metaFull, projectTreeDedupedExactTime(metaFull, exactTimeLabel)].filter(Boolean).join(" · ");
       const topicMenuOpen = !isSessionNode && menuTopic === topicId;
       const pinned = Boolean(node.pinned);
       const pinLabel = t(pinned ? "projectTree.unpinTopic" : "projectTree.pinTopic");
@@ -1406,7 +1448,7 @@ export function ProjectTree({
       }
       const row = (
         <div
-          className={`project-tree__topic${scopeClass}${isSessionNode ? " project-tree__topic--session" : ""}${active ? " project-tree__topic--active" : ""}${node.running ? " project-tree__topic--running" : ""}${status ? ` project-tree__topic--status-${status}` : ""}${unread ? " project-tree__topic--unread" : ""}${!isSessionNode && pinned ? " project-tree__topic--pinned" : ""}${topicMenuOpen ? " project-tree__topic--menu-open" : ""}${sideTimeVisible && (timeLabel || showStatusInSide || showWaitingPill) ? " project-tree__topic--with-side" : metaFull ? " project-tree__topic--has-meta" : ""}${imSource ? " project-tree__topic--im-source" : ""}${shortcutIndex > 0 ? " project-tree__topic--show-shortcut" : ""}`}
+          className={`project-tree__topic${scopeClass}${isSessionNode ? " project-tree__topic--session" : ""}${work ? " project-tree__topic--work" : ""}${active ? " project-tree__topic--active" : ""}${node.running ? " project-tree__topic--running" : ""}${status ? ` project-tree__topic--status-${status}` : ""}${unread ? " project-tree__topic--unread" : ""}${!isSessionNode && pinned ? " project-tree__topic--pinned" : ""}${topicMenuOpen ? " project-tree__topic--menu-open" : ""}${sideTimeVisible && (timeLabel || showStatusInSide || showWaitingPill) ? " project-tree__topic--with-side" : metaFull ? " project-tree__topic--has-meta" : ""}${imSource ? " project-tree__topic--im-source" : ""}${shortcutIndex > 0 ? " project-tree__topic--show-shortcut" : ""}`}
           style={accentStyle}
           onContextMenu={isSessionNode ? undefined : openTopicMenu}
           onMouseEnter={classicTopics ? (event) => scheduleHoverCard(event.currentTarget, key, node) : undefined}
@@ -1452,7 +1494,13 @@ export function ProjectTree({
           >
             <span className="project-tree__topic-copy">
               <span className="project-tree__topic-heading">
+                {work && <BriefcaseBusiness className="project-tree__topic-work-icon" size={12} aria-hidden="true" />}
                 <span className="project-tree__topic-label">{conflictCopyLabel ? `${label} · ${conflictCopyLabel}` : label}</span>
+                {work && (
+                  <span className="project-tree__topic-work-meta">
+                    {work.quality || "standard"} · {work.completedCriteria ?? 0}/{work.totalCriteria ?? 0}
+                  </span>
+                )}
                 {imSource && (
                   <span
                     className={`project-tree__topic-im project-tree__topic-im--${imSourcePlatform}`}
@@ -1659,11 +1707,33 @@ export function ProjectTree({
       : [];
     const projectMenuItems: ContextMenuItem[] = [
       {
-        key: "new-session",
-        icon: <Plus size={13} />,
+        key: "new-chat",
+        icon: <MessageSquare size={13} />,
         label: t("projectTree.newTopic"),
         onSelect: () => {
           void handleCreateTopic(scope, projectRoot, key);
+        },
+      },
+      ...(scope === "project"
+        ? [
+            {
+              key: "new-work",
+              icon: <BriefcaseBusiness size={13} />,
+              label: getLocale() === "zh" || getLocale() === "zh-TW" ? "新建 Work" : "New Work",
+              onSelect: () => {
+                closeMenu();
+                setWorkDialogRoot(projectRoot);
+              },
+            } satisfies ContextMenuItem,
+          ]
+        : []),
+      {
+        key: "add-project",
+        icon: <FolderPlus size={13} />,
+        label: t("projectTree.addProjectTooltip"),
+        onSelect: () => {
+          closeMenu();
+          void handleAddProject();
         },
       },
       ...isolatedWorkspaceItems,
@@ -1904,8 +1974,7 @@ export function ProjectTree({
               aria-label={t("projectTree.newTopicTooltip")}
               disabled={creatingProject !== null}
               onClick={(e) => {
-                e.stopPropagation();
-                void handleCreateTopic(scope, projectRoot, key);
+                openProjectMenu(e);
               }}
             >
               {compactTopics ? <Plus size={15} aria-hidden="true" /> : <Plus size={12} aria-hidden="true" />}
@@ -2359,6 +2428,17 @@ export function ProjectTree({
             )}
           </div>
         </>
+      )}
+      {workDialogRoot && (
+        <NorthwingWorkDialog
+          workspaceRoot={workDialogRoot}
+          onClose={() => setWorkDialogRoot("")}
+          onStarted={() => {
+            setWorkDialogRoot("");
+            void refresh();
+            void onTopicsChanged?.();
+          }}
+        />
       )}
       {hoverCard && createPortal(
         <div

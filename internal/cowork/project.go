@@ -29,6 +29,7 @@ var (
 	ErrProjectNotFound           = errors.New("cowork project not found")
 	ErrUnsupportedManifest       = errors.New("unsupported cowork manifest version")
 	ErrInvalidWorkID             = errors.New("invalid cowork work id")
+	ErrWorkNotFound              = errors.New("cowork work not found")
 	ErrArtifactOutsideWorkspace  = errors.New("artifact is outside the project workspace")
 	ErrArtifactIsNotRegularFile  = errors.New("artifact is not a regular file")
 	ErrUnsupportedRuntimeProfile = errors.New("unsupported Reasonix runtime profile")
@@ -153,7 +154,8 @@ func (s *Store) Load(workspaceRoot string) (Project, error) {
 }
 
 // LinkWork creates or updates a project reference to an existing Reasonix
-// session/Goal. An omitted profile resolves to Reasonix's balanced profile.
+// session/Goal. Refreshing a runtime binding preserves durable Work policy,
+// stage, and acceptance progress when those fields are omitted by the caller.
 func (s *Store) LinkWork(workspaceRoot string, work WorkRef) (Project, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -165,10 +167,6 @@ func (s *Store) LinkWork(workspaceRoot string, work WorkRef) (Project, error) {
 	if project.LegacyReadOnly {
 		return Project{}, ErrProjectReadOnly
 	}
-	profile, err := normalizeProfile(work.Profile)
-	if err != nil {
-		return Project{}, err
-	}
 	work.Title = strings.TrimSpace(work.Title)
 	work.ID = strings.TrimSpace(work.ID)
 	if work.ID != "" {
@@ -178,10 +176,6 @@ func (s *Store) LinkWork(workspaceRoot string, work WorkRef) (Project, error) {
 	}
 	work.SessionPath = strings.TrimSpace(work.SessionPath)
 	work.GoalID = strings.TrimSpace(work.GoalID)
-	work.Profile = profile
-	if err := NormalizeWorkPolicy(&work); err != nil {
-		return Project{}, err
-	}
 
 	index := -1
 	for i := range project.Works {
@@ -194,6 +188,18 @@ func (s *Store) LinkWork(workspaceRoot string, work WorkRef) (Project, error) {
 			break
 		}
 	}
+	if index >= 0 {
+		work = mergeWorkRefresh(project.Works[index], work)
+	}
+	profile, err := normalizeProfile(work.Profile)
+	if err != nil {
+		return Project{}, err
+	}
+	work.Profile = profile
+	if err := NormalizeWorkPolicy(&work); err != nil {
+		return Project{}, err
+	}
+
 	now := s.now()
 	if index >= 0 {
 		current := project.Works[index]
@@ -215,6 +221,99 @@ func (s *Store) LinkWork(workspaceRoot string, work WorkRef) (Project, error) {
 		work.UpdatedAt = now
 		project.Works = append(project.Works, work)
 	}
+	project.UpdatedAt = now
+	if err := writeProject(project); err != nil {
+		return Project{}, err
+	}
+	return project, nil
+}
+
+func mergeWorkRefresh(current, incoming WorkRef) WorkRef {
+	incoming.ID = current.ID
+	if incoming.Title == "" {
+		incoming.Title = current.Title
+	}
+	if incoming.SessionPath == "" {
+		incoming.SessionPath = current.SessionPath
+	}
+	if incoming.GoalID == "" {
+		incoming.GoalID = current.GoalID
+	}
+	if strings.TrimSpace(incoming.Profile) == "" {
+		incoming.Profile = current.Profile
+	}
+	if strings.TrimSpace(incoming.Kind) == "" {
+		incoming.Kind = current.Kind
+	}
+	if strings.TrimSpace(incoming.Quality) == "" {
+		incoming.Quality = current.Quality
+	}
+	if strings.TrimSpace(incoming.SourcePolicy) == "" {
+		incoming.SourcePolicy = current.SourcePolicy
+	}
+	if strings.TrimSpace(incoming.ModelRef) == "" {
+		incoming.ModelRef = current.ModelRef
+	}
+	if strings.TrimSpace(incoming.ReasoningEffort) == "" {
+		incoming.ReasoningEffort = current.ReasoningEffort
+	}
+	if incoming.HarnessVersion == 0 {
+		incoming.HarnessVersion = current.HarnessVersion
+	}
+	if strings.TrimSpace(incoming.Stage) == "" {
+		incoming.Stage = current.Stage
+	}
+	if incoming.CompletedCriteria == 0 && incoming.TotalCriteria == 0 && current.TotalCriteria > 0 {
+		incoming.CompletedCriteria = current.CompletedCriteria
+		incoming.TotalCriteria = current.TotalCriteria
+	}
+	return incoming
+}
+
+// UpdateWorkProgress persists the native Work session's user-visible lifecycle
+// and acceptance progress without mutating its Reasonix session binding.
+func (s *Store) UpdateWorkProgress(workspaceRoot, workID, stage string, completedCriteria, totalCriteria int) (Project, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	project, err := s.loadUnlocked(workspaceRoot)
+	if err != nil {
+		return Project{}, err
+	}
+	if project.LegacyReadOnly {
+		return Project{}, ErrProjectReadOnly
+	}
+	workID = strings.TrimSpace(workID)
+	if err := validateWorkID(workID); err != nil {
+		return Project{}, err
+	}
+	index := -1
+	for i := range project.Works {
+		if project.Works[i].ID == workID {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		return Project{}, fmt.Errorf("%w: %s", ErrWorkNotFound, workID)
+	}
+	updated := project.Works[index]
+	if strings.TrimSpace(stage) != "" {
+		updated.Stage = strings.TrimSpace(stage)
+	}
+	updated.CompletedCriteria = completedCriteria
+	updated.TotalCriteria = totalCriteria
+	if err := ValidateWorkPolicy(updated); err != nil {
+		return Project{}, err
+	}
+	if updated.Stage == project.Works[index].Stage &&
+		updated.CompletedCriteria == project.Works[index].CompletedCriteria &&
+		updated.TotalCriteria == project.Works[index].TotalCriteria {
+		return project, nil
+	}
+	now := s.now()
+	updated.UpdatedAt = now
+	project.Works[index] = updated
 	project.UpdatedAt = now
 	if err := writeProject(project); err != nil {
 		return Project{}, err
