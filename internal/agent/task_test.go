@@ -91,7 +91,8 @@ func TestTaskToolInjectsWorkspaceContextIntoSubagentPrompt(t *testing.T) {
 }
 
 func TestTaskToolCancelDuringStuckProviderReturnsPromptly(t *testing.T) {
-	task := newTestTaskTool(t, stuckStreamProvider{}, tool.NewRegistry(), "sys", "", "", nil)
+	started := make(chan struct{}, 1)
+	task := newTestTaskTool(t, signalingStuckStreamProvider{started: started}, tool.NewRegistry(), "sys", "", "", nil)
 
 	ctx, cancel := context.WithCancel(testTaskContext())
 	done := make(chan error, 1)
@@ -100,7 +101,11 @@ func TestTaskToolCancelDuringStuckProviderReturnsPromptly(t *testing.T) {
 		done <- err
 	}()
 
-	time.Sleep(50 * time.Millisecond)
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("provider stream did not start promptly")
+	}
 	cancel()
 
 	select {
