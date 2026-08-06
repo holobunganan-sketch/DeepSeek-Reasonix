@@ -616,7 +616,9 @@ func TestTaskToolRejectsMismatchedContinuationWorkspace(t *testing.T) {
 		{Type: provider.ChunkText, Text: "answer"},
 		{Type: provider.ChunkDone},
 	}}
-	task := newTestTaskTool(t, sub, tool.NewRegistry(), "sys", "", "", nil)
+	storeDir := t.TempDir()
+	task := NewTaskTool(sub, nil, tool.NewRegistry(), 20, 0, 0, 0, 0, 0, 0, 0.0, "", "sys", nil, 0, "", "", nil).
+		WithTranscripts(NewSubagentStore(storeDir), t.TempDir(), "base-model", "base-effort")
 	first, err := task.Execute(testTaskContext(), []byte(`{"prompt":"task"}`))
 	if err != nil {
 		t.Fatalf("first Execute: %v", err)
@@ -624,7 +626,7 @@ func TestTaskToolRejectsMismatchedContinuationWorkspace(t *testing.T) {
 	ref := subagentRefFromOutput(t, first)
 
 	other := NewTaskTool(sub, nil, tool.NewRegistry(), 20, 0, 0, 0, 0, 0, 0, 0.0, "", "sys", nil, 0, "", "", nil).
-		WithTranscripts(NewSubagentStore(t.TempDir()), filepath.Join(t.TempDir(), "other"), "base-model", "base-effort")
+		WithTranscripts(NewSubagentStore(storeDir), filepath.Join(t.TempDir(), "other"), "base-model", "base-effort")
 	_, err = other.Execute(testTaskContext(), []byte(`{"prompt":"task","continue_from":"`+ref+`"}`))
 	if err == nil || !strings.Contains(err.Error(), "workspace") {
 		t.Fatalf("mismatched workspace error = %v, want workspace compatibility failure", err)
