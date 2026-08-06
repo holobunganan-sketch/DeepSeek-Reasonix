@@ -20,6 +20,8 @@ RequestExecutionLevel user
 !define APP_EXE "northwing.exe"
 !define APP_HELPER "northwing-update-helper.exe"
 
+Var NorthwingUpdateMode
+
 Name "${APP_NAME}"
 OutFile "${__FILEDIR__}\..\..\Northwing-${APP_VERSION}-windows-x64-setup.exe"
 Icon "${__FILEDIR__}\..\..\desktop\build\windows\icon.ico"
@@ -38,6 +40,15 @@ BrandingText "Northwing — From intent to finished work."
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "SimpChinese"
 
+Function .onInit
+  StrCpy $NorthwingUpdateMode "0"
+  ${GetParameters} $R7
+  ClearErrors
+  ${GetOptions} $R7 "/NORTHWING_UPDATE=" $NorthwingUpdateMode
+  IfErrors 0 +2
+  StrCpy $NorthwingUpdateMode "0"
+FunctionEnd
+
 Section "Northwing" SEC_MAIN
   SetShellVarContext current
   SetOutPath "$INSTDIR"
@@ -49,6 +60,31 @@ Section "Northwing" SEC_MAIN
   Pop $R8
   Pop $R9
   Sleep 500
+
+  ; Silent overwrite installs should preserve the normal close path first, then
+  ; fall back to a forceful stop if the running GUI still holds the executable
+  ; open after a reasonable grace period.
+  ${If} $NorthwingUpdateMode == "1"
+    StrCpy $R2 0
+NorthwingWaitForGracefulExit:
+    nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq ${APP_EXE}"'
+    Pop $R3
+    Pop $R4
+    StrCmp $R4 "" NorthwingUpdateForceStop
+    StrCmp $R4 "INFO: No tasks are running which match the specified criteria." NorthwingAfterForceStop 0
+    IntOp $R2 $R2 + 1
+    IntCmp $R2 20 NorthwingUpdateForceStop 0 0
+    Sleep 500
+    Goto NorthwingWaitForGracefulExit
+
+NorthwingUpdateForceStop:
+    nsExec::ExecToStack 'taskkill /F /IM ${APP_EXE}'
+    Pop $R5
+    Pop $R6
+    Sleep 1000
+
+NorthwingAfterForceStop:
+  ${EndIf}
 
   ; Keep an exact previous executable until the replacement has succeeded.
   ; This prevents a failed overwrite from leaving a missing or partial app.
