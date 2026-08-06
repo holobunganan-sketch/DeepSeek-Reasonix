@@ -1,0 +1,37 @@
+name: Northwing Agent Apply
+
+on:
+  push:
+    branches:
+      - agent/northwing-0.2-native-work-independent
+    paths:
+      - .northwing-agent/change.patch
+
+permissions:
+  contents: write
+
+concurrency:
+  group: northwing-agent-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/northwing-0.2-native-work-independent
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply reviewed patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s .northwing-agent/change.patch
+          git config user.name "Northwing Agent"
+          git config user.email "northwing-agent@users.noreply.github.com"
+          git am --3way .northwing-agent/change.patch
+          git rm .northwing-agent/change.patch
+          git commit --amend --no-edit
+          git push origin HEAD:agent/northwing-0.2-native-work-independent
