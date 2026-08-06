@@ -33,11 +33,16 @@ jobs:
       - name: Validate, apply, and clean Northwing implementation
         shell: bash
         env:
-          BASE_SHA: b1f9471da9b7bceb0566f46f45d695c8fc9bae34
           TARGET_BRANCH: agent/northwing-0.2-native-work-independent
           EXPECTED_SHA: 9a331c730bc22dfc0d621db13fe81697ab4d25f874329561a142f48485d81770
         run: |
           set -euo pipefail
+          cp .github/workflows/codeql.yml /tmp/codeql.yml
+          cp .github/workflows/northwing-ci.yml /tmp/northwing-ci.yml
+          cp .github/workflows/northwing-release.yml /tmp/northwing-release.yml
+          cp .github/workflows/northwing-agent-apply.yml /tmp/northwing-agent-apply.yml
+          cp .github/workflows/northwing-agent-snapshot.yml /tmp/northwing-agent-snapshot.yml
+
           head -c 7000 .northwing-agent/change.patch.b64.part-000 > /tmp/part-000
           cat .northwing-agent/change.patch.b64.part-001-00 \
               .northwing-agent/change.patch.b64.part-001-01 \
@@ -58,31 +63,33 @@ jobs:
           cat .northwing-agent/change.patch.b64.part-004 .northwing-agent/change.patch.b64.part-004-tail > /tmp/part-004
           head -c 7000 .northwing-agent/change.patch.b64.part-005 > /tmp/part-005
           head -c 2528 .northwing-agent/change.patch.b64.part-006 > /tmp/part-006
-          sha256sum /tmp/part-*
           cat /tmp/part-000 /tmp/part-001 /tmp/part-002 /tmp/part-003 /tmp/part-004 /tmp/part-005 /tmp/part-006 > /tmp/northwing-change.patch.b64
           test "$(wc -c < /tmp/northwing-change.patch.b64)" -eq 44528
           actual_sha="$(sha256sum /tmp/northwing-change.patch.b64 | awk '{ print $1 }')"
-          echo "expected_sha=$EXPECTED_SHA"
-          echo "actual_sha=$actual_sha"
           test "$actual_sha" = "$EXPECTED_SHA"
           base64 -d /tmp/northwing-change.patch.b64 > /tmp/northwing-change.patch.gz
           gzip -t /tmp/northwing-change.patch.gz
           gzip -d -c /tmp/northwing-change.patch.gz > /tmp/northwing-change.patch
+
           git config user.name "Northwing Agent"
           git config user.email "northwing-agent@users.noreply.github.com"
           if ! git am --3way /tmp/northwing-change.patch; then
-            git status --short
             git rm -f --ignore-unmatch \
               .github/workflows/northwing-agent-apply.yml \
               .github/workflows/northwing-agent-snapshot.yml
             git add -A
             GIT_EDITOR=true git am --continue
           fi
-          git show "$BASE_SHA":.github/workflows/codeql.yml > .github/workflows/codeql.yml
+
+          install -m 0644 /tmp/codeql.yml .github/workflows/codeql.yml
+          install -m 0644 /tmp/northwing-ci.yml .github/workflows/northwing-ci.yml
+          install -m 0644 /tmp/northwing-release.yml .github/workflows/northwing-release.yml
+          install -m 0644 /tmp/northwing-agent-apply.yml .github/workflows/northwing-agent-apply.yml
+          install -m 0644 /tmp/northwing-agent-snapshot.yml .github/workflows/northwing-agent-snapshot.yml
           git rm -r --ignore-unmatch .northwing-agent
-          git add .github/workflows/codeql.yml
+          git add .github/workflows
           git commit --amend --no-edit
-          git diff --check "$BASE_SHA" HEAD
+          git diff --check HEAD^
           git push origin "HEAD:$TARGET_BRANCH"
 
   analyze:
