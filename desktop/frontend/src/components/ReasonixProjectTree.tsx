@@ -2,7 +2,7 @@
 // It shows a tree of projects (each with expandable topics) plus a Global
 // section. Clicking a topic opens its tab; "+" next to a project creates a
 // new topic.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CSSProperties, DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
 import { Archive, ArrowDown, Pencil, Plus, Folder, FolderPlus, Search, BriefcaseBusiness, Copy, FolderOpen, XCircle, Check, ListCollapse, ListRestart, MessageSquare, Clock, Pin, MoreHorizontal, Minimize2, Maximize2, GitBranch } from "lucide-react";
@@ -18,11 +18,12 @@ import type { ShortcutPlatform } from "../lib/keyboardShortcuts";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuItem, type ContextMenuPoint } from "./ContextMenu";
 import { Tooltip } from "./Tooltip";
 import { WorktreeBadge } from "./WorktreeBadge";
-import { NorthwingWorkDialog } from "./NorthwingWorkDialog";
 import { readCoworkProjectSummaries, type CoworkProjectSummary, type CoworkWorkRef } from "../lib/northwingCowork";
 if (typeof document !== "undefined") {
   void import("./ReasonixProjectTree.css");
 }
+
+const NorthwingWorkDialog = lazy(() => import("./NorthwingWorkDialog").then((module) => ({ default: module.NorthwingWorkDialog })));
 
 type ProjectTreeVariant = "classic" | "workbench" | "creation";
 
@@ -2432,15 +2433,17 @@ export function ProjectTree({
         </>
       )}
       {workDialogRoot && (
-        <NorthwingWorkDialog
-          workspaceRoot={workDialogRoot}
-          onClose={() => setWorkDialogRoot("")}
-          onStarted={() => {
-            setWorkDialogRoot("");
-            void refresh();
-            void onTopicsChanged?.();
-          }}
-        />
+        <Suspense fallback={null}>
+          <NorthwingWorkDialog
+            workspaceRoot={workDialogRoot}
+            onClose={() => setWorkDialogRoot("")}
+            onStarted={() => {
+              setWorkDialogRoot("");
+              void refresh();
+              void onTopicsChanged?.();
+            }}
+          />
+        </Suspense>
       )}
       {hoverCard && createPortal(
         <div

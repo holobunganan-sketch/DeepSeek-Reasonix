@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BriefcaseBusiness, FileOutput } from "lucide-react";
 import { app, onEvent } from "../lib/bridge";
 import {
@@ -8,10 +8,11 @@ import {
   type CoworkWorkRef,
 } from "../lib/northwingCowork";
 import type { TabMeta } from "../lib/types";
-import { NorthwingArtifactCenter } from "./NorthwingArtifactCenter";
 if (typeof document !== "undefined") {
   void import("./NorthwingWorkSessionSurface.css");
 }
+
+const NorthwingArtifactCenter = lazy(() => import("./NorthwingArtifactCenter").then((module) => ({ default: module.NorthwingArtifactCenter })));
 
 function localText() {
   const chinese = typeof navigator !== "undefined" && /^zh\b/i.test(navigator.language);
@@ -151,13 +152,15 @@ export function NorthwingWorkSessionSurface({ activeTab }: { activeTab?: TabMeta
         </button>
       </section>
       {drawerOpen && (
-        <NorthwingArtifactCenter
-          workspaceRoot={activeTab.workspaceRoot}
-          workId={activeWork.id}
-          state={state}
-          onState={setState}
-          onClose={() => setDrawerOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <NorthwingArtifactCenter
+            workspaceRoot={activeTab.workspaceRoot}
+            workId={activeWork.id}
+            state={state}
+            onState={setState}
+            onClose={() => setDrawerOpen(false)}
+          />
+        </Suspense>
       )}
     </>
   );

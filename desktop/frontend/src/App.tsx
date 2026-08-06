@@ -66,7 +66,6 @@ import { onRemoteStatus, onRemoteForwards, onRemoteServer } from "./lib/bridge";
 import { RemoteConnectionTimeoutError, useRemoteStore, waitForRemoteConnection } from "./store/remote";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
 import { UpdateBanner } from "./components/UpdateBanner";
-import { NorthwingWorkSessionSurface } from "./components/NorthwingWorkSessionSurface";
 import { UpdaterProvider } from "./lib/useUpdater";
 import { ContextPanel } from "./components/ContextPanel";
 import { WorkspacePanel } from "./components/WorkspacePanel";
@@ -286,6 +285,7 @@ const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((modu
 const RemotePanel = lazy(() => import("./components/RemotePanel").then((module) => ({ default: module.RemotePanel })));
 const TerminalPanel = lazy(() => import("./components/TerminalPanel").then((module) => ({ default: module.TerminalPanel })));
 const HeartbeatPanel = lazy(() => import("./custom/features/heartbeat/HeartbeatPanel.lazy"));
+const NorthwingWorkSessionSurface = lazy(() => import("./components/NorthwingWorkSessionSurface").then((module) => ({ default: module.NorthwingWorkSessionSurface })));
 
 const CHAT_MIN_WIDTH = 400;
 const CHAT_COMFORT_MIN_WIDTH = 560;
@@ -4662,7 +4662,9 @@ export default function App() {
               )}
             </div>
           </header>
-          <NorthwingWorkSessionSurface activeTab={activeTab} />
+          <Suspense fallback={null}>
+            <NorthwingWorkSessionSurface activeTab={activeTab} />
+          </Suspense>
 
           {state.meta?.startupErr && (
             <div className="banner banner--error">{t("topbar.startupError", { msg: state.meta.startupErr })}</div>
