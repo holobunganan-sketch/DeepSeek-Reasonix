@@ -9,9 +9,9 @@ const bridge = source("../lib/bridge.ts");
 const treeWrapper = source("../components/ProjectTree.tsx");
 const treeBase = source("../components/ReasonixProjectTree.tsx");
 const tree = treeWrapper + treeBase;
-const northwingCenter = source("../components/NorthwingProjectCenter.tsx");
 const workDialog = source("../components/NorthwingWorkDialog.tsx");
 const artifactCenter = source("../components/NorthwingArtifactCenter.tsx");
+const workSurface = source("../components/NorthwingWorkSessionSurface.tsx");
 const coworkAdapter = source("../lib/northwingCowork.ts");
 const workSpec = source("../lib/northwingWorkSpec.ts");
 const coworkBridge = source("../lib/northwingBridgeAugment.ts");
@@ -51,17 +51,19 @@ ok(/node\.isolatedWorktree && <WorktreeBadge/.test(tree), "project tree identifi
 ok(/GitBranch/.test(badge) && /#6119/.test(badge), "shared badge preserves the credited #6119 design contribution");
 
 console.log("\nNorthwing native Work surface");
-ok(/lazy\(\(\) => import\("\.\/NorthwingProjectCenter"\)/.test(treeWrapper), "native Work actions stay lazy and do not expand the initial bundle");
-ok(/<NorthwingProjectCenter[\s\S]*<ReasonixProjectTree/.test(treeWrapper), "Work actions integrate beside the complete Reasonix project tree");
-ok(/export function ProjectTree\(/.test(treeBase), "Reasonix project tree implementation remains present");
+ok(!/NorthwingProjectCenter/.test(treeWrapper), "detached ProjectCenter toolbar is absent");
+ok(/export \{ ProjectTree \} from "\.\/ReasonixProjectTree"/.test(treeWrapper), "wrapper delegates directly to the complete native tree");
+ok(/NorthwingWorkDialog/.test(treeBase), "native project creation owns Work launch");
+ok(/CoworkProjectSummaries/.test(treeBase), "native tree decorates existing topics with compact Work metadata");
+ok(/project-tree__topic--work/.test(treeBase), "Work is rendered as a native topic row modifier");
+ok(/NorthwingWorkSessionSurface/.test(app), "active Work context is integrated with the native chat surface");
+ok(/ResizableDrawer/.test(artifactCenter) && /workId/.test(artifactCenter), "artifacts use a Work-scoped native drawer");
 ok(!/NorthwingCoworkRail/.test(treeWrapper), "detached Chat and Work rail is absent");
-ok(!/NorthwingOpenCodeSetup/.test(treeWrapper + northwingCenter + workDialog), "Work surface has no Provider-specific setup card");
+ok(!/NorthwingOpenCodeSetup/.test(treeBase + workDialog), "Work surface has no Provider-specific setup card");
 ok(/CoworkProjectState\(workspaceRoot string, syncArtifacts bool\)/.test(coworkDesktop), "desktop exposes one current-project state binding");
 ok(/export async function readCoworkProjectState\(workspaceRoot: string, syncArtifacts = true\)[\s\S]*requiredBinding\("CoworkProjectState"\)\(workspaceRoot, syncArtifacts\)/.test(coworkAdapter), "frontend reads one project state through the single desktop binding");
-ok(!/ListProjectTree\(/.test(northwingCenter), "Work actions do not duplicate the Reasonix project catalog read");
-ok(!/createCoworkProject\(activeWorkspaceRoot/.test(northwingCenter), "sidebar has no explicit Enable CoWork action");
 ok(/ensureCoworkProject\(workspaceRoot\)/.test(coworkAdapter), "first Work lazily creates project metadata");
-ok(/event\.kind !== "turn_done"/.test(northwingCenter) && /refresh\(true\)/.test(northwingCenter), "completed Reasonix turns trigger local artifact synchronization");
+ok(/onEvent/.test(workSurface) && /turn_done/.test(workSurface), "completed native turns refresh Work artifacts without a manual toolbar");
 ok(/declare module "\.\/bridge"/.test(coworkBridge) && /CoworkProjectState\?/.test(coworkBridge), "generated Wails drift check includes optional Northwing bindings");
 
 console.log("\nNorthwing guided Work entry");

@@ -40,3 +40,33 @@ func TestEvaluateNorthwingReleaseDoesNotDowngrade(t *testing.T) {
 		t.Fatalf("downgrade was offered: %+v", info)
 	}
 }
+
+func TestEvaluateNorthwingReleaseSelectsVerifiedWindowsInstaller(t *testing.T) {
+	info := newNorthwingUpdateInfo("0.1.0")
+	evaluateNorthwingRelease(info, northwingGitHubRelease{
+		TagName: "northwing-v0.2.0",
+		HTMLURL: "https://github.com/holobunganan-sketch/Northwing/releases/tag/northwing-v0.2.0",
+		Body:    "Release notes",
+		Assets: []northwingGitHubAsset{
+			{Name: "Northwing-0.2.0-windows-x64-setup.exe", BrowserDownloadURL: "https://github.com/holobunganan-sketch/Northwing/releases/download/northwing-v0.2.0/Northwing-0.2.0-windows-x64-setup.exe", Size: 42},
+			{Name: "Northwing-0.2.0-SHA256SUMS.txt", BrowserDownloadURL: "https://github.com/holobunganan-sketch/Northwing/releases/download/northwing-v0.2.0/Northwing-0.2.0-SHA256SUMS.txt", Size: 128},
+		},
+	})
+	if !info.Available || !info.CanSelfUpdate || info.ManualOnly || info.InstallMode != "installer" || info.AssetSize != 42 {
+		t.Fatalf("info = %+v", info)
+	}
+}
+
+func TestNorthwingReleaseRejectsForeignAssetHost(t *testing.T) {
+	info := newNorthwingUpdateInfo("0.1.0")
+	evaluateNorthwingRelease(info, northwingGitHubRelease{
+		TagName: "northwing-v0.2.0",
+		HTMLURL: "https://github.com/holobunganan-sketch/Northwing/releases/tag/northwing-v0.2.0",
+		Assets: []northwingGitHubAsset{
+			{Name: "Northwing-0.2.0-windows-x64-setup.exe", BrowserDownloadURL: "https://evil.invalid/Northwing-0.2.0-windows-x64-setup.exe", Size: 42},
+		},
+	})
+	if info.CanSelfUpdate {
+		t.Fatalf("foreign asset was accepted: %+v", info)
+	}
+}
