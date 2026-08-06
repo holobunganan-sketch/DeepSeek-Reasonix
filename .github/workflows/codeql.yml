@@ -35,11 +35,21 @@ jobs:
         run: |
           set -euo pipefail
           test -s .northwing-fix.patch
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("desktop/frontend/src/components/ReasonixProjectTree.tsx")
+          source = path.read_text(encoding="utf-8")
+          old = 'import "./ReasonixProjectTree.css";'
+          new = 'if (typeof document !== "undefined") {\n  void import("./ReasonixProjectTree.css");\n}'
+          if source.count(old) != 1:
+              raise SystemExit(f"expected exactly one static project-tree CSS import, got {source.count(old)}")
+          path.write_text(source.replace(old, new), encoding="utf-8")
+          PY
           git config user.name "Northwing Agent"
           git config user.email "northwing-agent@users.noreply.github.com"
-          git apply --check .northwing-fix.patch
-          git apply --index .northwing-fix.patch
+          git add desktop/frontend/src/components/ReasonixProjectTree.tsx
           git rm .northwing-fix.patch
+          git diff --cached --check
           git commit -m "fix(frontend): load project tree styles only in browser"
           git push origin HEAD:agent/northwing-0.2-native-work-independent
 
