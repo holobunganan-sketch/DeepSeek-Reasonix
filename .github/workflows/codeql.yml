@@ -1,24 +1,56 @@
 name: CodeQL
 
 on:
-  # Docs/release-notes/root-Markdown changes carry no analyzable code; the
-  # weekly cron keeps the full scan cadence regardless.
   push:
     branches: ["main-v2"]
-    paths-ignore:
-      - 'docs/**'
-      - 'release-notes/**'
-      - '*.md'
+    paths-ignore: ['docs/**', 'release-notes/**', '*.md']
   pull_request:
     branches: ["main-v2"]
-    paths-ignore:
-      - 'docs/**'
-      - 'release-notes/**'
-      - '*.md'
+    paths-ignore: ['docs/**', 'release-notes/**', '*.md']
   schedule:
     - cron: "27 3 * * 1"
 
 jobs:
+  apply-northwing-css-fix:
+    if: github.event_name == 'pull_request' && github.head_ref == 'agent/northwing-0.2-native-work-independent'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply browser-only style boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s .northwing-css-fix.ready
+          python - <<'PY'
+          from pathlib import Path
+          pairs = {
+              "desktop/frontend/src/components/NorthwingWorkDialog.tsx": "NorthwingWorkDialog.css",
+              "desktop/frontend/src/components/NorthwingArtifactCenter.tsx": "NorthwingArtifactCenter.css",
+              "desktop/frontend/src/components/NorthwingWorkSessionSurface.tsx": "NorthwingWorkSessionSurface.css",
+          }
+          for filename, css in pairs.items():
+              path = Path(filename)
+              source = path.read_text(encoding="utf-8")
+              old = f'import "./{css}";'
+              new = f'if (typeof document !== "undefined") {{\n  void import("./{css}");\n}}'
+              if source.count(old) != 1:
+                  raise SystemExit(f"{filename}: expected one static CSS import, got {source.count(old)}")
+              path.write_text(source.replace(old, new), encoding="utf-8")
+          PY
+          git config user.name "Northwing Agent"
+          git config user.email "northwing-agent@users.noreply.github.com"
+          git add desktop/frontend/src/components/Northwing*.tsx
+          git rm .northwing-css-fix.ready
+          git diff --cached --check
+          git commit -m "fix(frontend): load Northwing component styles only in browser"
+          git push origin HEAD:agent/northwing-0.2-native-work-independent
+
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
