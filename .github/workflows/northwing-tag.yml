@@ -1,0 +1,67 @@
+name: Northwing Tag
+
+on:
+  push:
+    branches: [main-v2]
+    paths:
+      - ".github/northwing-release-tag"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: northwing-tag
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Create annotated Northwing tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag and version
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$(tr -d '\r\n' < .github/northwing-release-tag)"
+          if [[ ! "$tag" =~ ^northwing-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid stable Northwing tag: $tag"
+            exit 1
+          fi
+
+          version="${tag#northwing-v}"
+          product_version="$(node -p "require('./desktop/wails.json').info.productVersion")"
+          if [[ "$product_version" != "$version" ]]; then
+            echo "Tag version $version does not match desktop/wails.json $product_version"
+            exit 1
+          fi
+
+          tag_object="$(git ls-remote --tags origin "refs/tags/$tag" | awk 'NR == 1 { print $1 }')"
+          tag_commit="$(git ls-remote --tags origin "refs/tags/$tag^{}" | awk 'NR == 1 { print $1 }')"
+          if [[ -n "$tag_object" ]]; then
+            if [[ "$tag_commit" == "$GITHUB_SHA" ]]; then
+              echo "Annotated tag $tag already points to $GITHUB_SHA"
+              echo "create=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Tag $tag already exists at an unexpected object"
+            exit 1
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "create=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create annotated tag
+        if: steps.release.outputs.create == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.release.outputs.tag }}" "$GITHUB_SHA" \
+            -m "Northwing v${{ steps.release.outputs.version }}"
+          git push origin "refs/tags/${{ steps.release.outputs.tag }}"
