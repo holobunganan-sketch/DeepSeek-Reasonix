@@ -20,6 +20,29 @@ import (
 	"reasonix/internal/tool"
 )
 
+func TestHistoryProjectsSessionIdentity(t *testing.T) {
+	isolateDesktopUserDirs(t)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "identity.jsonl")
+	writeHistoryTestSession(t, path, "identity prompt")
+	if err := agent.SetSessionIdentity(path, agent.SessionKindWork, "work-123"); err != nil {
+		t.Fatalf("SetSessionIdentity: %v", err)
+	}
+	ctrl := control.New(control.Options{SessionDir: dir, SessionPath: path, Label: "test"})
+	defer ctrl.Close()
+	app := NewApp()
+	app.setTestCtrl(ctrl, "")
+
+	sessions := app.ListSessions()
+	if len(sessions) != 1 {
+		t.Fatalf("ListSessions len = %d, want 1: %#v", len(sessions), sessions)
+	}
+	if sessions[0].SessionKind != agent.SessionKindWork || sessions[0].WorkID != "work-123" {
+		t.Fatalf("history identity = %q/%q", sessions[0].SessionKind, sessions[0].WorkID)
+	}
+}
+
 func TestHistoryMessagesIncludeAssistantReasoning(t *testing.T) {
 	msgs := []provider.Message{
 		{Role: provider.RoleUser, Content: "expanded prompt", CreatedAt: 1_718_000_000_000},

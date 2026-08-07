@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"reasonix/internal/agent"
+	"reasonix/internal/control"
+	"reasonix/internal/event"
 )
 
 func TestPinNewEmptySessionBranchMetaStoresBinding(t *testing.T) {
@@ -75,6 +77,90 @@ func TestPinNewEmptySessionBranchMetaStoresBinding(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestEnsureWorkTabPersistsSessionIdentity(t *testing.T) {
+	isolateDesktopUserDirs(t)
+
+	app := NewApp()
+	meta, err := app.EnsureWorkTab(t.TempDir(), "work-123")
+	if err != nil {
+		t.Fatalf("EnsureWorkTab: %v", err)
+	}
+	if meta.SessionKind != agent.SessionKindWork || meta.WorkID != "work-123" {
+		t.Fatalf("tab identity = %q/%q", meta.SessionKind, meta.WorkID)
+	}
+	kind, workID, err := agent.LoadSessionIdentity(meta.SessionPath)
+	if err != nil {
+		t.Fatalf("LoadSessionIdentity: %v", err)
+	}
+	if kind != agent.SessionKindWork || workID != "work-123" {
+		t.Fatalf("persisted identity = %q/%q", kind, workID)
+	}
+}
+
+func TestEnsureWorkTabIsExcludedFromBlankChatSessionReuse(t *testing.T) {
+	isolateDesktopUserDirs(t)
+
+	root := t.TempDir()
+	app := NewApp()
+	work, err := app.EnsureWorkTab(root, "work-123")
+	if err != nil {
+		t.Fatalf("EnsureWorkTab: %v", err)
+	}
+	chat, err := app.EnsureBlankTab("project", root)
+	if err != nil {
+		t.Fatalf("EnsureBlankTab: %v", err)
+	}
+	if chat.ID == work.ID {
+		t.Fatalf("blank chat reused Work tab %q", work.ID)
+	}
+	if chat.SessionKind != agent.SessionKindChat || chat.WorkID != "" {
+		t.Fatalf("chat identity = %q/%q", chat.SessionKind, chat.WorkID)
+	}
+}
+
+func TestNewSessionMetaResetsSessionIdentityToChat(t *testing.T) {
+	isolateDesktopUserDirs(t)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "work.jsonl")
+	writeHistoryTestSession(t, path, "work prompt")
+	if err := agent.SetSessionIdentity(path, agent.SessionKindWork, "work-123"); err != nil {
+		t.Fatalf("SetSessionIdentity: %v", err)
+	}
+	loaded, err := agent.LoadSession(path)
+	if err != nil {
+		t.Fatalf("LoadSession: %v", err)
+	}
+	executor := agent.New(nil, nil, loaded, agent.Options{}, event.Discard)
+	ctrl := control.New(control.Options{Executor: executor, SessionDir: dir, SessionPath: path, Label: "test", Sink: event.Discard})
+	ctrl.Resume(loaded, path)
+	defer ctrl.Close()
+
+	app := NewApp()
+	app.setTestCtrl(ctrl, "")
+	tab := app.tabs["test"]
+	tab.SessionPath = path
+	tab.SessionKind = agent.SessionKindWork
+	tab.WorkID = "work-123"
+	if err := app.NewSessionForTab(tab.ID); err != nil {
+		t.Fatalf("NewSessionForTab: %v", err)
+	}
+	meta := app.ListTabs()[0]
+	if meta.SessionKind != agent.SessionKindChat || meta.WorkID != "" {
+		t.Fatalf("rotated tab identity = %q/%q", meta.SessionKind, meta.WorkID)
+	}
+	if meta.SessionPath == path {
+		t.Fatalf("new session kept old path %q", path)
+	}
+	kind, workID, err := agent.LoadSessionIdentity(meta.SessionPath)
+	if err != nil {
+		t.Fatalf("LoadSessionIdentity: %v", err)
+	}
+	if kind != agent.SessionKindChat || workID != "" {
+		t.Fatalf("rotated persisted identity = %q/%q", kind, workID)
 	}
 }
 

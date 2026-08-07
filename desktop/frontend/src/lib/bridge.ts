@@ -490,6 +490,7 @@ export interface AppBindings {
   OpenGlobalTab(topicID: string): Promise<TabMeta>;
   OpenTopicSession(scope: string, workspaceRoot: string, topicID: string, sessionPath: string): Promise<TabMeta>;
   EnsureBlankTab(scope: string, workspaceRoot: string): Promise<TabMeta>;
+  EnsureWorkTab(workspaceRoot: string, workID: string): Promise<TabMeta>;
   ActivateTopic(scope: string, workspaceRoot: string, topicID: string, sessionPath: string): Promise<TabMeta>;
   EnsureBlankSurface(scope: string, workspaceRoot: string): Promise<TabMeta>;
   SetActiveTab(tabID: string): Promise<void>;
@@ -4648,6 +4649,7 @@ function makeMockApp(): AppBindings {
       const existing = mockTabs.find((tab) =>
         tab.scope === targetScope &&
         (targetScope === "global" || tab.workspaceRoot === targetRoot) &&
+		tab.sessionKind !== "work" &&
         !tab.running &&
         mockTopicIsBlank(tab.topicId)
       );
@@ -4657,6 +4659,12 @@ function makeMockApp(): AppBindings {
       }
       const topic = await this.CreateTopic(targetScope, targetRoot, "");
       return targetScope === "global" ? this.OpenGlobalTab(topic.id) : this.OpenProjectTab(targetRoot, topic.id);
+    },
+    async EnsureWorkTab(workspaceRoot: string, workID: string) {
+      const tab = await this.EnsureBlankTab("project", workspaceRoot);
+      const workTab = { ...tab, sessionKind: "work" as const, workId: workID };
+      mockTabs = mockTabs.map((item) => item.id === tab.id ? workTab : item);
+      return { ...workTab };
     },
     async ActivateTopic(scope: string, workspaceRoot: string, topicID: string, sessionPath: string) {
       const tab = sessionPath

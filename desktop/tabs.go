@@ -162,6 +162,8 @@ type WorkspaceTab struct {
 	TopicTitle          string             // display title
 	topicTitleSource    string             // auto or manual; controls localization at API boundaries
 	SessionPath         string             // exact .jsonl file this tab continues
+	SessionKind         agent.SessionKind  // native Northwing identity
+	WorkID              string             // stable Work identity when SessionKind == work
 	ReadOnly            bool               // true for external channel transcripts opened for browsing
 	Ctrl                control.SessionAPI // nil while booting / on error
 	Label               string             // model label (for the tab badge)
@@ -2139,6 +2141,8 @@ type TabMeta struct {
 	TopicID           string                   `json:"topicId"`
 	TopicTitle        string                   `json:"topicTitle"`
 	SessionPath       string                   `json:"sessionPath,omitempty"`
+	SessionKind       agent.SessionKind        `json:"sessionKind"`
+	WorkID            string                   `json:"workId,omitempty"`
 	ReadOnly          bool                     `json:"readOnly,omitempty"`
 	ProjectColor      string                   `json:"projectColor,omitempty"`
 	Label             string                   `json:"label"`
@@ -2184,6 +2188,7 @@ func enrichTabMetas(metas []TabMeta) []TabMeta {
 
 func (a *App) tabMeta(tab *WorkspaceTab, active bool) TabMeta {
 	runtimeView := a.sessionRuntimeViewLocked(tab)
+	sessionKind, workID := nativeSessionIdentityForTab(tab)
 	m := TabMeta{
 		ID:                tab.ID,
 		Scope:             tab.Scope,
@@ -2193,6 +2198,8 @@ func (a *App) tabMeta(tab *WorkspaceTab, active bool) TabMeta {
 		TopicID:           tab.TopicID,
 		TopicTitle:        a.localizedTopicTitle(tab.TopicTitle, tab.topicTitleSource),
 		SessionPath:       tab.currentSessionPath(),
+		SessionKind:       sessionKind,
+		WorkID:            workID,
 		ReadOnly:          tab.ReadOnly,
 		Label:             tab.Label,
 		Ready:             runtimeView.Phase == sessionRuntimeReady && tab.Ctrl != nil,
@@ -2530,7 +2537,7 @@ func (a *App) ensureBlankSurface(scope, workspaceRoot, tokenMode string) (TabMet
 	a.singleSurfaceMu.Lock()
 	defer a.singleSurfaceMu.Unlock()
 
-	meta, err := a.ensureBlankTab(scope, workspaceRoot, tokenMode)
+	meta, err := a.ensureBlankTab(scope, workspaceRoot, tokenMode, false)
 	if err != nil {
 		return TabMeta{}, err
 	}
@@ -2558,11 +2565,12 @@ func tabInWorkspace(tab *WorkspaceTab, workspaceRoot string) bool {
 // clicks from piling up empty conversations.
 func (a *App) EnsureBlankTab(scope, workspaceRoot string) (TabMeta, error) {
 	return a.withWorkbenchLocalNavigation(func() (TabMeta, error) {
-		return a.ensureBlankTab(scope, workspaceRoot, "")
+		return a.ensureBlankTab(scope, workspaceRoot, "", false)
 	})
 }
 
-func (a *App) ensureBlankTab(scope, workspaceRoot, forcedTokenMode string) (TabMeta, error) {
+func (a *App) ensureBlankTab(scope, workspaceRoot, forcedTokenMode string, deferBuild ...bool) (TabMeta, error) {
+	deferControllerBuild := len(deferBuild) > 0 && deferBuild[0]
 	scope = strings.TrimSpace(scope)
 	if scope != "project" {
 		scope = "global"
@@ -2683,7 +2691,9 @@ func (a *App) ensureBlankTab(scope, workspaceRoot, forcedTokenMode string) (TabM
 		meta := a.tabMeta(created, true)
 		a.mu.Unlock()
 
-		a.startTabControllerBuild(created)
+		if !deferControllerBuild {
+			a.startTabControllerBuild(created)
+		}
 		a.emitProjectTreeChangedForSessionDirs(sessionListCacheDirForPath(prePath))
 		return enrichTabMeta(meta), nil
 	}
@@ -2739,7 +2749,9 @@ func (a *App) ensureBlankTab(scope, workspaceRoot, forcedTokenMode string) (TabM
 	meta := a.tabMeta(created, true)
 	a.mu.Unlock()
 
-	a.startTabControllerBuild(created)
+	if !deferControllerBuild {
+		a.startTabControllerBuild(created)
+	}
 	a.emitProjectTreeChangedForSessionDirs(sessionListCacheDirForPath(prePath))
 	return enrichTabMeta(meta), nil
 }
@@ -2753,6 +2765,9 @@ func (a *App) blankTabMatchesTargetLocked(tab *WorkspaceTab, scope, workspaceRoo
 	if scope == "project" && !sameProjectRoot(tab.WorkspaceRoot, workspaceRoot) {
 		return false
 	}
+	if kind, _ := nativeSessionIdentityForTab(tab); kind != agent.SessionKindChat {
+		return false
+	}
 	if tab.Ctrl == nil {
 		return blankTabSessionPathHasNoContent(tab)
 	}
@@ -2760,6 +2775,96 @@ func (a *App) blankTabMatchesTargetLocked(tab *WorkspaceTab, scope, workspaceRoo
 		return false
 	}
 	return !messagesHaveConversationContent(tab.Ctrl.History())
+}
+
+func nativeSessionIdentityForTab(tab *WorkspaceTab) (agent.SessionKind, string) {
+	if tab == nil {
+		return agent.SessionKindChat, ""
+	}
+	if path := strings.TrimSpace(tab.currentSessionPath()); path != "" {
+		if kind, workID, err := agent.LoadSessionIdentity(path); err == nil {
+			return kind, workID
+		}
+	}
+	kind := agent.NormalizeSessionKind(tab.SessionKind)
+	if err := agent.ValidateSessionIdentity(kind, tab.WorkID); err != nil {
+		return agent.SessionKindChat, ""
+	}
+	return kind, strings.TrimSpace(tab.WorkID)
+}
+
+// EnsureWorkTab binds native Work identity before a newly-created tab runtime
+// is started, so callers cannot begin a provider request against an unbound
+// session.
+func (a *App) EnsureWorkTab(workspaceRoot, workID string) (TabMeta, error) {
+	return a.withWorkbenchLocalNavigation(func() (TabMeta, error) {
+		meta, err := a.ensureBlankTab("project", workspaceRoot, boot.TokenModeDelivery, true)
+		if err != nil {
+			return TabMeta{}, err
+		}
+		if err := a.bindBlankWorkTab(meta.ID, workID); err != nil {
+			return TabMeta{}, err
+		}
+
+		var start *WorkspaceTab
+		a.mu.Lock()
+		tab := a.tabs[meta.ID]
+		if tab == nil {
+			a.mu.Unlock()
+			return TabMeta{}, fmt.Errorf("Work tab %q disappeared during binding", meta.ID)
+		}
+		if tab.Ctrl == nil && tab.buildGeneration == 0 && !tab.Ready {
+			start = tab
+		}
+		refreshed := a.tabMeta(tab, tab.ID == a.activeTabID)
+		a.saveTabsLocked()
+		a.mu.Unlock()
+		if start != nil {
+			a.startTabControllerBuild(start)
+		}
+		return enrichTabMeta(refreshed), nil
+	})
+}
+
+func (a *App) bindBlankWorkTab(tabID, workID string) error {
+	workID = strings.TrimSpace(workID)
+	if err := agent.ValidateSessionIdentity(agent.SessionKindWork, workID); err != nil {
+		return err
+	}
+	a.mu.RLock()
+	tab := a.tabs[tabID]
+	if tab == nil {
+		a.mu.RUnlock()
+		return fmt.Errorf("tab %q not found", tabID)
+	}
+	path := strings.TrimSpace(tab.currentSessionPath())
+	scope := tab.Scope
+	ctrl := tab.Ctrl
+	a.mu.RUnlock()
+	if scope != "project" {
+		return fmt.Errorf("Work tab must belong to a project")
+	}
+	if path == "" {
+		return fmt.Errorf("Work tab has no session path")
+	}
+	if ctrl != nil {
+		if controllerHasActiveRuntimeWork(ctrl) || messagesHaveConversationContent(ctrl.History()) {
+			return fmt.Errorf("Work identity requires a blank session")
+		}
+	} else if !blankTabSessionPathHasNoContent(tab) {
+		return fmt.Errorf("Work identity requires a blank session")
+	}
+	if err := agent.SetSessionIdentity(path, agent.SessionKindWork, workID); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if current := a.tabs[tabID]; current != tab || sessionRuntimeKey(tab.currentSessionPath()) != sessionRuntimeKey(path) {
+		return fmt.Errorf("tab %q changed during Work binding", tabID)
+	}
+	tab.SessionKind = agent.SessionKindWork
+	tab.WorkID = workID
+	return nil
 }
 
 func createEmptySessionFile(dir, model string) (string, error) {
@@ -6005,6 +6110,12 @@ func (a *App) tabSessionRecoveryMeta(tab *WorkspaceTab) func(control.SessionReco
 		if scope == "global" {
 			workspaceRoot = ""
 		}
+		sessionKind := agent.SessionKindChat
+		workID := ""
+		if kind, id, err := agent.LoadSessionIdentity(req.OriginalPath); err == nil {
+			sessionKind = kind
+			workID = id
+		}
 		return agent.BranchMeta{
 			Name:             agent.RecoveryBranchDefaultName,
 			Scope:            scope,
@@ -6016,6 +6127,8 @@ func (a *App) tabSessionRecoveryMeta(tab *WorkspaceTab) func(control.SessionReco
 			Mode:             persistedTabMode(mode),
 			ToolApprovalMode: persistedToolApprovalMode(toolApprovalMode),
 			Goal:             goal,
+			SessionKind:      sessionKind,
+			WorkID:           workID,
 		}
 	}
 }
@@ -6061,6 +6174,8 @@ func (a *App) handleTabSessionRecovered(tab *WorkspaceTab) func(control.SessionR
 				a.detachedSessions[newKey] = tab
 			}
 			tab.SessionPath = canonicalTabSessionPath(info.RecoveryPath)
+			tab.SessionKind = agent.NormalizeSessionKind(meta.SessionKind)
+			tab.WorkID = strings.TrimSpace(meta.WorkID)
 			if a.tabs[tab.ID] == tab {
 				a.saveTabsLocked()
 			}
@@ -6281,26 +6396,28 @@ func loadTelemetry(path string) tabTelemetrySnapshot {
 // ProjectNode is one node in the sidebar project tree (a project folder or a
 // topic leaf).
 type ProjectNode struct {
-	Key              string        `json:"key"`  // stable key for React
-	Kind             string        `json:"kind"` // "project" | "topic" | "session" | "global_folder" | "global_topic" | "global_session"
-	Label            string        `json:"label"`
-	Root             string        `json:"root,omitempty"` // project workspace root
-	TopicID          string        `json:"topicId,omitempty"`
-	SessionPath      string        `json:"sessionPath,omitempty"`
-	ProjectColor     string        `json:"projectColor,omitempty"`
-	Turns            int           `json:"turns,omitempty"`
-	CreatedAt        int64         `json:"createdAt,omitempty"`
-	LastActivityAt   int64         `json:"lastActivityAt,omitempty"`
-	Open             bool          `json:"open,omitempty"`
-	Running          bool          `json:"running,omitempty"`
-	Status           string        `json:"status,omitempty"`
-	Pinned           bool          `json:"pinned,omitempty"`
-	Recovered        bool          `json:"recovered,omitempty"`
-	RecoveryReason   string        `json:"recoveryReason,omitempty"`
-	RecoveryDigest   string        `json:"recoveryDigest,omitempty"`
-	RecoveryParentID string        `json:"recoveryParentId,omitempty"`
-	IsolatedWorktree bool          `json:"isolatedWorktree,omitempty"`
-	Children         []ProjectNode `json:"children,omitempty"`
+	Key              string            `json:"key"`  // stable key for React
+	Kind             string            `json:"kind"` // "project" | "topic" | "session" | "global_folder" | "global_topic" | "global_session"
+	Label            string            `json:"label"`
+	Root             string            `json:"root,omitempty"` // project workspace root
+	TopicID          string            `json:"topicId,omitempty"`
+	SessionPath      string            `json:"sessionPath,omitempty"`
+	SessionKind      agent.SessionKind `json:"sessionKind"`
+	WorkID           string            `json:"workId,omitempty"`
+	ProjectColor     string            `json:"projectColor,omitempty"`
+	Turns            int               `json:"turns,omitempty"`
+	CreatedAt        int64             `json:"createdAt,omitempty"`
+	LastActivityAt   int64             `json:"lastActivityAt,omitempty"`
+	Open             bool              `json:"open,omitempty"`
+	Running          bool              `json:"running,omitempty"`
+	Status           string            `json:"status,omitempty"`
+	Pinned           bool              `json:"pinned,omitempty"`
+	Recovered        bool              `json:"recovered,omitempty"`
+	RecoveryReason   string            `json:"recoveryReason,omitempty"`
+	RecoveryDigest   string            `json:"recoveryDigest,omitempty"`
+	RecoveryParentID string            `json:"recoveryParentId,omitempty"`
+	IsolatedWorktree bool              `json:"isolatedWorktree,omitempty"`
+	Children         []ProjectNode     `json:"children,omitempty"`
 }
 
 func normalizeTopicStatus(status string) string {
@@ -7627,6 +7744,9 @@ type topicSummary struct {
 	hasNormalSession     bool
 	hasRecoveryOnly      bool
 	hasAdoptedRecovery   bool
+	sessionKind          agent.SessionKind
+	workID               string
+	identityActivityAt   int64
 }
 
 func (s topicSummary) displayTurns() int {
@@ -7652,6 +7772,8 @@ type runtimeSessionStatus struct {
 	recoveryReason   string
 	recoveryDigest   string
 	recoveryParentID string
+	sessionKind      agent.SessionKind
+	workID           string
 }
 
 // topicHiddenAsRecoveryOnly hides topics whose only on-disk sessions are
@@ -7769,6 +7891,11 @@ func (a *App) ListProjectTree() []ProjectNode {
 		}
 		seenRuntimePaths[sessionPath] = true
 		info := sessionInfos[sessionPath]
+		sessionKind, workID := nativeSessionIdentityForTab(tab)
+		if info.SessionKind != "" {
+			sessionKind = info.SessionKind
+			workID = info.WorkID
+		}
 		recovered := sessionInfoIsAutomaticRecovery(info) || isAutomaticRecoverySessionPath(sessionPath)
 		label := runtimeSessionTreeLabel(tab, info, sessionTitles[sessionPath])
 		titleSource := tab.topicTitleSource
@@ -7795,6 +7922,8 @@ func (a *App) ListProjectTree() []ProjectNode {
 			recoveryReason:   info.RecoveryReason,
 			recoveryDigest:   info.RecoveryDigest,
 			recoveryParentID: string(info.ParentID),
+			sessionKind:      sessionKind,
+			workID:           workID,
 		})
 	}
 	for _, tab := range a.tabs {
@@ -7841,6 +7970,8 @@ func (a *App) ListProjectTree() []ProjectNode {
 				Root:             workspaceRoot,
 				TopicID:          topicID,
 				SessionPath:      session.sessionPath,
+				SessionKind:      session.sessionKind,
+				WorkID:           session.workID,
 				ProjectColor:     projectColor,
 				Turns:            session.turns,
 				CreatedAt:        session.createdAt,
@@ -7894,6 +8025,8 @@ func (a *App) ListProjectTree() []ProjectNode {
 				Running:        running,
 				Status:         status,
 				Pinned:         pinned,
+				SessionKind:    agent.NormalizeSessionKind(summary.sessionKind),
+				WorkID:         summary.workID,
 				Children:       runtimeSessionNodes("global", "", id, globalColor),
 			})
 		}
@@ -7981,6 +8114,8 @@ func (a *App) ListProjectTree() []ProjectNode {
 				Running:        running,
 				Status:         status,
 				Pinned:         pinned,
+				SessionKind:    agent.NormalizeSessionKind(summary.sessionKind),
+				WorkID:         summary.workID,
 				Children:       runtimeSessionNodes("project", p.Root, tid, p.Color),
 			})
 		}
@@ -8955,8 +9090,36 @@ func (a *App) persistTabSessionPath(tab *WorkspaceTab, path string) {
 	if reconciled, ok := a.reconcileTabWithSessionPath(tab, path); ok {
 		path = canonicalTabSessionPath(reconciled)
 	}
+	a.syncTabNativeSessionIdentity(tab, path)
 	_ = a.saveTabSessionMeta(tab, path)
 	a.rememberTabSessionPath(tab, path)
+}
+
+func (a *App) syncTabNativeSessionIdentity(tab *WorkspaceTab, path string) {
+	if tab == nil {
+		return
+	}
+	kind, workID, err := agent.LoadSessionIdentity(path)
+	if err != nil {
+		return
+	}
+	a.mu.Lock()
+	tab.SessionKind = kind
+	tab.WorkID = workID
+	a.mu.Unlock()
+}
+
+func (a *App) setTabNativeSessionIdentity(tab *WorkspaceTab, path string, kind agent.SessionKind, workID string) error {
+	if err := agent.SetSessionIdentity(path, kind, workID); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	if tab != nil {
+		tab.SessionKind = kind
+		tab.WorkID = strings.TrimSpace(workID)
+	}
+	a.mu.Unlock()
+	return nil
 }
 
 func (a *App) knownSessionDirs() []string {
@@ -9221,6 +9384,11 @@ func mergeSessionInfos(dir string, infos []agent.SessionInfo, titles map[string]
 		key := topicSummaryKey(info.Scope, info.WorkspaceRoot, info.TopicID)
 		summary := topicSummaries[key]
 		lastActivityAt := info.LastActivityAt.UnixMilli()
+		if lastActivityAt >= summary.identityActivityAt {
+			summary.sessionKind = agent.NormalizeSessionKind(info.SessionKind)
+			summary.workID = info.WorkID
+			summary.identityActivityAt = lastActivityAt
+		}
 		if sessionInfoIsAutomaticRecovery(info) {
 			// A covered conflict copy duplicates its parent, so its turns must not
 			// be added. Any branch with unique content keeps the topic visible.
