@@ -9,10 +9,24 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $desktop = Join-Path $root "desktop"
 $exe = Join-Path $desktop "build\bin\northwing.exe"
+$helper = Join-Path $desktop "build\bin\northwing-update-helper.exe"
 $out = Join-Path $root $OutputDir
 
-if (-not (Test-Path $exe)) {
+if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
   throw "Northwing executable not found: $exe. Run the Wails Windows build first."
+}
+
+Push-Location $root
+try {
+  go build -trimpath -ldflags "-s -w" -o $helper ./cmd/northwing-update-helper
+  if ($LASTEXITCODE -ne 0) {
+    throw "Northwing update helper build exited with code $LASTEXITCODE"
+  }
+} finally {
+  Pop-Location
+}
+if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
+  throw "Northwing update helper was not produced: $helper"
 }
 
 New-Item -ItemType Directory -Force -Path $out | Out-Null
@@ -20,6 +34,7 @@ $portableDir = Join-Path $out "Northwing-$Version-windows-x64-portable"
 Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $portableDir
 New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
 Copy-Item $exe (Join-Path $portableDir "northwing.exe")
+Copy-Item $helper (Join-Path $portableDir "northwing-update-helper.exe")
 Copy-Item (Join-Path $root "LICENSE") (Join-Path $portableDir "LICENSE")
 if (Test-Path (Join-Path $root "THIRD_PARTY_NOTICES.md")) {
   Copy-Item (Join-Path $root "THIRD_PARTY_NOTICES.md") $portableDir
@@ -51,11 +66,11 @@ if (-not $makensisPath) {
 $installer = Join-Path $root "Northwing-$Version-windows-x64-setup.exe"
 Remove-Item -Force -ErrorAction SilentlyContinue $installer
 $nsisScript = Join-Path $root "scripts\windows\northwing-installer.nsi"
-& $makensisPath "/DAPP_VERSION=$Version" $nsisScript
+& $makensisPath "/DAPP_VERSION=$Version" "/DAPP_SOURCE_EXE=$exe" "/DAPP_UPDATE_HELPER=$helper" $nsisScript
 if ($LASTEXITCODE -ne 0) {
   throw "makensis exited with code $LASTEXITCODE"
 }
-if (-not (Test-Path $installer)) {
+if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
   throw "NSIS did not produce the expected installer: $installer"
 }
 $installerTarget = Join-Path $out "Northwing-$Version-windows-x64-setup.exe"

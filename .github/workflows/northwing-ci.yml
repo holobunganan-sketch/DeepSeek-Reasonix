@@ -8,6 +8,7 @@ on:
     branches:
       - main-v2
       - agent/northwing-cowork-foundation
+      - agent/northwing-0.2-native-work-independent
       - northwing-main
 
 permissions:
@@ -51,6 +52,10 @@ jobs:
             desktop/northwing_protocol.go
             desktop/northwing_cli.go
             desktop/northwing_updater.go
+            desktop/northwing_updater_windows.go
+            desktop/northwing_updater_other.go
+            desktop/northwing_updater_test.go
+            cmd/northwing-update-helper
             desktop/single_instance.go
             desktop/main.go
             desktop/menu.go
@@ -176,7 +181,7 @@ jobs:
 
       - name: Build Northwing Windows x64
         working-directory: desktop
-        run: wails build -platform windows/amd64 -clean -ldflags "-X main.version=0.1.0 -X main.channel=preview"
+        run: wails build -platform windows/amd64 -clean -ldflags "-X main.version=0.2.0 -X main.channel=stable"
 
       - name: Verify unified Northwing CLI
         shell: pwsh
@@ -195,7 +200,7 @@ jobs:
             $output = @((Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue), (Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue))
             if ($process.ExitCode -ne 0) { throw "northwing.exe version exited $($process.ExitCode)`n$($output -join "`n")" }
             $text = $output -join "`n"
-            if ($text -notmatch "northwing 0\.1\.0") { throw "unexpected CLI output: $text" }
+            if ($text -notmatch "northwing 0\.2\.0") { throw "unexpected CLI output: $text" }
           } finally {
             Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
           }
@@ -206,18 +211,18 @@ jobs:
 
       - name: Package installer and portable build
         shell: pwsh
-        run: ./scripts/package-northwing-windows.ps1 -Version 0.1.0
+        run: ./scripts/package-northwing-windows.ps1 -Version 0.2.0
 
       - name: Verify Windows installer and portable build
         shell: pwsh
-        run: ./scripts/verify-northwing-windows.ps1 -Version 0.1.0
+        run: ./scripts/verify-northwing-windows.ps1 -Version 0.2.0
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Northwing-0.1.0-windows-x64
+          name: Northwing-0.2.0-windows-x64
           path: |
-            dist/Northwing-0.1.0-windows-x64-setup.exe
-            dist/Northwing-0.1.0-windows-x64-portable.zip
-            dist/Northwing-0.1.0-SHA256SUMS.txt
+            dist/Northwing-0.2.0-windows-x64-setup.exe
+            dist/Northwing-0.2.0-windows-x64-portable.zip
+            dist/Northwing-0.2.0-SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14

@@ -1,0 +1,19 @@
+
+.project-tree__topic--work .project-tree__topic-heading {
+  min-width: 0;
+}
+
+.project-tree__topic-work-icon {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+.project-tree__topic-work-meta {
+  flex: 0 1 auto;
+  overflow: hidden;
+  color: var(--text-tertiary, var(--text-secondary));
+  font-size: 9px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

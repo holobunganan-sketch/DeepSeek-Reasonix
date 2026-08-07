@@ -38,6 +38,12 @@ func (a *App) UpsertCoworkWork(workspaceRoot string, work cowork.WorkRef) (cowor
 	return desktopCoworkStore.LinkWork(workspaceRoot, work)
 }
 
+// UpdateCoworkWorkProgress persists the native Work session stage and acceptance
+// counters while Reasonix remains authoritative for execution and todo state.
+func (a *App) UpdateCoworkWorkProgress(workspaceRoot, workID, stage string, completedCriteria, totalCriteria int) (cowork.Project, error) {
+	return desktopCoworkStore.UpdateWorkProgress(workspaceRoot, workID, stage, completedCriteria, totalCriteria)
+}
+
 // LinkCoworkWork is the primitive compatibility surface used by the first
 // Northwing slice. New desktop code should prefer UpsertCoworkWork.
 func (a *App) LinkCoworkWork(

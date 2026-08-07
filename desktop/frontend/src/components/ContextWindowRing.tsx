@@ -130,7 +130,9 @@ export function ContextWindowRing({ enabled = true, context, tabId, turnCost, cu
         type="button"
         className={`context-ring${open ? " context-ring--open" : ""} context-ring--${status.tone}`}
         onMouseEnter={onEnter}
+        onMouseOver={onEnter}
         onMouseLeave={onLeave}
+        onMouseOut={onLeave}
         aria-label={t("context.windowUsageSummary", { used: String(used), window: String(windowTokens), pct: usagePct })}
       >
         <svg width={RING} height={RING} viewBox={`0 0 ${RING} ${RING}`} className="context-ring__svg">

@@ -91,7 +91,8 @@ func TestTaskToolInjectsWorkspaceContextIntoSubagentPrompt(t *testing.T) {
 }
 
 func TestTaskToolCancelDuringStuckProviderReturnsPromptly(t *testing.T) {
-	task := newTestTaskTool(t, stuckStreamProvider{}, tool.NewRegistry(), "sys", "", "", nil)
+	started := make(chan struct{}, 1)
+	task := newTestTaskTool(t, signalingStuckStreamProvider{started: started}, tool.NewRegistry(), "sys", "", "", nil)
 
 	ctx, cancel := context.WithCancel(testTaskContext())
 	done := make(chan error, 1)
@@ -100,7 +101,11 @@ func TestTaskToolCancelDuringStuckProviderReturnsPromptly(t *testing.T) {
 		done <- err
 	}()
 
-	time.Sleep(50 * time.Millisecond)
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("provider stream did not start promptly")
+	}
 	cancel()
 
 	select {
@@ -580,88 +585,56 @@ func TestTaskToolLegacyForkFromAncestorConvertsToCopiedReference(t *testing.T) {
 	if childRef == rootRef {
 		t.Fatalf("child ref = source ref %q, want copied ref", childRef)
 	}
-	if !strings.Contains(second, "Forked from: "+rootRef) ||
-		!strings.Contains(second, "Final answer:\nchild answer") {
-		t.Fatalf("second output = %q, want copied reference guidance and final answer", second)
+	if !strings.Contains(second, "Forked from: "+rootRef) {
+		t.Fatalf("second output = %q, want Forked from source ref", second)
+	}
+	if !strings.Contains(second, "The requested ref resolves to an ancestor conversation transcript") {
+		t.Fatalf("second output = %q, want ancestor-copy guidance", second)
 	}
 }
 
-func TestTaskToolRejectsLegacyForkFromCurrentSession(t *testing.T) {
-	sub := &mockProvider{name: "sub", streams: [][]provider.Chunk{
-		{
-			{Type: provider.ChunkText, Text: "first answer"},
-			{Type: provider.ChunkDone},
-		},
-		{
-			{Type: provider.ChunkText, Text: "should not run"},
-			{Type: provider.ChunkDone},
-		},
+func TestTaskToolRejectsForkFromCurrentConversation(t *testing.T) {
+	sub := &mockProvider{name: "sub", chunks: []provider.Chunk{
+		{Type: provider.ChunkText, Text: "answer"},
+		{Type: provider.ChunkDone},
 	}}
-	task := newTestTaskTool(t, sub, tool.NewRegistry(), "sys", "", "", nil).
-		WithTranscripts(NewSubagentStore(t.TempDir()), t.TempDir(), "base-model", "base-effort")
-
-	first, err := task.Execute(testTaskContext(), []byte(`{"prompt":"first task"}`))
-	if err != nil {
-		t.Fatalf("first Execute: %v", err)
-	}
-	ref := subagentRefFromOutput(t, first)
-	_, err = task.Execute(testTaskContext(), []byte(`{"prompt":"second task","fork_from":"`+ref+`"}`))
-	if err == nil || !strings.Contains(err.Error(), "cannot be safely converted") {
-		t.Fatalf("legacy fork error = %v, want unsafe conversion rejection", err)
-	}
-	if len(sub.requests) != 1 {
-		t.Fatalf("provider requests = %d, want only first run", len(sub.requests))
-	}
-}
-
-func TestTaskToolFailedForegroundContinuationPersistsAndRejectsReuse(t *testing.T) {
-	sub := &mockProvider{name: "sub", streams: [][]provider.Chunk{
-		{
-			{Type: provider.ChunkText, Text: "first answer"},
-			{Type: provider.ChunkDone},
-		},
-		{
-			{Type: provider.ChunkError, Err: errors.New("provider failed")},
-		},
-	}}
-	store := NewSubagentStore(t.TempDir())
-	reg := tool.NewRegistry()
-	reg.Add(fakeTool{name: "read_file", readOnly: true})
-	task := NewTaskTool(sub, nil, reg, 20, 0, 0, 0, 0, 0, 0, 0.0, "", "sys", nil, 0, "", "", nil).
-		WithTranscripts(store, t.TempDir(), "base-model", "base-effort")
-
-	first, err := task.Execute(testTaskContext(), []byte(`{"prompt":"first task"}`))
+	task := newTestTaskTool(t, sub, tool.NewRegistry(), "sys", "", "", nil)
+	first, err := task.Execute(testTaskContext(), []byte(`{"prompt":"task"}`))
 	if err != nil {
 		t.Fatalf("first Execute: %v", err)
 	}
 	ref := subagentRefFromOutput(t, first)
 
-	_, err = task.Execute(testTaskContext(), []byte(`{"prompt":"second task","continue_from":"`+ref+`"}`))
-	if err == nil || !strings.Contains(err.Error(), "provider failed") {
-		t.Fatalf("second Execute error = %v, want provider failure", err)
-	}
-	meta, err := store.LoadMeta(ref)
-	if err != nil {
-		t.Fatalf("LoadMeta: %v", err)
-	}
-	if meta.Status != SubagentFailed {
-		t.Fatalf("status = %q, want failed", meta.Status)
-	}
-	loaded, err := LoadSession(store.sessionPath(ref))
-	if err != nil {
-		t.Fatalf("LoadSession: %v", err)
-	}
-	msgs := loaded.Snapshot()
-	if len(msgs) != 5 || !strings.HasSuffix(msgs[1].Content, "first task") || msgs[2].Content != "first answer" || !strings.HasSuffix(msgs[3].Content, "second task") || !msgs[4].LocalOnly {
-		t.Fatalf("failed continuation transcript = %+v, want tasks plus provider-excluded failure recovery", msgs)
-	}
-	if _, err := task.Execute(testTaskContext(), []byte(`{"prompt":"third task","continue_from":"`+ref+`"}`)); err == nil || !strings.Contains(err.Error(), "failed and cannot be continued") {
-		t.Fatalf("reuse error = %v, want failed ref rejection", err)
+	_, err = task.Execute(testTaskContext(), []byte(`{"prompt":"fork current","fork_from":"`+ref+`"}`))
+	if err == nil || !strings.Contains(err.Error(), "use continue_from") {
+		t.Fatalf("fork_from current conversation = %v, want continue_from guidance", err)
 	}
 }
 
-func TestTaskToolBackgroundPanicPersistsFailedMetadata(t *testing.T) {
-	sub := panicProvider{name: "panic-sub"}
+func TestTaskToolRejectsMismatchedContinuationWorkspace(t *testing.T) {
+	sub := &mockProvider{name: "sub", chunks: []provider.Chunk{
+		{Type: provider.ChunkText, Text: "answer"},
+		{Type: provider.ChunkDone},
+	}}
+	storeDir := t.TempDir()
+	task := NewTaskTool(sub, nil, tool.NewRegistry(), 20, 0, 0, 0, 0, 0, 0, 0.0, "", "sys", nil, 0, "", "", nil).
+		WithTranscripts(NewSubagentStore(storeDir), t.TempDir(), "base-model", "base-effort")
+	first, err := task.Execute(testTaskContext(), []byte(`{"prompt":"task"}`))
+	if err != nil {
+		t.Fatalf("first Execute: %v", err)
+	}
+	ref := subagentRefFromOutput(t, first)
+
+	other := NewTaskTool(sub, nil, tool.NewRegistry(), 20, 0, 0, 0, 0, 0, 0, 0.0, "", "sys", nil, 0, "", "", nil).
+		WithTranscripts(NewSubagentStore(storeDir), filepath.Join(t.TempDir(), "other"), "base-model", "base-effort")
+	_, err = other.Execute(testTaskContext(), []byte(`{"prompt":"task","continue_from":"`+ref+`"}`))
+	if err == nil || !strings.Contains(err.Error(), "workspace") {
+		t.Fatalf("mismatched workspace error = %v, want workspace compatibility failure", err)
+	}
+}
+
+func TestTaskToolBackgroundRunPersistsFailedTranscript(t *testing.T) {
+	sub := &mockProvider{name: "sub", chunks: []provider.Chunk{{Type: provider.ChunkError, Err: errors.New("boom")}}}
 	store := NewSubagentStore(t.TempDir())
 	reg := tool.NewRegistry()
 	reg.Add(fakeTool{name: "read_file", readOnly: true})
@@ -673,7 +646,7 @@ func TestTaskToolBackgroundPanicPersistsFailedMetadata(t *testing.T) {
 	ctx := testTaskContext()
 	ctx = jobs.WithSession(ctx, "parent-session")
 	ctx = jobs.WithManager(ctx, jm)
-	out, err := task.Execute(ctx, []byte(`{"prompt":"panic task","run_in_background":true}`))
+	out, err := task.Execute(ctx, []byte(`{"prompt":"bg","run_in_background":true}`))
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -954,7 +927,7 @@ func TestBackgroundEvidenceNotCommittedWhenTurnFails(t *testing.T) {
 	waitBuiltin(t, reg)
 	prov := &scriptedProvider{name: "p", turns: [][]provider.Chunk{
 		{toolCallChunk("w", "wait", `{"job_ids":["`+jobID+`"]}`), {Type: provider.ChunkDone}},
-		{{Type: provider.ChunkText, Text: "all set"}, {Type: provider.ChunkDone}}, // no sign-off
+		{{Type: provider.ChunkText, Text: "all set"}, {Type: provider.ChunkDone}},
 		{{Type: provider.ChunkText, Text: "all set"}, {Type: provider.ChunkDone}},
 		{{Type: provider.ChunkText, Text: "all set"}, {Type: provider.ChunkDone}},
 	}}
@@ -988,8 +961,6 @@ func TestBackgroundEvidenceCommittedWhenTurnDelivers(t *testing.T) {
 		{toolCallChunk("w", "wait", `{"job_ids":["`+jobID+`"]}`), {Type: provider.ChunkDone}},
 		{{Type: provider.ChunkText, Text: "collected the result"}, {Type: provider.ChunkDone}},
 	}}
-	// No delivery profile: the turn succeeds immediately after collecting, so the
-	// commit-on-success hook fires without a full sign-off script.
 	a := New(prov, reg, NewSession(""), Options{Jobs: jm}, event.Discard)
 	ctx := jobs.WithManager(WithParentSession(context.Background(), "parent-session"), jm)
 	ctx = jobs.WithSession(ctx, "parent-session")
@@ -1002,13 +973,6 @@ func TestBackgroundEvidenceCommittedWhenTurnDelivers(t *testing.T) {
 	}
 }
 
-// TestFailedTurnBackgroundMutationForcesReadinessOnNextRunWithoutWait extends
-// TestBackgroundEvidenceNotCommittedWhenTurnFails: after the first turn collects
-// a background mutation via wait but fails to sign it off, Run's Reset wipes the
-// per-turn ledger before the second turn starts. Without re-injecting the still
-// uncommitted mutation, a second turn that never calls wait/bash_output again
-// would sail through final-readiness having never seen it. Run must re-lease it
-// automatically so the gate still blocks.
 func TestFailedTurnBackgroundMutationForcesReadinessOnNextRunWithoutWait(t *testing.T) {
 	jm := jobs.NewManager(event.Discard)
 	defer jm.Close()
@@ -1018,10 +982,9 @@ func TestFailedTurnBackgroundMutationForcesReadinessOnNextRunWithoutWait(t *test
 	waitBuiltin(t, reg)
 	prov := &scriptedProvider{name: "p", turns: [][]provider.Chunk{
 		{toolCallChunk("w", "wait", `{"job_ids":["`+jobID+`"]}`), {Type: provider.ChunkDone}},
-		{{Type: provider.ChunkText, Text: "all set"}, {Type: provider.ChunkDone}}, // no sign-off
 		{{Type: provider.ChunkText, Text: "all set"}, {Type: provider.ChunkDone}},
 		{{Type: provider.ChunkText, Text: "all set"}, {Type: provider.ChunkDone}},
-		// Second Run: the model never calls wait/bash_output again.
+		{{Type: provider.ChunkText, Text: "all set"}, {Type: provider.ChunkDone}},
 		{{Type: provider.ChunkText, Text: "sure, here you go"}, {Type: provider.ChunkDone}},
 		{{Type: provider.ChunkText, Text: "sure, here you go"}, {Type: provider.ChunkDone}},
 		{{Type: provider.ChunkText, Text: "sure, here you go"}, {Type: provider.ChunkDone}},
@@ -1047,12 +1010,6 @@ func TestFailedTurnBackgroundMutationForcesReadinessOnNextRunWithoutWait(t *test
 	}
 }
 
-// TestRestartRecoversPendingBackgroundMutationForcesReadinessWithoutWait mirrors
-// the same guarantee across a process restart: a background task mutates and
-// finishes while no turn is collecting it, the process exits before any turn
-// commits (or even leases) that evidence, and a fresh Manager + Agent pair —
-// standing in for the restarted process — must still see it and enforce
-// final-readiness on the very first turn, with no wait/bash_output call at all.
 func TestRestartRecoversPendingBackgroundMutationForcesReadinessWithoutWait(t *testing.T) {
 	sessionPath := filepath.Join(t.TempDir(), "session.jsonl")
 	first := jobs.NewManager(event.Discard)
@@ -1066,7 +1023,7 @@ func TestRestartRecoversPendingBackgroundMutationForcesReadinessWithoutWait(t *t
 	if res := first.WaitForSession(context.Background(), "parent-session", []string{j.ID}, 5); len(res) != 1 || res[0].Status != jobs.Done {
 		t.Fatalf("background job = %+v, want done", res)
 	}
-	first.Close() // the process exits before any turn ever leased this evidence
+	first.Close()
 
 	second := jobs.NewManager(event.Discard)
 	defer second.Close()

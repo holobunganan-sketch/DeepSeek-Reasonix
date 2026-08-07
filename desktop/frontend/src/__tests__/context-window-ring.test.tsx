@@ -30,6 +30,16 @@ function wait(ms = 0): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function waitForCondition(label: string, predicate: () => boolean, attempts = 40, delayMs = 10) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    await act(async () => {
+      await wait(delayMs);
+    });
+    if (predicate()) return;
+  }
+  throw new Error(`timed out waiting for ${label}`);
+}
+
 class TestResizeObserver {
   observe() {}
   unobserve() {}
@@ -65,6 +75,10 @@ function installDom() {
       dispatchEvent: () => false,
     }),
   });
+  Object.defineProperty(dom.window.navigator, "language", {
+    configurable: true,
+    value: "en-US",
+  });
   return dom;
 }
 
@@ -88,6 +102,10 @@ function contextPanelInfo(requestCount: number): ContextPanelInfo {
     readFiles: [],
     changedFiles: [],
   };
+}
+
+function labelMatches(text: string | null | undefined, labels: readonly string[]): boolean {
+  return labels.includes(text ?? "");
 }
 
 function installContextPanelMock(fn: (tabId: string) => Promise<ContextPanelInfo>) {
@@ -157,8 +175,12 @@ console.log("\ncontext window ring");
     button.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: null }));
     await wait(220);
   });
+  await waitForCondition("turn cost row", () => {
+    return [...document.querySelectorAll(".context-ring-popover__row")]
+      .some((row) => labelMatches(row.querySelector(".context-ring-popover__label")?.textContent, ["turn cost", "本次费用", "本次費用"]));
+  });
   const turnCostRow = [...document.querySelectorAll(".context-ring-popover__row")]
-    .find((row) => row.querySelector(".context-ring-popover__label")?.textContent === "turn cost");
+    .find((row) => labelMatches(row.querySelector(".context-ring-popover__label")?.textContent, ["turn cost", "本次费用", "本次費用"]));
   eq(
     turnCostRow?.querySelector(".context-ring-popover__value")?.textContent,
     "$0.1250",
@@ -210,11 +232,15 @@ console.log("\ncontext window ring");
     nextButton.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: null }));
     await wait(220);
   });
+  await waitForCondition("request row", () => {
+    return [...document.querySelectorAll(".context-ring-popover__row")]
+      .some((row) => labelMatches(row.querySelector(".context-ring-popover__label")?.textContent, ["Requests", "请求数", "請求數"]));
+  });
 
   eq(calls[0], "old-tab", "old tab request starts first");
   eq(calls[1], "new-tab", "new tab request starts after tab switch");
   const requestRow = [...document.querySelectorAll(".context-ring-popover__row")]
-    .find((row) => row.querySelector(".context-ring-popover__label")?.textContent === "Requests");
+    .find((row) => labelMatches(row.querySelector(".context-ring-popover__label")?.textContent, ["Requests", "请求数", "請求數"]));
   eq(
     requestRow?.querySelector(".context-ring-popover__value")?.textContent,
     "2",

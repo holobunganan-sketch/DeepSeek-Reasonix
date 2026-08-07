@@ -57,20 +57,17 @@ jobs:
           fi
           { echo "code=$code"; echo "desktop=$desktop"; echo "site=$site"; } >> "$GITHUB_OUTPUT"
 
-  # The ruleset requires the per-OS check names (test (ubuntu-latest) etc.).
-  # A matrix job skipped at job level reports no per-leg checks at all, so
-  # those required checks would stay "Expected" and block merging. The job
-  # therefore always runs and the steps do the gating: when the changes
-  # detector reports the diff is unrelated, every step skips and each leg
-  # reports success in seconds. `always()` also keeps the legs alive when
-  # the changes job itself fails (fail-open: an empty output != 'false').
+  # Keep the supported root-module runners explicit. macOS packaging is not
+  # part of the Northwing Windows release contract, so this matrix validates
+  # Linux portability and the complete Windows smoke path only. The job always
+  # runs so path-gated pull requests still report stable per-runner checks.
   test:
     needs: changes
     if: always()
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     env:
       RUN_STEPS: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code != 'false' }}
@@ -99,7 +96,7 @@ jobs:
             echo "::warning::bubblewrap is installed but this runner denies user namespaces; unavailable-backend tests will run fail-closed"
 
       # Skipped on Windows: the runner checks out CRLF, so gofmt -l flags every
-      # file. gofmt output is OS-independent, so the Unix legs already cover it.
+      # file. gofmt output is OS-independent, so the Ubuntu leg covers it.
       - name: gofmt
         if: env.RUN_STEPS == 'true' && runner.os != 'Windows'
         run: |
@@ -130,7 +127,7 @@ jobs:
 
       # Pull requests run a Windows smoke suite: the packages that actually
       # carry *_windows.go code, plus cmd/. The full ./... sweep stays on
-      # pushes to main-v2; the Unix legs always run the full suite.
+      # pushes to main-v2; the Ubuntu leg always runs the full suite.
       - name: test (Windows smoke)
         if: env.RUN_STEPS == 'true' && runner.os == 'Windows' && github.event_name == 'pull_request'
         timeout-minutes: 10
@@ -287,27 +284,6 @@ jobs:
 
       - name: test
         run: go test ./...
-
-  # desktop/ is a separate module, so the root macOS matrix above does not
-  # compile or exercise the native PTY implementation.
-  desktop-macos:
-    needs: changes
-    if: always() && (github.event_name != 'pull_request' || needs.changes.outputs.desktop != 'false')
-    runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: desktop
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: desktop/go.mod
-          cache: true
-          cache-dependency-path: desktop/go.sum
-
-      - name: Test integrated terminal and PTY lifecycle
-        run: go test -race -run 'Test(ResolveTerminal|Terminal|EmptyTerminal|UnixTerminalProcess)' .
 
   # Desktop project-root matching is case-insensitive only on Windows
   # (sameDesktopPath folds case when os.PathSeparator is '\'), so the

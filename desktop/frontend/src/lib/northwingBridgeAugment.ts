@@ -1,23 +1,9 @@
-import type { UpdateInfo } from "./types";
 import type {
-  CoworkArtifact,
   CoworkProject,
   CoworkProjectState,
+  CoworkProjectSummary,
   CoworkWorkRef,
 } from "./northwingCowork";
-
-type CoworkProjectSummary = {
-  workspace: string;
-  exists: boolean;
-  id?: string;
-  name?: string;
-  updatedAt?: string;
-  workCount: number;
-  artifactCount: number;
-  latestWork?: CoworkWorkRef;
-  latestArtifact?: CoworkArtifact;
-  error?: string;
-};
 
 export type NorthwingOfficeReport = {
   path: string;
@@ -41,6 +27,14 @@ export type NorthwingLaunch = {
   mode?: "chat" | "work" | string;
 };
 
+// These methods are generated as required Wails bindings. Referencing them
+// here keeps the Northwing-specific bridge contract explicit without merging
+// duplicate optional properties into AppBindings.
+export type NorthwingGeneratedUpdateBindings = Pick<
+  import("./bridge").AppBindings,
+  "CheckNorthwingUpdate" | "ApplyNorthwingUpdateRequest"
+>;
+
 declare module "./bridge" {
   interface AppBindings {
     CreateCoworkProject?(workspaceRoot: string, name: string): Promise<CoworkProject>;
@@ -48,14 +42,13 @@ declare module "./bridge" {
     CoworkProjectState?(workspaceRoot: string, syncArtifacts: boolean): Promise<CoworkProjectState>;
     CoworkProjectSummaries?(workspaceRoots: string[]): Promise<CoworkProjectSummary[]>;
     UpsertCoworkWork?(workspaceRoot: string, work: CoworkWorkRef): Promise<CoworkProject>;
+    UpdateCoworkWorkProgress?(workspaceRoot: string, workID: string, stage: string, completedCriteria: number, totalCriteria: number): Promise<CoworkProject>;
     LinkCoworkWork?(workspaceRoot: string, title: string, sessionPath: string, goalID: string, profile: string): Promise<CoworkProject>;
     SyncCoworkArtifacts?(workspaceRoot: string): Promise<CoworkProject>;
     SetCoworkArtifactFinal?(workspaceRoot: string, artifactID: string): Promise<CoworkProjectState>;
     RegisterCoworkArtifact?(workspaceRoot: string, path: string, kind: string, workID: string): Promise<CoworkProject>;
     InspectCoworkArtifact?(workspaceRoot: string, artifactPath: string): Promise<NorthwingOfficeReport>;
     PendingNorthwingLaunches?(): Promise<NorthwingLaunch[]>;
-    CheckNorthwingUpdate?(): Promise<UpdateInfo | null>;
-    OpenNorthwingDownloadPage?(): Promise<void>;
   }
 }
 

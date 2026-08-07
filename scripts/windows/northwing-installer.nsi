@@ -3,6 +3,7 @@ RequestExecutionLevel user
 
 !include "MUI2.nsh"
 !include "FileFunc.nsh"
+!include "LogicLib.nsh"
 
 !define APP_NAME "Northwing"
 !ifndef APP_VERSION
@@ -11,9 +12,15 @@ RequestExecutionLevel user
 !ifndef APP_SOURCE_EXE
   !define APP_SOURCE_EXE "${__FILEDIR__}\..\..\desktop\build\bin\northwing.exe"
 !endif
+!ifndef APP_UPDATE_HELPER
+  !define APP_UPDATE_HELPER "${__FILEDIR__}\..\..\desktop\build\bin\northwing-update-helper.exe"
+!endif
 !define APP_PUBLISHER "Northwing Contributors"
 !define APP_ID "io.github.holobunganansketch.northwing"
 !define APP_EXE "northwing.exe"
+!define APP_HELPER "northwing-update-helper.exe"
+
+Var NorthwingUpdateMode
 
 Name "${APP_NAME}"
 OutFile "${__FILEDIR__}\..\..\Northwing-${APP_VERSION}-windows-x64-setup.exe"
@@ -33,10 +40,94 @@ BrandingText "Northwing — From intent to finished work."
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "SimpChinese"
 
+Function .onInit
+  StrCpy $NorthwingUpdateMode "0"
+  ${GetParameters} $R7
+  ClearErrors
+  ${GetOptions} $R7 "/NORTHWING_UPDATE=" $NorthwingUpdateMode
+  IfErrors 0 +2
+  StrCpy $NorthwingUpdateMode "0"
+FunctionEnd
+
 Section "Northwing" SEC_MAIN
   SetShellVarContext current
   SetOutPath "$INSTDIR"
-  File "${APP_SOURCE_EXE}"
+
+  ; Ask every running Northwing window to close before replacing the executable.
+  ; taskkill without /F uses the normal GUI-close path, allowing Northwing to
+  ; snapshot sessions and stop child processes before the installer continues.
+  nsExec::ExecToStack 'taskkill /IM ${APP_EXE}'
+  Pop $R8
+  Pop $R9
+  Sleep 500
+
+  ; Silent overwrite installs should preserve the normal close path first, then
+  ; fall back to a forceful stop if the running GUI still holds the executable
+  ; open after a reasonable grace period.
+  ${If} $NorthwingUpdateMode == "1"
+    StrCpy $R2 0
+NorthwingWaitForGracefulExit:
+    nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq ${APP_EXE}"'
+    Pop $R3
+    Pop $R4
+    StrCmp $R4 "" NorthwingUpdateForceStop
+    StrCmp $R4 "INFO: No tasks are running which match the specified criteria." NorthwingAfterForceStop 0
+    IntOp $R2 $R2 + 1
+    IntCmp $R2 20 NorthwingUpdateForceStop 0 0
+    Sleep 500
+    Goto NorthwingWaitForGracefulExit
+
+NorthwingUpdateForceStop:
+    nsExec::ExecToStack 'taskkill /F /IM ${APP_EXE}'
+    Pop $R5
+    Pop $R6
+    Sleep 1000
+
+NorthwingAfterForceStop:
+  ${EndIf}
+
+  ; Keep an exact previous executable until the replacement has succeeded.
+  ; This prevents a failed overwrite from leaving a missing or partial app.
+  Delete "$INSTDIR\${APP_EXE}.previous"
+  StrCpy $R1 "0"
+  IfFileExists "$INSTDIR\${APP_EXE}" 0 NorthwingNoPrevious
+  ClearErrors
+  CopyFiles /SILENT "$INSTDIR\${APP_EXE}" "$INSTDIR\${APP_EXE}.previous"
+  IfErrors NorthwingNoPrevious 0
+  StrCpy $R1 "1"
+
+NorthwingNoPrevious:
+  SetOverwrite try
+  StrCpy $R0 0
+
+NorthwingRetryExecutable:
+  ClearErrors
+  File /oname=${APP_EXE} "${APP_SOURCE_EXE}"
+  IfErrors 0 NorthwingExecutableInstalled
+  IntOp $R0 $R0 + 1
+  IfSilent NorthwingSilentRetry NorthwingInteractiveRetry
+
+NorthwingSilentRetry:
+  IntCmp $R0 40 NorthwingReplacementFailed NorthwingSilentContinue NorthwingReplacementFailed
+NorthwingSilentContinue:
+  Sleep 500
+  Goto NorthwingRetryExecutable
+
+NorthwingInteractiveRetry:
+  MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "northwing.exe is still running. Close Northwing, then choose Retry. Cancel restores the previous executable." IDRETRY NorthwingRetryExecutable IDCANCEL NorthwingReplacementFailed
+
+NorthwingReplacementFailed:
+  Delete "$INSTDIR\${APP_EXE}"
+  ${If} $R1 == "1"
+    Rename "$INSTDIR\${APP_EXE}.previous" "$INSTDIR\${APP_EXE}"
+  ${EndIf}
+  SetOverwrite on
+  Abort "Northwing could not replace northwing.exe. The previous executable was preserved."
+
+NorthwingExecutableInstalled:
+  SetOverwrite on
+  Delete "$INSTDIR\${APP_EXE}.previous"
+  File /oname=${APP_HELPER} "${APP_UPDATE_HELPER}"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
   WriteRegStr HKCU "Software\Northwing" "InstallDir" "$INSTDIR"
@@ -62,6 +153,10 @@ SectionEnd
 
 Section "Uninstall"
   SetShellVarContext current
+  nsExec::ExecToStack 'taskkill /IM ${APP_EXE}'
+  Pop $R8
+  Pop $R9
+  Sleep 500
   Delete "$SMPROGRAMS\Northwing\Northwing.lnk"
   Delete "$SMPROGRAMS\Northwing\Uninstall Northwing.lnk"
   RMDir "$SMPROGRAMS\Northwing"
@@ -69,6 +164,8 @@ Section "Uninstall"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_ID}"
   DeleteRegKey HKCU "Software\Northwing"
   Delete "$INSTDIR\${APP_EXE}"
+  Delete "$INSTDIR\${APP_EXE}.previous"
+  Delete "$INSTDIR\${APP_HELPER}"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
 SectionEnd

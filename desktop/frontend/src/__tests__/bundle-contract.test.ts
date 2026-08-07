@@ -28,6 +28,7 @@ const markdownSource = readFileSync(resolve(here, "../components/Markdown.tsx"),
 const i18nSource = readFileSync(resolve(here, "../lib/i18n.tsx"), "utf8");
 const mainSource = readFileSync(resolve(here, "../main.tsx"), "utf8");
 const stylesSource = readFileSync(resolve(here, "../styles.css"), "utf8");
+const workSurfaceSource = readFileSync(resolve(here, "../components/NorthwingWorkSessionSurface.tsx"), "utf8");
 
 console.log("\nbundle contract");
 
@@ -48,6 +49,14 @@ ok(
   appSource.includes('import("./components/SettingsPanel")') &&
     appSource.includes('import("./components/HistoryPanel")'),
   "App loads secondary drawers on demand",
+);
+ok(
+  !/import\s+\{[^}]*\bNorthwingWorkSessionSurface\b[^}]*\}\s+from\s+["']\.\/components\/NorthwingWorkSessionSurface["']/.test(appSource),
+  "App keeps the Northwing Work surface out of the initial chunk",
+);
+ok(
+  appSource.includes('import("./components/NorthwingWorkSessionSurface")'),
+  "App loads the Northwing Work surface on demand",
 );
 ok(
   !appSource.includes("openAllHistory") &&
@@ -115,6 +124,22 @@ ok(
 ok(
   mainSource.includes("await preloadDetectedLocale()"),
   "main preloads the detected locale before mounting React",
+);
+ok(
+  !/import\s+\{[^}]*\bNorthwingWorkDialog\b[^}]*\}\s+from\s+["']\.\/NorthwingWorkDialog["']/.test(projectTreeSource),
+  "Project tree keeps the Northwing Work dialog out of the initial chunk",
+);
+ok(
+  projectTreeSource.includes('import("./NorthwingWorkDialog")'),
+  "Project tree loads the Northwing Work dialog on demand",
+);
+ok(
+  !/import\s+\{[^}]*\bNorthwingArtifactCenter\b[^}]*\}\s+from\s+["']\.\/NorthwingArtifactCenter["']/.test(workSurfaceSource),
+  "Work surface keeps the artifact drawer out of the first Work chunk",
+);
+ok(
+  workSurfaceSource.includes('import("./NorthwingArtifactCenter")'),
+  "Work surface loads the artifact drawer on demand",
 );
 
 console.log(`\n${passed} passed, ${failed} failed`);

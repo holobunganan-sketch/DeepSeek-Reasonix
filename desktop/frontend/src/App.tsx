@@ -285,6 +285,7 @@ const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((modu
 const RemotePanel = lazy(() => import("./components/RemotePanel").then((module) => ({ default: module.RemotePanel })));
 const TerminalPanel = lazy(() => import("./components/TerminalPanel").then((module) => ({ default: module.TerminalPanel })));
 const HeartbeatPanel = lazy(() => import("./custom/features/heartbeat/HeartbeatPanel.lazy"));
+const NorthwingWorkSessionSurface = lazy(() => import("./components/NorthwingWorkSessionSurface").then((module) => ({ default: module.NorthwingWorkSessionSurface })));
 
 const CHAT_MIN_WIDTH = 400;
 const CHAT_COMFORT_MIN_WIDTH = 560;
@@ -4661,6 +4662,9 @@ export default function App() {
               )}
             </div>
           </header>
+          <Suspense fallback={null}>
+            <NorthwingWorkSessionSurface activeTab={activeTab} />
+          </Suspense>
 
           {state.meta?.startupErr && (
             <div className="banner banner--error">{t("topbar.startupError", { msg: state.meta.startupErr })}</div>

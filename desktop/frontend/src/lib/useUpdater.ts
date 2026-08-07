@@ -2,16 +2,8 @@ import { createContext, createElement, useCallback, useContext, useEffect, useRe
 import { app, onUpdaterProgress } from "./bridge";
 import type { UpdateInfo } from "./types";
 
-type NorthwingUpdateBindings = {
-  CheckNorthwingUpdate?: () => Promise<UpdateInfo | null>;
-  OpenNorthwingDownloadPage?: () => Promise<void>;
-};
-
-const productUpdater = app as typeof app & NorthwingUpdateBindings;
-
-// useUpdater drives the update state shared by the top banner and Settings.
-// Real Northwing builds use the fork-specific manual release checker; browser
-// mocks and upstream-compatible tests fall back to the complete Reasonix updater.
+// useUpdater drives the Northwing-only update state shared by the top banner and Settings.
+// Product builds, browser mocks, and tests all use the same dedicated Northwing bindings.
 
 export type UpdateStatus =
   | { kind: "idle" }
@@ -50,18 +42,15 @@ function offersManualFallback(message: string): boolean {
 }
 
 async function checkProductUpdate(): Promise<UpdateInfo | null> {
-  if (typeof productUpdater.CheckNorthwingUpdate === "function") {
-    return productUpdater.CheckNorthwingUpdate();
-  }
-  return app.CheckUpdate("stable");
+  return app.CheckNorthwingUpdate();
 }
 
 function openProductDownload(): void {
-  if (typeof productUpdater.OpenNorthwingDownloadPage === "function") {
-    void productUpdater.OpenNorthwingDownloadPage();
-    return;
-  }
-  void app.OpenDownloadPage();
+  void app.OpenNorthwingDownloadPage();
+}
+
+async function applyProductUpdate(expectedVersion: string, requestId: string): Promise<void> {
+  return app.ApplyNorthwingUpdateRequest(expectedVersion, requestId);
 }
 
 const UpdaterContext = createContext<Updater | null>(null);
@@ -251,7 +240,7 @@ function useUpdaterInternal(): Updater {
         ? { kind: "authorizing", info }
         : { kind: "downloading", received: 0, total: info.assetSize, info },
     );
-    void app.ApplyUpdateRequest(selectedChannel, info.latest, operation.requestId).catch((e) => {
+    void applyProductUpdate(info.latest, operation.requestId).catch((e) => {
       if (!isCurrentOperation(operation)) return;
       const message = errMsg(e);
       completeOperation(operation);

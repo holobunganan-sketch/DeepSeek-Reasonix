@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
+import { useMemo, useState } from "react";
 import {
   CheckCircle2,
   ExternalLink,
@@ -22,21 +21,22 @@ import {
   setCoworkArtifactFinal,
   type CoworkArtifact,
   type CoworkProjectState,
-  type CoworkWorkRef,
 } from "../lib/northwingCowork";
 import { inspectCoworkArtifact, isOfficeArtifact, type NorthwingOfficeReport } from "../lib/northwingOffice";
 import type { FilePreview } from "../lib/types";
-import "./NorthwingArtifactCenter.css";
+import { ResizableDrawer } from "./ResizableDrawer";
+if (typeof document !== "undefined") {
+  void import("./NorthwingArtifactCenter.css");
+}
 
 function localText() {
   const chinese = typeof navigator !== "undefined" && /^zh\b/i.test(navigator.language);
   return chinese ? {
-    title: "项目工作与成品",
-    works: "工作",
+    title: "Work 与成品",
+    overview: "概览",
     artifacts: "成品",
-    noWorks: "还没有 Work。",
-    noArtifacts: "尚未发现成品。任务完成后，deliverables 目录中的文件会自动登记。",
-    continue: "继续",
+    noArtifacts: "当前 Work 尚未发现成品。任务完成后，deliverables 目录中的文件会自动登记。",
+    continue: "继续 Work",
     sync: "同步成品",
     syncing: "正在同步",
     preview: "预览",
@@ -58,13 +58,14 @@ function localText() {
     paragraphs: "个段落",
     cells: "个单元格",
     inheritedModel: "当前／默认模型",
+    stage: "阶段",
+    acceptance: "验收",
   } : {
-    title: "Project Work and Artifacts",
-    works: "Works",
+    title: "Work and artifacts",
+    overview: "Overview",
     artifacts: "Artifacts",
-    noWorks: "No Work has been created yet.",
-    noArtifacts: "No artifacts found yet. Files under deliverables are registered automatically after a turn completes.",
-    continue: "Continue",
+    noArtifacts: "No artifacts have been found for this Work. Files under deliverables are registered after a turn completes.",
+    continue: "Continue Work",
     sync: "Sync artifacts",
     syncing: "Syncing",
     preview: "Preview",
@@ -86,14 +87,15 @@ function localText() {
     paragraphs: "paragraphs",
     cells: "cells",
     inheritedModel: "current/default model",
+    stage: "Stage",
+    acceptance: "Acceptance",
   };
 }
 
 function timeLabel(value?: string): string {
   if (!value) return "";
   const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return "";
-  return date.toLocaleString();
+  return Number.isFinite(date.getTime()) ? date.toLocaleString() : "";
 }
 
 function basename(path: string): string {
@@ -104,29 +106,20 @@ function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-function workPolicy(work: CoworkWorkRef, inheritedModel: string): string {
-  return [
-    work.kind || "general",
-    work.quality || "standard",
-    work.sourcePolicy || "project_only",
-    work.modelRef || inheritedModel,
-    work.reasoningEffort || "default effort",
-  ].join(" · ");
-}
-
 export function NorthwingArtifactCenter({
   workspaceRoot,
+  workId,
   state,
   onState,
   onClose,
 }: {
   workspaceRoot: string;
+  workId: string;
   state: CoworkProjectState;
   onState: (state: CoworkProjectState) => void;
   onClose: () => void;
 }) {
   const t = localText();
-  const [tab, setTab] = useState<"works" | "artifacts">("works");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<{ artifact: CoworkArtifact; file?: FilePreview; office?: NorthwingOfficeReport } | null>(null);
@@ -134,19 +127,10 @@ export function NorthwingArtifactCenter({
   const [revision, setRevision] = useState("");
 
   const project = state.project;
-  const works = useMemo(() => [...(project?.works ?? [])].sort((a, b) =>
-    String(b.updatedAt ?? b.createdAt ?? "").localeCompare(String(a.updatedAt ?? a.createdAt ?? ""))), [project?.works]);
-  const artifacts = useMemo(() => [...(project?.artifacts ?? [])].sort((a, b) =>
-    String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))), [project?.artifacts]);
-  const worksByID = useMemo(() => new Map(works.map((work) => [work.id, work])), [works]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy, onClose]);
+  const work = useMemo(() => project?.works?.find((candidate) => candidate.id === workId), [project?.works, workId]);
+  const artifacts = useMemo(() => [...(project?.artifacts ?? [])]
+    .filter((artifact) => artifact.workId === workId)
+    .sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))), [project?.artifacts, workId]);
 
   const sync = async () => {
     if (busy) return;
@@ -157,8 +141,8 @@ export function NorthwingArtifactCenter({
     finally { setBusy(""); }
   };
 
-  const resume = async (work: CoworkWorkRef) => {
-    if (busy) return;
+  const resume = async () => {
+    if (!work || busy) return;
     setBusy(`work:${work.id}`);
     setError("");
     try {
@@ -183,6 +167,18 @@ export function NorthwingArtifactCenter({
     finally { setBusy(""); }
   };
 
+  const openArtifact = async (artifact: CoworkArtifact) => {
+    setError("");
+    try { await openCoworkArtifact(workspaceRoot, artifact.path); }
+    catch (err) { setError(errorText(err)); }
+  };
+
+  const revealArtifact = async (artifact: CoworkArtifact) => {
+    setError("");
+    try { await revealCoworkArtifact(workspaceRoot, artifact.path); }
+    catch (err) { setError(errorText(err)); }
+  };
+
   const markFinal = async (artifact: CoworkArtifact) => {
     setBusy(`final:${artifact.id}`);
     setError("");
@@ -204,18 +200,6 @@ export function NorthwingArtifactCenter({
     finally { setBusy(""); }
   };
 
-  const openArtifact = async (artifact: CoworkArtifact) => {
-    setError("");
-    try { await openCoworkArtifact(workspaceRoot, artifact.path); }
-    catch (err) { setError(errorText(err)); }
-  };
-
-  const revealArtifact = async (artifact: CoworkArtifact) => {
-    setError("");
-    try { await revealCoworkArtifact(workspaceRoot, artifact.path); }
-    catch (err) { setError(errorText(err)); }
-  };
-
   const officeMetrics = (report: NorthwingOfficeReport) => [
     report.pages ? `${report.pages} ${t.pages}` : "",
     report.slides ? `${report.slides} ${t.slides}` : "",
@@ -224,13 +208,14 @@ export function NorthwingArtifactCenter({
     report.cells ? `${report.cells} ${t.cells}` : "",
   ].filter(Boolean).join(" · ");
 
-  return createPortal(
-    <div className="northwing-modal-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget && !busy) onClose();
-    }}>
-      <section className="northwing-artifact-center" role="dialog" aria-modal="true" aria-labelledby="northwing-artifact-center-title">
+  return (
+    <ResizableDrawer onClose={onClose} subtle>
+      <section className="northwing-artifact-center" aria-label={t.title}>
         <header className="northwing-artifact-center__header">
-          <div><h2 id="northwing-artifact-center-title">{project?.name || t.title}</h2><p>{t.title}</p></div>
+          <div>
+            <h2>{work?.title || t.title}</h2>
+            <p>{t.title}</p>
+          </div>
           <div className="northwing-artifact-center__header-actions">
             <button type="button" onClick={() => void sync()} disabled={Boolean(busy)}>
               {busy === "sync" ? <LoaderCircle className="northwing-spin" size={14} /> : <RefreshCw size={14} />}
@@ -240,51 +225,49 @@ export function NorthwingArtifactCenter({
           </div>
         </header>
 
-        <nav className="northwing-artifact-center__tabs" aria-label={t.title}>
-          <button type="button" className={tab === "works" ? "is-active" : ""} onClick={() => setTab("works")}><MessageSquareText size={14} />{t.works}<span>{works.length}</span></button>
-          <button type="button" className={tab === "artifacts" ? "is-active" : ""} onClick={() => setTab("artifacts")}><FileOutput size={14} />{t.artifacts}<span>{artifacts.length}</span></button>
-        </nav>
-
         {error && <div className="northwing-artifact-center__error">{error}</div>}
 
-        <div className="northwing-artifact-center__body">
-          {tab === "works" ? (
-            works.length === 0 ? <div className="northwing-artifact-center__empty">{t.noWorks}</div> : (
-              <div className="northwing-artifact-center__list">{works.map((work) => (
-                <article key={work.id} className="northwing-work-row">
-                  <div className="northwing-work-row__copy">
-                    <strong>{work.title}</strong>
-                    <span>{workPolicy(work, t.inheritedModel)}</span>
-                    <span>{timeLabel(work.updatedAt || work.createdAt)}</span>
-                    <code>deliverables/{work.id}</code>
+        {work && (
+          <section className="northwing-work-overview">
+            <div><span>{t.overview}</span><strong>{work.title}</strong></div>
+            <dl>
+              <div><dt>{t.stage}</dt><dd>{work.stage || "planning"}</dd></div>
+              <div><dt>{t.acceptance}</dt><dd>{work.completedCriteria ?? 0}/{work.totalCriteria ?? 0}</dd></div>
+              <div><dt>Policy</dt><dd>{work.kind || "general"} · {work.quality || "standard"} · {work.sourcePolicy || "project_only"}</dd></div>
+              <div><dt>Model</dt><dd>{work.modelRef || t.inheritedModel}{work.reasoningEffort ? ` · ${work.reasoningEffort}` : ""}</dd></div>
+            </dl>
+            <button type="button" onClick={() => void resume()} disabled={Boolean(busy)}>
+              {busy === `work:${work.id}` ? <LoaderCircle className="northwing-spin" size={14} /> : <Play size={14} />}
+              {t.continue}
+            </button>
+          </section>
+        )}
+
+        <section className="northwing-artifact-center__body">
+          <header className="northwing-artifact-center__section-title"><FileOutput size={14} />{t.artifacts}<span>{artifacts.length}</span></header>
+          {artifacts.length === 0 ? <div className="northwing-artifact-center__empty">{t.noArtifacts}</div> : (
+            <div className="northwing-artifact-center__list">{artifacts.map((artifact) => {
+              const isFinal = state.finalArtifacts?.[workId] === artifact.id;
+              return (
+                <article key={artifact.id} className={`northwing-artifact-row${isFinal ? " northwing-artifact-row--final" : ""}`}>
+                  <div className="northwing-artifact-row__copy">
+                    <strong title={artifact.path}>{basename(artifact.path)}</strong>
+                    <span>{artifact.kind} · {t.version} {artifact.version} · {timeLabel(artifact.createdAt)}</span>
+                    <code>{artifact.path}</code>
                   </div>
-                  <button type="button" onClick={() => void resume(work)} disabled={Boolean(busy)}>{busy === `work:${work.id}` ? <LoaderCircle className="northwing-spin" size={14} /> : <Play size={14} />}{t.continue}</button>
+                  {isFinal && <span className="northwing-artifact-row__final"><CheckCircle2 size={12} />{t.finalBadge}</span>}
+                  <div className="northwing-artifact-row__actions">
+                    <button type="button" onClick={() => void showPreview(artifact)} disabled={Boolean(busy)}>{t.preview}</button>
+                    <button type="button" onClick={() => void openArtifact(artifact)}><ExternalLink size={12} />{t.open}</button>
+                    <button type="button" onClick={() => void revealArtifact(artifact)}><FolderSearch size={12} />{t.reveal}</button>
+                    <button type="button" onClick={() => void markFinal(artifact)} disabled={Boolean(busy) || isFinal}><Star size={12} />{t.final}</button>
+                    <button type="button" onClick={() => { setRevising(artifact); setRevision(""); }} disabled={Boolean(busy)}>{t.revise}</button>
+                  </div>
                 </article>
-              ))}</div>
-            )
-          ) : (
-            artifacts.length === 0 ? <div className="northwing-artifact-center__empty">{t.noArtifacts}</div> : (
-              <div className="northwing-artifact-center__list">{artifacts.map((artifact) => {
-                const finalKey = artifact.workId || "__project__";
-                const isFinal = state.finalArtifacts?.[finalKey] === artifact.id;
-                const work = artifact.workId ? worksByID.get(artifact.workId) : undefined;
-                return (
-                  <article key={artifact.id} className={`northwing-artifact-row${isFinal ? " northwing-artifact-row--final" : ""}`}>
-                    <div className="northwing-artifact-row__copy"><strong title={artifact.path}>{basename(artifact.path)}</strong><span>{work?.title || artifact.kind} · {t.version} {artifact.version} · {timeLabel(artifact.createdAt)}</span><code>{artifact.path}</code></div>
-                    {isFinal && <span className="northwing-artifact-row__final"><CheckCircle2 size={12} />{t.finalBadge}</span>}
-                    <div className="northwing-artifact-row__actions">
-                      <button type="button" onClick={() => void showPreview(artifact)} disabled={Boolean(busy)}>{t.preview}</button>
-                      <button type="button" onClick={() => void openArtifact(artifact)}><ExternalLink size={12} />{t.open}</button>
-                      <button type="button" onClick={() => void revealArtifact(artifact)}><FolderSearch size={12} />{t.reveal}</button>
-                      <button type="button" onClick={() => void markFinal(artifact)} disabled={Boolean(busy) || isFinal}><Star size={12} />{t.final}</button>
-                      <button type="button" onClick={() => { setRevising(artifact); setRevision(""); }} disabled={Boolean(busy)}>{t.revise}</button>
-                    </div>
-                  </article>
-                );
-              })}</div>
-            )
+              );
+            })}</div>
           )}
-        </div>
+        </section>
 
         {preview && (
           <aside className="northwing-artifact-preview">
@@ -311,11 +294,13 @@ export function NorthwingArtifactCenter({
           <aside className="northwing-artifact-revision">
             <header><strong>{t.revise}: {basename(revising.path)}</strong><button type="button" onClick={() => setRevising(null)}><X size={14} /></button></header>
             <textarea autoFocus rows={4} value={revision} onChange={(event) => setRevision(event.target.value)} placeholder={t.revisePlaceholder} />
-            <button type="button" onClick={() => void submitRevision()} disabled={!revision.trim() || Boolean(busy)}>{busy === `revise:${revising.id}` ? <LoaderCircle className="northwing-spin" size={14} /> : <MessageSquareText size={14} />}{t.submitRevision}</button>
+            <button type="button" onClick={() => void submitRevision()} disabled={!revision.trim() || Boolean(busy)}>
+              {busy === `revise:${revising.id}` ? <LoaderCircle className="northwing-spin" size={14} /> : <MessageSquareText size={14} />}
+              {t.submitRevision}
+            </button>
           </aside>
         )}
       </section>
-    </div>,
-    document.body,
+    </ResizableDrawer>
   );
 }

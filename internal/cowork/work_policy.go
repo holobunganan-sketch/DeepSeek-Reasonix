@@ -9,12 +9,26 @@ import (
 
 const CurrentHarnessVersion = 2
 
+const (
+	WorkStagePlanning    = "planning"
+	WorkStageInventory   = "inventory"
+	WorkStageProducing   = "producing"
+	WorkStageReviewing   = "reviewing"
+	WorkStageRepairing   = "repairing"
+	WorkStageValidating  = "validating"
+	WorkStageWaitingUser = "waiting_user"
+	WorkStageCompleted   = "completed"
+	WorkStageFailed      = "failed"
+)
+
 var (
 	ErrUnsupportedWorkKind       = errors.New("unsupported cowork work kind")
 	ErrUnsupportedWorkQuality    = errors.New("unsupported cowork work quality")
 	ErrUnsupportedSourcePolicy   = errors.New("unsupported cowork source policy")
 	ErrUnsupportedHarnessVersion = errors.New("unsupported cowork harness version")
 	ErrInvalidModelBinding       = errors.New("invalid cowork model binding")
+	ErrUnsupportedWorkStage      = errors.New("unsupported cowork work stage")
+	ErrInvalidAcceptanceProgress = errors.New("invalid cowork acceptance progress")
 )
 
 var supportedWorkKinds = map[string]struct{}{
@@ -25,6 +39,12 @@ var supportedWorkKinds = map[string]struct{}{
 	"analysis":     {},
 	"review":       {},
 	"batch":        {},
+}
+
+var supportedWorkStages = map[string]struct{}{
+	WorkStagePlanning: {}, WorkStageInventory: {}, WorkStageProducing: {},
+	WorkStageReviewing: {}, WorkStageRepairing: {}, WorkStageValidating: {},
+	WorkStageWaitingUser: {}, WorkStageCompleted: {}, WorkStageFailed: {},
 }
 
 var supportedWorkQualities = map[string]struct{}{
@@ -63,6 +83,10 @@ func NormalizeWorkPolicy(work *WorkRef) error {
 	if work.HarnessVersion == 0 {
 		work.HarnessVersion = CurrentHarnessVersion
 	}
+	work.Stage = strings.ToLower(strings.TrimSpace(work.Stage))
+	if work.Stage == "" {
+		work.Stage = WorkStagePlanning
+	}
 	return ValidateWorkPolicy(*work)
 }
 
@@ -78,6 +102,12 @@ func ValidateWorkPolicy(work WorkRef) error {
 	}
 	if work.HarnessVersion != CurrentHarnessVersion {
 		return fmt.Errorf("%w: got %d, want %d", ErrUnsupportedHarnessVersion, work.HarnessVersion, CurrentHarnessVersion)
+	}
+	if _, ok := supportedWorkStages[work.Stage]; !ok {
+		return fmt.Errorf("%w: %s", ErrUnsupportedWorkStage, work.Stage)
+	}
+	if work.CompletedCriteria < 0 || work.TotalCriteria < 0 || work.CompletedCriteria > work.TotalCriteria {
+		return fmt.Errorf("%w: completed=%d total=%d", ErrInvalidAcceptanceProgress, work.CompletedCriteria, work.TotalCriteria)
 	}
 	if err := validateBindingText("model", work.ModelRef, 256); err != nil {
 		return err

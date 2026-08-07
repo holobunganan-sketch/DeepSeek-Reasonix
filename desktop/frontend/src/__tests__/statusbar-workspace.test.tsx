@@ -22,6 +22,11 @@ function ok(value: boolean, label: string) {
   }
 }
 
+function includesAny(text: string | null | undefined, candidates: readonly string[]): boolean {
+  const value = text ?? "";
+  return candidates.some((candidate) => value.includes(candidate));
+}
+
 function renderStatusBar(props: Partial<Parameters<typeof StatusBar>[0]> = {}): string {
   return renderToStaticMarkup(
     <LocaleProvider>
@@ -283,7 +288,10 @@ console.log("\nstatus bar workspace");
   if (promptJobsButton?.getAttribute("aria-expanded") !== "true") {
     await act(async () => { promptJobsButton?.click(); });
   }
-  ok(document.body.textContent?.includes("Waiting for input") === true, "pending-prompt runtime explains why it remains active");
+  ok(
+    includesAny(document.body.textContent, ["Waiting for input", "等待用户输入", "等待使用者輸入"]),
+    "pending-prompt runtime explains why it remains active",
+  );
   const promptOpenTask = document.body.querySelector<HTMLButtonElement>(".jobs-popover__runtime-header button");
   await act(async () => { promptOpenTask?.click(); await Promise.resolve(); });
   ok(revealed === "prompt-1", "a pending-prompt runtime can be reopened without child jobs");
