@@ -10,6 +10,8 @@ import { NorthwingProjects } from "../Projects/NorthwingProjects";
 import { NorthwingProjectView } from "../Projects/NorthwingProjectView";
 import { NorthwingWorkList } from "../Work/NorthwingWorkList";
 import { NorthwingWorkView } from "../Work/NorthwingWorkView";
+import { NorthwingNewWork } from "../NewWork/NorthwingNewWork";
+import { launchNewWork } from "../NewWork/newWorkController";
 
 export type { NorthwingDestination } from "../Navigation/routes";
 
@@ -261,6 +263,19 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
       return <NorthwingAdvancedPage />;
     case "quick-chat":
       return <PlaceholderPage title="Quick Chat">Quick chat workspace will appear here.</PlaceholderPage>;
+    case "new-work": {
+      const wsRoot = destination.workspaceRoot ?? "";
+      return (
+        <NorthwingNewWork
+          preselectedWorkspace={wsRoot || undefined}
+          onLaunch={async (root, form) => {
+            await launchNewWork(root, form);
+            _navigate({ kind: "project", workspaceRoot: root });
+          }}
+          onCancel={() => _navigate({ kind: "home" })}
+        />
+      );
+    }
   }
 }
 
@@ -282,6 +297,7 @@ export function NorthwingShell({ initialDestination = { kind: "home" }, gateway 
   );
 
   const handleNewWork = useCallback(() => {
+    handleNavigate({ kind: "new-work" });
     gateway?.onNewWork?.();
   }, [gateway]);
 

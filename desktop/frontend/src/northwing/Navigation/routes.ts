@@ -6,7 +6,8 @@ export type NorthwingDestination =
   | { kind: "work"; workspaceRoot: string; workId: string }
   | { kind: "artifacts" }
   | { kind: "quick-chat"; tabId?: string }
-  | { kind: "advanced" };
+  | { kind: "advanced" }
+  | { kind: "new-work"; workspaceRoot?: string };
 
 export function isSessionDestination(destination: NorthwingDestination): boolean {
   return destination.kind === "quick-chat" || destination.kind === "work";
@@ -34,5 +35,7 @@ export function describeDestination(destination: NorthwingDestination): string {
       return "Quick Chat";
     case "advanced":
       return "Advanced tools";
+    case "new-work":
+      return "New Work";
   }
 }

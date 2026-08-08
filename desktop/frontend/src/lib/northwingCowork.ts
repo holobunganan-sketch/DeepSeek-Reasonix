@@ -231,7 +231,7 @@ export async function launchCoworkWork(
 
   await localTargetToken();
   await ensureCoworkProject(workspaceRoot);
-  const tab = await app.EnsureBlankTab("project", workspaceRoot);
+  const tab = await app.EnsureWorkTab(workspaceRoot, workID);
   if (tab.topicId) await app.RenameTopic(tab.topicId, spec.title).catch(() => undefined);
   if (spec.modelRef) await app.SetModelForTab(tab.id, spec.modelRef);
   if (spec.reasoningEffort) await app.SetEffortForTab(tab.id, spec.reasoningEffort);
