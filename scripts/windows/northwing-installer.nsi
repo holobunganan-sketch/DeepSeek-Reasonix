@@ -62,8 +62,9 @@ Section "Northwing" SEC_MAIN
   Sleep 500
 
   ; Silent overwrite installs should preserve the normal close path first, then
-  ; fall back to a forceful stop if the running GUI still holds the executable
-  ; open after a reasonable grace period.
+  ; abort if the running GUI cannot be closed normally. Northwing must never be
+  ; force-killed during a normal update; the updater helper already waits up to
+  ; 2 minutes for the main process to exit.
   ${If} $NorthwingUpdateMode == "1"
     StrCpy $R2 0
 NorthwingWaitForGracefulExit:
@@ -78,10 +79,8 @@ NorthwingWaitForGracefulExit:
     Goto NorthwingWaitForGracefulExit
 
 NorthwingUpdateForceStop:
-    nsExec::ExecToStack 'taskkill /F /IM ${APP_EXE}'
-    Pop $R5
-    Pop $R6
-    Sleep 1000
+    MessageBox MB_OK|MB_ICONSTOP "Northwing could not close within the expected time. Close Northwing manually, then run the installer again. The current installation has not been modified."
+    Abort "Northwing update: application did not exit."
 
 NorthwingAfterForceStop:
   ${EndIf}

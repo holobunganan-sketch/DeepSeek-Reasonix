@@ -3,22 +3,10 @@
      wraps the flat payload directory in this zip before SignPath receives it. -->
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <zip-file>
-    <pe-file path="reasonix-desktop.exe">
+    <pe-file path="northwing.exe">
       <authenticode-sign />
     </pe-file>
-    <pe-file path="reasonix-guard.exe">
-      <authenticode-sign />
-    </pe-file>
-    <pe-file path="reasonix-launcher.exe">
-      <authenticode-sign />
-    </pe-file>
-    <pe-file path="reasonix-update-helper.exe">
-      <authenticode-sign />
-    </pe-file>
-    <pe-file path="reasonix-cli.exe">
-      <authenticode-sign />
-    </pe-file>
-    <pe-file path="reasonix-uninstall.exe">
+    <pe-file path="northwing-update-helper.exe">
       <authenticode-sign />
     </pe-file>
   </zip-file>

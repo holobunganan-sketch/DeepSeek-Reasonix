@@ -8,22 +8,10 @@
     <pe-file path="*installer*.exe">
       <authenticode-sign />
     </pe-file>
-    <pe-file path="reasonix-desktop.exe">
+    <pe-file path="northwing.exe">
       <authenticode-verify />
     </pe-file>
-    <pe-file path="reasonix-guard.exe">
-      <authenticode-verify />
-    </pe-file>
-    <pe-file path="reasonix-launcher.exe">
-      <authenticode-verify />
-    </pe-file>
-    <pe-file path="reasonix-update-helper.exe">
-      <authenticode-verify />
-    </pe-file>
-    <pe-file path="reasonix-cli.exe">
-      <authenticode-verify />
-    </pe-file>
-    <pe-file path="reasonix-uninstall.exe">
+    <pe-file path="northwing-update-helper.exe">
       <authenticode-verify />
     </pe-file>
   </zip-file>
