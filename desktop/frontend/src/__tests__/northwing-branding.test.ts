@@ -1,31 +1,44 @@
-// Run: tsx src/__tests__/northwing-branding.test.ts
-import { brandText } from "../lib/i18n";
+import { test } from "node:test";
+import { ok, strictEqual } from "node:assert";
+import {
+  PRODUCT_NAME,
+  PRODUCT_TAGLINE,
+  PRODUCT_WINDOW_TITLE,
+  PRODUCT_BRAND_TEXT,
+} from "../northwing/DesignSystem/productText";
 
-let failed = 0;
-function equal(got: string, want: string, label: string) {
-  if (got === want) process.stdout.write(`  PASS  ${label}\n`);
-  else {
-    failed += 1;
-    process.stdout.write(`  FAIL  ${label}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}\n`);
-  }
-}
+test("brand: product name is Northwing", () => {
+  ok(PRODUCT_NAME === "Northwing", "product name must be Northwing");
+});
 
-console.log("\nNorthwing branding boundary");
-equal(
-  brandText("sidebar.navigation", "Reasonix navigation"),
-  "Northwing navigation",
-  "product chrome uses the Northwing name",
-);
-equal(
-  brandText("approval.configWriteReason", "Reasonix-managed configuration file"),
-  "Reasonix-managed configuration file",
-  "kernel-owned configuration keeps its technical name",
-);
-equal(
-  brandText("settings.effortProtocolDefault.auto", "Reasonix infers protocol defaults"),
-  "Reasonix infers protocol defaults",
-  "kernel protocol explanations keep the Reasonix term",
-);
+test("brand: tagline is correct", () => {
+  ok(PRODUCT_BRAND_TEXT.tagline.includes("finished work"), "tagline reflects Work-first");
+});
 
-if (failed) process.exit(1);
-console.log("Northwing branding boundary tests passed");
+test("brand: attribution says powered by", () => {
+  ok(
+    PRODUCT_BRAND_TEXT.kernelAttribution.toLowerCase().includes("powered by"),
+    "attribution must disclose kernel",
+  );
+  ok(
+    PRODUCT_BRAND_TEXT.kernelAttribution.includes("Reasonix"),
+    "attribution must reference Reasonix kernel",
+  );
+});
+
+test("brand: about description includes Northwing", () => {
+  ok(PRODUCT_BRAND_TEXT.aboutDescription.includes("Northwing"), "about mentions Northwing");
+  ok(PRODUCT_BRAND_TEXT.aboutDescription.includes("Work-first"), "about describes Work-first");
+});
+
+test("brand: tagline not empty", () => {
+  ok(PRODUCT_TAGLINE.length > 0, "tagline must not be empty");
+});
+
+test("brand: window title is Northwing", () => {
+  strictEqual(PRODUCT_WINDOW_TITLE, "Northwing");
+});
+
+test("brand: copyright mentions Northwing", () => {
+  ok(PRODUCT_BRAND_TEXT.copyright.includes("Northwing"), "copyright mentions Northwing");
+});
