@@ -5,6 +5,7 @@ package northwing
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 const (
@@ -46,6 +47,23 @@ func UpdateManifestName() string {
 // UpdateManifestSigName returns the detached signature filename.
 func UpdateManifestSigName() string {
 	return "northwing-update.json.sig"
+}
+
+// ReleaseTag returns the immutable Northwing release tag for a stable version.
+func ReleaseTag(version string) string {
+	return "northwing-v" + strings.TrimPrefix(strings.TrimSpace(version), "v")
+}
+
+// ReleaseDownloadURL returns the exact GitHub release-download URL for an
+// immutable tag and asset name. Runtime update trust validates against it.
+func ReleaseDownloadURL(tag, name string) string {
+	return "https://github.com/" + ReleaseRepository + "/releases/download/" + tag + "/" + name
+}
+
+// LatestReleaseDownloadURL returns the centralized latest-release URL used only
+// to obtain the signed manifest and its detached signature.
+func LatestReleaseDownloadURL(name string) string {
+	return "https://github.com/" + ReleaseRepository + "/releases/latest/download/" + name
 }
 
 // HelperExeName returns the update-helper executable name.

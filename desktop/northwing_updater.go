@@ -33,8 +33,22 @@ const (
 	maxNorthwingReleaseJSON    = int64(1 << 20)
 	maxNorthwingChecksumSize   = int64(1 << 20)
 	maxNorthwingInstallerSize  = int64(1 << 30)
+	maxNorthwingManifestSize   = int64(1 << 20)
 	northwingReleaseCheckLimit = 10 * time.Second
 	northwingDownloadLimit     = 10 * time.Minute
+)
+
+var (
+	northwingManifestURL          = LatestNorthwingManifestURL()
+	northwingManifestSigURL       = LatestNorthwingManifestSigURL()
+	northwingUpdateHTTPClient     = newNorthwingHTTPClient
+	northwingUpdateManifestLoader = loadVerifiedNorthwingManifest
+	northwingUpdatePlatform       = func() (string, string) { return runtime.GOOS, runtime.GOARCH }
+	northwingInstallerDownloader  = downloadNorthwingInstaller
+	northwingUpdateHelperCopier   = copyNorthwingUpdateHelper
+	northwingUpdateHandoff        = func(a *App, requestID, expectedVersion, installerPath, helperPath, stagingDir string, assetSize int64) error {
+		return a.handoffNorthwingUpdate(requestID, expectedVersion, installerPath, helperPath, stagingDir, assetSize)
+	}
 )
 
 var (
@@ -236,6 +250,103 @@ func fetchNorthwingRelease(ctx context.Context, client *http.Client) (northwingG
 	return release, nil
 }
 
+func fetchNorthwingBounded(ctx context.Context, client *http.Client, rawURL string, limit int64) ([]byte, error) {
+	if client == nil {
+		return nil, errors.New("northwing update: missing HTTP client")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/octet-stream")
+	req.Header.Set("User-Agent", fmt.Sprintf("Northwing-Updater/%s", version))
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("northwing update: manifest download returned HTTP %d", resp.StatusCode)
+	}
+	b, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > limit {
+		return nil, errors.New("northwing update: manifest download exceeded limit")
+	}
+	return b, nil
+}
+
+func loadVerifiedNorthwingManifest(ctx context.Context, client *http.Client) (*NorthwingUpdateManifest, error) {
+	pub, err := parseNorthwingManifestPublicKey(northwingManifestPublicKeySPKIBase64)
+	if err != nil {
+		return nil, err
+	}
+	manifest, err := fetchNorthwingBounded(ctx, client, northwingManifestURL, maxNorthwingManifestSize)
+	if err != nil {
+		return nil, err
+	}
+	signature, err := fetchNorthwingBounded(ctx, client, northwingManifestSigURL, maxNorthwingManifestSize)
+	if err != nil {
+		return nil, err
+	}
+	return parseVerifiedNorthwingManifest(manifest, signature, pub)
+}
+
+func northwingManifestSetup(m *NorthwingUpdateManifest) (northwingGitHubAsset, bool) {
+	if m == nil {
+		return northwingGitHubAsset{}, false
+	}
+	asset, ok := m.Assets["windows-x64"]
+	if !ok || asset.Size > maxNorthwingInstallerSize {
+		return northwingGitHubAsset{}, false
+	}
+	return northwingGitHubAsset{Name: asset.Name, BrowserDownloadURL: asset.URL, Size: asset.Size}, true
+}
+
+func evaluateNorthwingManifest(info *UpdateInfo, manifest *NorthwingUpdateManifest) {
+	if info == nil || manifest == nil {
+		return
+	}
+	latest := normalizeNorthwingVersion(manifest.Version)
+	info.Latest = latest
+	info.Notes = manifest.ReleaseNotes
+	info.DownloadURL = northwingReleasesPage
+	current := normalizeNorthwingVersion(info.Current)
+	info.Available = semver.IsValid(current) && semver.IsValid(latest) && semver.Compare(latest, current) > 0
+	if !info.Available || runtime.GOOS != "windows" || runtime.GOARCH != "amd64" {
+		return
+	}
+	setup, ok := northwingManifestSetup(manifest)
+	if !ok {
+		return
+	}
+	info.CanSelfUpdate = true
+	info.ManualOnly = false
+	info.ManualReason = ""
+	info.InstallMode = "installer"
+	info.AssetSize = setup.Size
+}
+
+func rejectNorthwingManifestRollback(current string, manifest *NorthwingUpdateManifest) error {
+	if manifest == nil {
+		return errors.New("northwing update: missing verified manifest")
+	}
+	current = normalizeNorthwingVersion(current)
+	candidate := normalizeNorthwingVersion(manifest.Version)
+	if !semver.IsValid(candidate) {
+		return errors.New("northwing update: invalid manifest version while checking rollback")
+	}
+	if !semver.IsValid(current) {
+		return nil
+	}
+	if semver.Compare(candidate, current) < 0 {
+		return fmt.Errorf("northwing update: signed manifest rollback from %s to %s", current, candidate)
+	}
+	return nil
+}
+
 func fetchNorthwingAssetBytes(ctx context.Context, client *http.Client, asset northwingGitHubAsset, maxSize int64) ([]byte, error) {
 	if asset.Size <= 0 || asset.Size > maxSize {
 		return nil, fmt.Errorf("northwing update: invalid asset size %d for %s", asset.Size, asset.Name)
@@ -419,7 +530,7 @@ func validateNorthwingUpdateRequest(expectedVersion, requestID string) (string, 
 		return "", "", errors.New("northwing update: invalid request id")
 	}
 	expectedVersion = normalizeNorthwingVersion(expectedVersion)
-	if !semver.IsValid(expectedVersion) || !northwingTagRE.MatchString("northwing-"+expectedVersion) || strings.Contains(expectedVersion, "-") {
+	if !isNorthwingStableVersion(expectedVersion) {
 		return "", "", fmt.Errorf("northwing update: invalid stable version %q", expectedVersion)
 	}
 	return expectedVersion, requestID, nil
@@ -433,30 +544,32 @@ func (a *App) northwingUpdateError(requestID, expectedVersion string, err error)
 	return err
 }
 
-// CheckNorthwingUpdate queries only Northwing's tag namespace and package names.
-// It never reads Reasonix update manifests, channels, signatures, or download
-// endpoints, so an upstream release cannot replace the Northwing application.
+// CheckNorthwingUpdate trusts only a detached-signature-verified Northwing
+// manifest. Unsigned builds remain manual-only and never fall back to release JSON.
 func (a *App) CheckNorthwingUpdate() (*UpdateInfo, error) {
 	info := newNorthwingUpdateInfo(version)
-	client, err := newNorthwingHTTPClient(false)
+	client, err := northwingUpdateHTTPClient(false)
 	if err != nil {
 		info.Err = err.Error()
 		return info, nil
 	}
 	ctx, cancel := context.WithTimeout(a.reqCtx(), northwingReleaseCheckLimit)
 	defer cancel()
-	release, err := fetchNorthwingRelease(ctx, client)
+	manifest, err := northwingUpdateManifestLoader(ctx, client)
 	if err != nil {
 		info.Err = err.Error()
 		return info, nil
 	}
-	evaluateNorthwingRelease(info, release)
+	if err := rejectNorthwingManifestRollback(version, manifest); err != nil {
+		info.Err = err.Error()
+		return info, nil
+	}
+	evaluateNorthwingManifest(info, manifest)
 	return info, nil
 }
 
-// ApplyNorthwingUpdateRequest downloads the exact stable installer selected by
-// CheckNorthwingUpdate, verifies it against Northwing's release checksum file,
-// and hands replacement to the Windows-only Northwing helper.
+// ApplyNorthwingUpdateRequest re-fetches the signed manifest, verifies the
+// exact requested version, and downloads only its declared Windows setup.
 func (a *App) ApplyNorthwingUpdateRequest(expectedVersion, requestID string) error {
 	expectedVersion, requestID, err := validateNorthwingUpdateRequest(expectedVersion, requestID)
 	if err != nil {
@@ -468,34 +581,29 @@ func (a *App) ApplyNorthwingUpdateRequest(expectedVersion, requestID string) err
 	}
 	defer finish()
 
-	if runtime.GOOS != "windows" || runtime.GOARCH != "amd64" {
+	goos, goarch := northwingUpdatePlatform()
+	if goos != "windows" || goarch != "amd64" {
 		return a.northwingUpdateError(requestID, expectedVersion, errors.New("northwing update: automatic replacement is currently available only for Windows x64"))
 	}
-	client, err := newNorthwingHTTPClient(false)
+	client, err := northwingUpdateHTTPClient(false)
 	if err != nil {
 		return a.northwingUpdateError(requestID, expectedVersion, err)
 	}
 	ctx, cancel := context.WithTimeout(a.reqCtx(), northwingDownloadLimit)
 	defer cancel()
-	release, err := fetchNorthwingRelease(ctx, client)
+	manifest, err := northwingUpdateManifestLoader(ctx, client)
 	if err != nil {
 		return a.northwingUpdateError(requestID, expectedVersion, err)
 	}
-	selection, ok := selectNorthwingReleaseAssets(release, runtime.GOOS, runtime.GOARCH)
+	if err := rejectNorthwingManifestRollback(version, manifest); err != nil {
+		return a.northwingUpdateError(requestID, expectedVersion, err)
+	}
+	setup, ok := northwingManifestSetup(manifest)
 	if !ok {
 		return a.northwingUpdateError(requestID, expectedVersion, errors.New("northwing update: the latest release has no verified Windows x64 installer"))
 	}
-	if selection.Version != expectedVersion {
-		return a.northwingUpdateError(requestID, expectedVersion, fmt.Errorf("northwing update: latest release changed from %s to %s; check again", expectedVersion, selection.Version))
-	}
-
-	checksumBytes, err := fetchNorthwingAssetBytes(ctx, client, selection.Checksum, maxNorthwingChecksumSize)
-	if err != nil {
-		return a.northwingUpdateError(requestID, expectedVersion, err)
-	}
-	expectedHash, err := parseNorthwingChecksum(checksumBytes, selection.Setup.Name)
-	if err != nil {
-		return a.northwingUpdateError(requestID, expectedVersion, err)
+	if normalizeNorthwingVersion(manifest.Version) != expectedVersion {
+		return a.northwingUpdateError(requestID, expectedVersion, fmt.Errorf("northwing update: latest release changed from %s to %s; check again", expectedVersion, normalizeNorthwingVersion(manifest.Version)))
 	}
 	stagingDir, err := os.MkdirTemp("", "northwing-update-"+strings.TrimPrefix(expectedVersion, "v")+"-")
 	if err != nil {
@@ -507,21 +615,22 @@ func (a *App) ApplyNorthwingUpdateRequest(expectedVersion, requestID string) err
 			_ = os.RemoveAll(stagingDir)
 		}
 	}()
-	installerPath := filepath.Join(stagingDir, selection.Setup.Name)
-	a.emitProgress(requestID, "stable", expectedVersion, "downloading", 0, selection.Setup.Size, "")
-	if err := downloadNorthwingInstaller(ctx, client, selection.Setup, expectedHash, installerPath, func(received, total int64) {
+	installerPath := filepath.Join(stagingDir, setup.Name)
+	expectedHash := manifest.Assets["windows-x64"].SHA256
+	a.emitProgress(requestID, "stable", expectedVersion, "downloading", 0, setup.Size, "")
+	if err := northwingInstallerDownloader(ctx, client, setup, expectedHash, installerPath, func(received, total int64) {
 		a.emitProgress(requestID, "stable", expectedVersion, "downloading", received, total, "")
 	}); err != nil {
 		return a.northwingUpdateError(requestID, expectedVersion, err)
 	}
-	a.emitProgress(requestID, "stable", expectedVersion, "verifying", selection.Setup.Size, selection.Setup.Size, "")
+	a.emitProgress(requestID, "stable", expectedVersion, "verifying", setup.Size, setup.Size, "")
 	helperPath := filepath.Join(stagingDir, "northwing-update-helper.exe")
-	if err := copyNorthwingUpdateHelper(helperPath); err != nil {
+	if err := northwingUpdateHelperCopier(helperPath); err != nil {
 		return a.northwingUpdateError(requestID, expectedVersion, err)
 	}
-	a.emitProgress(requestID, "stable", expectedVersion, "downloaded", selection.Setup.Size, selection.Setup.Size, "")
+	a.emitProgress(requestID, "stable", expectedVersion, "downloaded", setup.Size, setup.Size, "")
 	cleanup = false
-	if err := a.handoffNorthwingUpdate(requestID, expectedVersion, installerPath, helperPath, stagingDir, selection.Setup.Size); err != nil {
+	if err := northwingUpdateHandoff(a, requestID, expectedVersion, installerPath, helperPath, stagingDir, setup.Size); err != nil {
 		cleanup = true
 		return a.northwingUpdateError(requestID, expectedVersion, err)
 	}

@@ -5,6 +5,8 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +16,7 @@ import (
 	"reasonix/internal/northwing"
 	"regexp"
 	"strings"
+	"time"
 
 	"golang.org/x/mod/semver"
 )
@@ -29,15 +32,19 @@ type NorthwingUpdateAsset struct {
 // NorthwingUpdateManifest is the signed release manifest distributed
 // alongside northwing-update.json.sig.
 type NorthwingUpdateManifest struct {
-	SchemaVersion int                    `json:"schemaVersion"`
-	Product       string                 `json:"product"`
-	Version       string                 `json:"version"`
-	Channel       string                 `json:"channel"`
-	PublishedAt   string                 `json:"publishedAt"`
-	Repository    string                 `json:"repository"`
-	ReleaseNotes  string                 `json:"releaseNotes"`
-	Assets        []NorthwingUpdateAsset `json:"assets"`
+	SchemaVersion int                             `json:"schemaVersion"`
+	Product       string                          `json:"product"`
+	Version       string                          `json:"version"`
+	Channel       string                          `json:"channel"`
+	PublishedAt   time.Time                       `json:"publishedAt"`
+	Repository    string                          `json:"repository"`
+	ReleaseNotes  string                          `json:"releaseNotes"`
+	Assets        map[string]NorthwingUpdateAsset `json:"assets"`
 }
+
+// northwingManifestPublicKeySPKIBase64 is set with -X for signed release
+// builds. Empty values deliberately leave the updater in manual-only mode.
+var northwingManifestPublicKeySPKIBase64 string
 
 var (
 	northwingSafeNameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+\-]*$`)
@@ -62,6 +69,33 @@ func VerifyNorthwingManifest(data, signature []byte, pub *rsa.PublicKey) error {
 	return nil
 }
 
+func parseNorthwingManifestPublicKey(encoded string) (*rsa.PublicKey, error) {
+	encoded = strings.TrimSpace(encoded)
+	if encoded == "" {
+		return nil, errors.New("northwing update manifest: public key is empty")
+	}
+	der, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("northwing update manifest: decode public key: %w", err)
+	}
+	parsed, err := x509.ParsePKIXPublicKey(der)
+	if err != nil {
+		return nil, fmt.Errorf("northwing update manifest: parse public key: %w", err)
+	}
+	pub, ok := parsed.(*rsa.PublicKey)
+	if !ok || pub.N == nil || pub.E < 3 || pub.N.BitLen() < 2048 {
+		return nil, errors.New("northwing update manifest: public key is not a supported RSA key")
+	}
+	return pub, nil
+}
+
+func parseVerifiedNorthwingManifest(data, signature []byte, pub *rsa.PublicKey) (*NorthwingUpdateManifest, error) {
+	if err := VerifyNorthwingManifest(data, signature, pub); err != nil {
+		return nil, err
+	}
+	return ParseNorthwingManifest(data)
+}
+
 // ParseNorthwingManifest strict-decodes a serialised manifest. The caller
 // MUST have already verified the detached signature via
 // VerifyNorthwingManifest.
@@ -69,6 +103,9 @@ func ParseNorthwingManifest(data []byte) (*NorthwingUpdateManifest, error) {
 	data = bytes.TrimSpace(data)
 	if len(data) == 0 {
 		return nil, errors.New("northwing update manifest: empty body")
+	}
+	if err := rejectDuplicateJSONKeys(data); err != nil {
+		return nil, err
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -94,6 +131,51 @@ func ParseNorthwingManifest(data []byte) (*NorthwingUpdateManifest, error) {
 	return &m, nil
 }
 
+func rejectDuplicateJSONKeys(data []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	return scanNorthwingJSONValue(decoder)
+}
+
+func scanNorthwingJSONValue(decoder *json.Decoder) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return nil // The strict decoder returns the primary JSON error.
+	}
+	switch token := token.(type) {
+	case json.Delim:
+		switch token {
+		case '{':
+			seen := map[string]struct{}{}
+			for decoder.More() {
+				key, err := decoder.Token()
+				if err != nil {
+					return nil
+				}
+				name, ok := key.(string)
+				if !ok {
+					return errors.New("northwing update manifest: invalid object key")
+				}
+				if _, duplicate := seen[name]; duplicate {
+					return fmt.Errorf("northwing update manifest: duplicate JSON key %q", name)
+				}
+				seen[name] = struct{}{}
+				if err := scanNorthwingJSONValue(decoder); err != nil {
+					return err
+				}
+			}
+			_, _ = decoder.Token()
+		case '[':
+			for decoder.More() {
+				if err := scanNorthwingJSONValue(decoder); err != nil {
+					return err
+				}
+			}
+			_, _ = decoder.Token()
+		}
+	}
+	return nil
+}
+
 func validateNorthwingManifest(m *NorthwingUpdateManifest) error {
 	if m.SchemaVersion != 1 {
 		return fmt.Errorf("northwing update manifest: unsupported schema version %d", m.SchemaVersion)
@@ -104,28 +186,41 @@ func validateNorthwingManifest(m *NorthwingUpdateManifest) error {
 	if m.Repository != northwing.ReleaseRepository {
 		return fmt.Errorf("northwing update manifest: repository mismatch %q", m.Repository)
 	}
-	if !semver.IsValid("v" + m.Version) {
+	if !isNorthwingStableVersion(m.Version) {
 		return fmt.Errorf("northwing update manifest: invalid semver %q", m.Version)
 	}
 	if m.Channel != "stable" {
 		return fmt.Errorf("northwing update manifest: unsupported channel %q", m.Channel)
 	}
-	if strings.TrimSpace(m.PublishedAt) == "" {
+	if m.PublishedAt.IsZero() {
 		return errors.New("northwing update manifest: publishedAt is required")
 	}
-
-	if len(m.Assets) == 0 {
-		return errors.New("northwing update manifest: no assets")
+	if m.ReleaseNotes != northwing.ReleasePageURL+"/tag/"+northwing.ReleaseTag(m.Version) {
+		return errors.New("northwing update manifest: release notes URL does not match the declared release")
 	}
-	for i, a := range m.Assets {
-		if err := validateNorthwingAsset(a); err != nil {
-			return fmt.Errorf("northwing update manifest: asset %d: %w", i, err)
-		}
+
+	if len(m.Assets) != 1 {
+		return errors.New("northwing update manifest: requires exactly one windows-x64 asset")
+	}
+	asset, ok := m.Assets["windows-x64"]
+	if !ok {
+		return errors.New("northwing update manifest: missing windows-x64 asset")
+	}
+	if err := validateNorthwingAsset(m.Version, asset); err != nil {
+		return fmt.Errorf("northwing update manifest: windows-x64 asset: %w", err)
 	}
 	return nil
 }
 
-func validateNorthwingAsset(a NorthwingUpdateAsset) error {
+func isNorthwingStableVersion(version string) bool {
+	version = strings.TrimPrefix(strings.TrimSpace(version), "v")
+	if !semver.IsValid("v"+version) || strings.ContainsAny(version, "+-") {
+		return false
+	}
+	return northwingTagRE.MatchString(northwing.ReleaseTag(version))
+}
+
+func validateNorthwingAsset(version string, a NorthwingUpdateAsset) error {
 	a.Name = strings.TrimSpace(a.Name)
 	if a.Name == "" || !northwingSafeNameRE.MatchString(a.Name) {
 		return fmt.Errorf("invalid asset name %q", a.Name)
@@ -142,8 +237,12 @@ func validateNorthwingAsset(a NorthwingUpdateAsset) error {
 	if u.Scheme != "https" {
 		return fmt.Errorf("asset URL must be HTTPS, got %q", u.Scheme)
 	}
-	if !isGitHubHost(u.Host) {
-		return fmt.Errorf("asset host %q is not a trusted GitHub host", u.Host)
+	if !strings.EqualFold(u.Hostname(), northwingGitHubHost) || u.Port() != "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+		return fmt.Errorf("asset host %q is not the release host", u.Host)
+	}
+	tag := northwing.ReleaseTag(version)
+	if a.Name != northwing.WindowsSetupAssetName(version) || u.String() != northwing.ReleaseDownloadURL(tag, a.Name) {
+		return errors.New("asset URL does not match the declared repository, tag, version, and name")
 	}
 
 	if a.Size <= 0 {
@@ -163,10 +262,10 @@ func isGitHubHost(host string) bool {
 
 // LatestNorthwingManifestURL returns the public URL for the update manifest.
 func LatestNorthwingManifestURL() string {
-	return "https://github.com/" + northwing.ReleaseRepository + "/releases/latest/download/" + northwing.UpdateManifestName()
+	return northwing.LatestReleaseDownloadURL(northwing.UpdateManifestName())
 }
 
 // LatestNorthwingManifestSigURL returns the public URL for the detached signature.
 func LatestNorthwingManifestSigURL() string {
-	return "https://github.com/" + northwing.ReleaseRepository + "/releases/latest/download/" + northwing.UpdateManifestSigName()
+	return northwing.LatestReleaseDownloadURL(northwing.UpdateManifestSigName())
 }
