@@ -58,6 +58,13 @@ func (a *App) UpdateCoworkWorkProgress(workspaceRoot, workID, stage string, comp
 	return desktopCoworkStore.UpdateWorkProgress(workspaceRoot, workID, stage, completedCriteria, totalCriteria)
 }
 
+// UpdateCoworkWorkProjection persists the full Northwing Work projection derived
+// from Reasonix runtime evidence. The projection includes stage, current Harness
+// step, acceptance state, and unresolved findings without submitting work.
+func (a *App) UpdateCoworkWorkProjection(workspaceRoot string, workID string, projection cowork.WorkProjectionUpdate) (cowork.Project, error) {
+	return desktopCoworkStore.UpdateWorkProjection(workspaceRoot, workID, projection)
+}
+
 // LinkCoworkWork is the primitive compatibility surface used by the first
 // Northwing slice. New desktop code should prefer UpsertCoworkWork.
 func (a *App) LinkCoworkWork(

@@ -85,14 +85,24 @@ export type CoworkProjectState = {
 
 export type CoworkWorkDraft = WorkSpecDraft;
 
+export type CoworkWorkProjectionUpdate = {
+  stage: string;
+  currentHarnessStep?: string;
+  acceptance?: { id: string; text: string; status: string; evidence?: string }[];
+  unresolvedFindings?: string[];
+  completedCriteria: number;
+  totalCriteria: number;
+};
+
 type CoworkBindings = {
   CreateCoworkProject?: (workspaceRoot: string, name: string) => Promise<CoworkProject>;
   CoworkProjectState?: (workspaceRoot: string, syncArtifacts: boolean) => Promise<CoworkProjectState>;
   CoworkProjectSummaries?: (workspaceRoots: string[]) => Promise<CoworkProjectSummary[]>;
   NorthwingCatalog?: (workspaceRoots: string[]) => Promise<NorthwingCatalog>;
   UpsertCoworkWork?: (workspaceRoot: string, work: CoworkWorkRef) => Promise<CoworkProject>;
-  UpdateCoworkWorkProgress?: (workspaceRoot: string, workID: string, stage: string, completedCriteria: number, totalCriteria: number) => Promise<CoworkProject>;
-  SyncCoworkArtifacts?: (workspaceRoot: string) => Promise<CoworkProject>;
+ UpdateCoworkWorkProgress?: (workspaceRoot: string, workID: string, stage: string, completedCriteria: number, totalCriteria: number) => Promise<CoworkProject>;
+  UpdateCoworkWorkProjection?: (workspaceRoot: string, workID: string, projection: CoworkWorkProjectionUpdate) => Promise<CoworkProject>;
+ SyncCoworkArtifacts?: (workspaceRoot: string) => Promise<CoworkProject>;
   SetCoworkArtifactFinal?: (workspaceRoot: string, artifactID: string) => Promise<CoworkProjectState>;
 };
 
@@ -321,6 +331,14 @@ export async function updateCoworkWorkProgress(
   totalCriteria: number,
 ): Promise<CoworkProject> {
   return requiredBinding("UpdateCoworkWorkProgress")(workspaceRoot, workID, stage, completedCriteria, totalCriteria);
+}
+
+export async function updateCoworkWorkProjection(
+  workspaceRoot: string,
+  workID: string,
+  projection: CoworkWorkProjectionUpdate,
+): Promise<CoworkProject> {
+  return requiredBinding("UpdateCoworkWorkProjection")(workspaceRoot, workID, projection);
 }
 
 export async function syncCoworkArtifacts(workspaceRoot: string): Promise<CoworkProject> {

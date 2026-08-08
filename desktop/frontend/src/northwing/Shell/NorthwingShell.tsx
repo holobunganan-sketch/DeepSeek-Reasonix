@@ -9,6 +9,7 @@ import { normalizeNorthwingCatalog } from "../domain/catalog";
 import { NorthwingProjects } from "../Projects/NorthwingProjects";
 import { NorthwingProjectView } from "../Projects/NorthwingProjectView";
 import { NorthwingWorkList } from "../Work/NorthwingWorkList";
+import { NorthwingWorkView } from "../Work/NorthwingWorkView";
 
 export type { NorthwingDestination } from "../Navigation/routes";
 
@@ -228,7 +229,7 @@ function NorthwingAdvancedPage() {
   );
 }
 
-function renderProductPage(
+function renderProductPage(gateway: NorthwingShellGateway | undefined,
   destination: NorthwingDestination,
   _navigate: (destination: NorthwingDestination) => void,
 ): React.ReactElement {
@@ -241,8 +242,19 @@ function renderProductPage(
       return <NorthwingProjectDetailPage workspaceRoot={destination.workspaceRoot} />;
     case "work-list":
       return <NorthwingWorkListPage />;
-    case "work":
-      return <PlaceholderPage title="Work">Work workspace will appear here.</PlaceholderPage>;
+    case "work": {
+      const gw = gateway;
+      if (!gw?.SessionWorkspace) {
+        return <PlaceholderPage title="Work">Work workspace will appear here. Select a workbench target.</PlaceholderPage>;
+      }
+      return (
+        <NorthwingWorkView
+          workspaceRoot={destination.workspaceRoot}
+          workId={destination.workId}
+          SessionWorkspace={gw.SessionWorkspace}
+        />
+      );
+    }
     case "artifacts":
       return <NorthwingArtifactsPage />;
     case "advanced":
@@ -288,7 +300,7 @@ export function NorthwingShell({ initialDestination = { kind: "home" }, gateway 
         </div>
       );
     }
-  return <div className="northwing-shell__page">{renderProductPage(destination, handleNavigate)}</div>;
+  return <div className="northwing-shell__page">{renderProductPage(gateway, destination, handleNavigate)}</div>;
   }, [destination, inSession, SessionWorkspace]);
 
   return (

@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -108,6 +109,17 @@ type AcceptanceItem struct {
 	Text     string `json:"text"`
 	Status   string `json:"status"`
 	Evidence string `json:"evidence,omitempty"`
+}
+
+// WorkProjectionUpdate persists the user-visible Work projection derived from
+// runtime evidence. It does not duplicate execution state or control the agent loop.
+type WorkProjectionUpdate struct {
+	Stage              WorkStage        `json:"stage"`
+	CurrentHarnessStep HarnessStep      `json:"currentHarnessStep,omitempty"`
+	Acceptance         []AcceptanceItem `json:"acceptance,omitempty"`
+	UnresolvedFindings []string         `json:"unresolvedFindings,omitempty"`
+	CompletedCriteria  int              `json:"completedCriteria"`
+	TotalCriteria      int              `json:"totalCriteria"`
 }
 
 // Artifact records a versioned file produced by a work item. The path is always
@@ -373,6 +385,66 @@ func (s *Store) UpdateWorkProgress(workspaceRoot, workID, stage string, complete
 	if updated.Stage == project.Works[index].Stage &&
 		updated.CompletedCriteria == project.Works[index].CompletedCriteria &&
 		updated.TotalCriteria == project.Works[index].TotalCriteria {
+		return project, nil
+	}
+	now := s.now()
+	updated.UpdatedAt = now
+	project.Works[index] = updated
+	project.UpdatedAt = now
+	if err := writeProject(project); err != nil {
+		return Project{}, err
+	}
+	return project, nil
+}
+
+// UpdateWorkProjection persists a richer Work projection including the current
+// Harness step, acceptance list state, and unresolved findings. It keeps
+// UpdateWorkProgress as a compatibility surface for callers that only update
+// stage and counters.
+func (s *Store) UpdateWorkProjection(workspaceRoot, workID string, update WorkProjectionUpdate) (Project, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	project, err := s.loadUnlocked(workspaceRoot)
+	if err != nil {
+		return Project{}, err
+	}
+	if project.LegacyReadOnly {
+		return Project{}, ErrProjectReadOnly
+	}
+	workID = strings.TrimSpace(workID)
+	if err := validateWorkID(workID); err != nil {
+		return Project{}, err
+	}
+	index := -1
+	for i := range project.Works {
+		if project.Works[i].ID == workID {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		return Project{}, fmt.Errorf("%w: %s", ErrWorkNotFound, workID)
+	}
+	updated := project.Works[index]
+	if strings.TrimSpace(string(update.Stage)) != "" {
+		updated.Stage = update.Stage
+	}
+	if strings.TrimSpace(string(update.CurrentHarnessStep)) != "" {
+		updated.CurrentHarnessStep = update.CurrentHarnessStep
+	}
+	if len(update.Acceptance) > 0 {
+		updated.Acceptance = append([]AcceptanceItem(nil), update.Acceptance...)
+	}
+	if update.UnresolvedFindings != nil {
+		updated.UnresolvedFindings = append([]string(nil), update.UnresolvedFindings...)
+	}
+	updated.CompletedCriteria = update.CompletedCriteria
+	updated.TotalCriteria = update.TotalCriteria
+	if err := ValidateWorkPolicy(updated); err != nil {
+		return Project{}, err
+	}
+	if reflect.DeepEqual(updated, project.Works[index]) {
 		return project, nil
 	}
 	now := s.now()
