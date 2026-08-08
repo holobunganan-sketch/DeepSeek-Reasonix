@@ -1,18 +1,24 @@
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import { NorthwingNavigation } from "../Navigation/NorthwingNavigation";
 import type { NorthwingDestination } from "../Navigation/routes";
 import { destinationPageName, isSessionDestination } from "../Navigation/routes";
+import { NorthwingHome } from "../Home/NorthwingHome";
+import type { NorthwingCatalog } from "../domain/catalog";
+import { normalizeNorthwingCatalog } from "../domain/catalog";
 
 export type { NorthwingDestination } from "../Navigation/routes";
 
 export type NorthwingShellGateway = {
   workspaceRoots?: string[];
   SessionWorkspace?: React.ComponentType<{ destination: NorthwingDestination }>;
+  readCatalog?: () => Promise<NorthwingCatalog>;
   onNewWork?: () => void;
   onOpenQuickChat?: () => void;
   onNavigate?: (destination: NorthwingDestination) => void;
 };
+const NorthwingGatewayContext = createContext<NorthwingShellGateway | undefined>(undefined);
+const NorthwingNavigateContext = createContext<(destination: NorthwingDestination) => void>(() => {});
 
 export type NorthwingShellProps = {
   initialDestination?: NorthwingDestination;
@@ -29,16 +35,47 @@ function PlaceholderPage({ title, children }: { title: string; children?: React.
 }
 
 function NorthwingHomePage() {
+  const gateway = useContext(NorthwingGatewayContext);
+  const navigate = useContext(NorthwingNavigateContext);
+  const [catalog, setCatalog] = useState<NorthwingCatalog>(() =>
+    normalizeNorthwingCatalog({ projects: [], activeWorks: [], waitingForUser: [], recentArtifacts: [] }),
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | undefined>();
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(undefined);
+    try {
+      const result = await gateway?.readCatalog?.();
+      setCatalog(normalizeNorthwingCatalog(result));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [gateway]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   return (
-    <main role="main" data-northwing-page="home" className="nw-page">
-      <div>
-        <h1 className="nw-page__title">Home</h1>
-        <p className="nw-page__subtitle">From intent to finished work.</p>
-      </div>
-      <div className="nw-card">
-        <p>Home will show New Work, Continue working, Waiting for you, Recent artifacts, and Recent projects.</p>
-      </div>
-    </main>
+    <NorthwingHome
+      catalog={catalog}
+      loading={loading}
+      error={error}
+      onRetry={load}
+      onNewWork={() => gateway?.onNewWork?.()}
+      onQuickChat={() => navigate({ kind: "quick-chat" })}
+      onOpenWork={(work) => navigate({ kind: "work", workspaceRoot: work.workspace, workId: work.workId })}
+      onOpenProject={(project) =>
+        navigate({ kind: project.id ? "project" : "projects", workspaceRoot: project.workspace })
+      }
+      onOpenArtifact={(artifact) =>
+        navigate({ kind: "work", workspaceRoot: artifact.workspace, workId: artifact.workId })
+      }
+    />
   );
 }
 
@@ -86,7 +123,10 @@ function NorthwingAdvancedPage() {
   );
 }
 
-function renderProductPage(destination: NorthwingDestination): React.ReactElement {
+function renderProductPage(
+  destination: NorthwingDestination,
+  _navigate: (destination: NorthwingDestination) => void,
+): React.ReactElement {
   switch (destination.kind) {
     case "home":
       return <NorthwingHomePage />;
@@ -143,29 +183,33 @@ export function NorthwingShell({ initialDestination = { kind: "home" }, gateway 
         </div>
       );
     }
-    return <div className="northwing-shell__page">{renderProductPage(destination)}</div>;
+  return <div className="northwing-shell__page">{renderProductPage(destination, handleNavigate)}</div>;
   }, [destination, inSession, SessionWorkspace]);
 
   return (
     <div className="northwing-shell">
-      <div className="northwing-shell__navigation">
-        <NorthwingNavigation current={destination} onNavigate={handleNavigate} onNewWork={handleNewWork} />
-      </div>
-      <div className="northwing-shell__main">
-        <header className="northwing-shell__topbar">
-          <span className="northwing-shell__breadcrumb">{destinationPageName(destination)}</span>
-          <button
-            type="button"
-            className="nw-btn nw-btn--ghost"
-            aria-label="Quick Chat"
-            onClick={handleQuickChat}
-          >
-            <MessageSquare size={16} aria-hidden="true" />
-            <span>Quick Chat</span>
-          </button>
-        </header>
-        {pageContent}
-      </div>
+      <NorthwingGatewayContext.Provider value={gateway}>
+      <NorthwingNavigateContext.Provider value={handleNavigate}>
+        <div className="northwing-shell__navigation">
+          <NorthwingNavigation current={destination} onNavigate={handleNavigate} onNewWork={handleNewWork} />
+        </div>
+        <div className="northwing-shell__main">
+          <header className="northwing-shell__topbar">
+            <span className="northwing-shell__breadcrumb">{destinationPageName(destination)}</span>
+            <button
+              type="button"
+              className="nw-btn nw-btn--ghost"
+              aria-label="Quick Chat"
+              onClick={handleQuickChat}
+            >
+              <MessageSquare size={16} aria-hidden="true" />
+              <span>Quick Chat</span>
+            </button>
+          </header>
+          {pageContent}
+        </div>
+      </NorthwingNavigateContext.Provider>
+      </NorthwingGatewayContext.Provider>
     </div>
   );
 }
