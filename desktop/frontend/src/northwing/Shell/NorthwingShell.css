@@ -1,0 +1,126 @@
+@import "../DesignSystem/tokens.css";
+@import "../DesignSystem/components.css";
+
+.northwing-shell {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--nw-surface-page);
+  color: var(--nw-text-primary);
+  font-family: var(--font-family-base, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+}
+
+.northwing-shell__navigation {
+  flex: 0 0 auto;
+  width: var(--nw-nav-width);
+  min-height: 0;
+  border-right: var(--nw-border);
+  background: var(--nw-surface-panel);
+  display: flex;
+  flex-direction: column;
+}
+
+.northwing-shell__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.northwing-shell__topbar {
+  flex: 0 0 auto;
+  height: var(--nw-topbar-height);
+  border-bottom: var(--nw-border);
+  background: var(--nw-surface-panel);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--nw-space-4);
+}
+
+.northwing-shell__page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.northwing-shell__session {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Navigation */
+.northwing-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nw-space-2);
+  padding: var(--nw-space-4);
+}
+
+.northwing-navigation__brand {
+  display: flex;
+  align-items: center;
+  height: var(--nw-topbar-height);
+  padding: 0 var(--nw-space-2);
+}
+
+.northwing-navigation__logo {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--nw-accent);
+  letter-spacing: -0.02em;
+}
+
+.northwing-navigation__new-work {
+  margin: 0 var(--nw-space-2);
+  justify-content: flex-start;
+}
+
+.northwing-navigation__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nw-space-1);
+}
+
+.northwing-navigation__link {
+  justify-content: flex-start;
+}
+
+.northwing-navigation__divider {
+  height: 1px;
+  background: var(--nw-border-color);
+  margin: var(--nw-space-2) var(--nw-space-2);
+}
+
+/* Placeholder pages */
+.northwing-placeholder-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--nw-space-4);
+  height: 100%;
+  padding: var(--nw-space-8);
+  text-align: center;
+}
+
+.northwing-placeholder-page__title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--nw-text-primary);
+  margin: 0;
+}
+
+.northwing-placeholder-page__text {
+  font-size: 0.875rem;
+  color: var(--nw-text-secondary);
+  max-width: 24rem;
+  margin: 0;
+}
