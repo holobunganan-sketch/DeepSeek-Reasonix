@@ -21,6 +21,7 @@ func (a *App) LoadCoworkProject(workspaceRoot string) (cowork.Project, error) {
 // true, files under deliverables/<work-id> are hash-scanned and registered in a
 // single manifest update before the state is returned.
 func (a *App) CoworkProjectState(workspaceRoot string, syncArtifacts bool) cowork.ProjectState {
+	_, _ = a.NormalizeWorkBindings(workspaceRoot)
 	return desktopCoworkStore.State(workspaceRoot, syncArtifacts)
 }
 
@@ -28,6 +29,9 @@ func (a *App) CoworkProjectState(workspaceRoot string, syncArtifacts bool) cowor
 // call. The result contains counts and latest references only; it never loads
 // session transcripts, artifact bodies, or Reasonix execution state.
 func (a *App) CoworkProjectSummaries(workspaceRoots []string) []cowork.ProjectSummary {
+	for _, root := range workspaceRoots {
+		_, _ = a.NormalizeWorkBindings(root)
+	}
 	return desktopCoworkStore.Summaries(workspaceRoots)
 }
 

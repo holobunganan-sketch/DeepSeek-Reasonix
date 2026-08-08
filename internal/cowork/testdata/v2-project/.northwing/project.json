@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "id": "proj-v2-001",
+  "name": "V2 Migration Fixture",
+  "createdAt": "2026-07-15T00:00:00Z",
+  "updatedAt": "2026-07-15T00:00:00Z",
+  "works": [
+    {
+      "id": "work-v2-001",
+      "title": "Legacy 0.2 Work",
+      "sessionPath": "session/topic-1.jsonl",
+      "goalId": "topic-1",
+      "profile": "delivery",
+      "kind": "report",
+      "quality": "standard",
+      "sourcePolicy": "project_plus_web",
+      "modelRef": "deepseek/deepseek-v4-flash",
+      "reasoningEffort": "high",
+      "harnessVersion": 2,
+      "stage": "planning",
+      "completedCriteria": 1,
+      "totalCriteria": 4,
+      "createdAt": "2026-07-15T00:00:00Z",
+      "updatedAt": "2026-07-15T00:00:00Z"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "art-v2-001",
+      "path": "deliverables/work-v2-001/report.docx",
+      "kind": "docx",
+      "workId": "work-v2-001",
+      "version": 3,
+      "sha256": "a3f5c8e9d2b1a3f5c8e9d2b1a3f5c8e9d2b1a3f5c8e9d2b1a3f5c8e9d2b1a3f5",
+      "size": 18432,
+      "createdAt": "2026-07-15T00:00:00Z"
+    }
+  ]
+}
