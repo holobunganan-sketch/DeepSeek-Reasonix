@@ -42,7 +42,7 @@ func TestLoadMigratesV1ManifestWithBackup(t *testing.T) {
 	if project.Version != ManifestVersion || ManifestVersion != 2 {
 		t.Fatalf("version = %d, ManifestVersion = %d, want 2", project.Version, ManifestVersion)
 	}
-	if len(project.Works) != 1 || project.Works[0].Stage != WorkStagePlanning {
+	if len(project.Works) != 1 || project.Works[0].Stage != WorkStageIntake {
 		t.Fatalf("migrated work = %#v", project.Works)
 	}
 	backup := filepath.Join(meta, LegacyManifestBackupFileName)
@@ -164,7 +164,7 @@ func TestUpdateWorkProgressPersistsValidatedStageAndAcceptance(t *testing.T) {
 	if _, err := store.LinkWork(root, WorkRef{ID: "work-1", Title: "Native Work", Profile: "delivery", TotalCriteria: 4}); err != nil {
 		t.Fatal(err)
 	}
-	project, err := store.UpdateWorkProgress(root, "work-1", WorkStageValidating, 3, 4)
+	project, err := store.UpdateWorkProgress(root, "work-1", string(WorkStageValidating), 3, 4)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestUpdateWorkProgressPersistsValidatedStageAndAcceptance(t *testing.T) {
 	if work.Stage != WorkStageValidating || work.CompletedCriteria != 3 || work.TotalCriteria != 4 {
 		t.Fatalf("progress = %#v", work)
 	}
-	if _, err := store.UpdateWorkProgress(root, "work-1", WorkStageCompleted, 5, 4); !errors.Is(err, ErrInvalidAcceptanceProgress) {
+	if _, err := store.UpdateWorkProgress(root, "work-1", string(WorkStageCompleted), 5, 4); !errors.Is(err, ErrInvalidAcceptanceProgress) {
 		t.Fatalf("invalid acceptance error = %v", err)
 	}
 }

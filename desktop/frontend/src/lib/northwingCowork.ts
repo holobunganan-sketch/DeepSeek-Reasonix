@@ -3,6 +3,9 @@ import { workbenchTargetToken } from "./goalSubmit";
 import type { FilePreview, TabMeta } from "./types";
 import {
   compileWorkBrief,
+  harnessStepsForQuality,
+  initialWorkStageForQuality,
+  NORTHWING_HARNESS_VERSION,
   normalizeWorkSpec,
   workOutputDir,
   type WorkSpecDraft,
@@ -21,6 +24,15 @@ export type CoworkWorkRef = {
   reasoningEffort?: string;
   harnessVersion?: number;
   stage?: string;
+  harnessSteps?: string[];
+  currentHarnessStep?: string;
+  materials?: string[];
+  expectedArtifact?: string;
+  audience?: string;
+  constraints?: string[];
+  pausePolicy?: string;
+  acceptance?: { id: string; text: string; status: string; evidence?: string }[];
+  unresolvedFindings?: string[];
   completedCriteria?: number;
   totalCriteria?: number;
   createdAt?: string;
@@ -220,8 +232,20 @@ export async function launchCoworkWork(
     sourcePolicy: spec.sourcePolicy,
     modelRef: spec.modelRef,
     reasoningEffort: spec.reasoningEffort,
-    harnessVersion: spec.harnessVersion,
-    stage: "planning",
+    harnessVersion: NORTHWING_HARNESS_VERSION,
+    stage: initialWorkStageForQuality(spec.quality),
+    harnessSteps: harnessStepsForQuality(spec.quality),
+    currentHarnessStep: harnessStepsForQuality(spec.quality)[0],
+    materials: spec.materials,
+    expectedArtifact: spec.deliverable,
+    audience: spec.audience,
+    constraints: spec.constraints,
+    pausePolicy: spec.pausePolicy,
+    acceptance: spec.acceptanceCriteria.map((text, index) => ({
+      id: `acc-${index + 1}`,
+      text,
+      status: "pending",
+    })),
     completedCriteria: 0,
     totalCriteria: spec.acceptanceCriteria.length,
   };

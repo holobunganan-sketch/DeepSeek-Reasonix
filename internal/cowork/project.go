@@ -55,22 +55,39 @@ type Project struct {
 // remain the authoritative execution state. No second task state machine lives
 // in the project manifest.
 type WorkRef struct {
-	ID                string    `json:"id"`
-	Title             string    `json:"title"`
-	SessionPath       string    `json:"sessionPath,omitempty"`
-	GoalID            string    `json:"goalId,omitempty"`
-	Profile           string    `json:"profile"`
-	Kind              string    `json:"kind,omitempty"`
-	Quality           string    `json:"quality,omitempty"`
-	SourcePolicy      string    `json:"sourcePolicy,omitempty"`
-	ModelRef          string    `json:"modelRef,omitempty"`
-	ReasoningEffort   string    `json:"reasoningEffort,omitempty"`
-	HarnessVersion    int       `json:"harnessVersion,omitempty"`
-	Stage             string    `json:"stage,omitempty"`
-	CompletedCriteria int       `json:"completedCriteria,omitempty"`
-	TotalCriteria     int       `json:"totalCriteria,omitempty"`
-	CreatedAt         time.Time `json:"createdAt"`
-	UpdatedAt         time.Time `json:"updatedAt"`
+	ID                 string           `json:"id"`
+	Title              string           `json:"title"`
+	SessionPath        string           `json:"sessionPath,omitempty"`
+	GoalID             string           `json:"goalId,omitempty"`
+	Profile            string           `json:"profile"`
+	Kind               string           `json:"kind,omitempty"`
+	Quality            string           `json:"quality,omitempty"`
+	SourcePolicy       string           `json:"sourcePolicy,omitempty"`
+	ModelRef           string           `json:"modelRef,omitempty"`
+	ReasoningEffort    string           `json:"reasoningEffort,omitempty"`
+	HarnessVersion     int              `json:"harnessVersion,omitempty"`
+	Stage              WorkStage        `json:"stage,omitempty"`
+	HarnessSteps       []HarnessStep    `json:"harnessSteps,omitempty"`
+	CurrentHarnessStep HarnessStep      `json:"currentHarnessStep,omitempty"`
+	Materials          []string         `json:"materials,omitempty"`
+	ExpectedArtifact   string           `json:"expectedArtifact,omitempty"`
+	Audience           string           `json:"audience,omitempty"`
+	Constraints        []string         `json:"constraints,omitempty"`
+	PausePolicy        string           `json:"pausePolicy,omitempty"`
+	Acceptance         []AcceptanceItem `json:"acceptance,omitempty"`
+	UnresolvedFindings []string         `json:"unresolvedFindings,omitempty"`
+	CompletedCriteria  int              `json:"completedCriteria,omitempty"`
+	TotalCriteria      int              `json:"totalCriteria,omitempty"`
+	CreatedAt          time.Time        `json:"createdAt"`
+	UpdatedAt          time.Time        `json:"updatedAt"`
+}
+
+// AcceptanceItem records one acceptance criterion for a Work.
+type AcceptanceItem struct {
+	ID       string `json:"id"`
+	Text     string `json:"text"`
+	Status   string `json:"status"`
+	Evidence string `json:"evidence,omitempty"`
 }
 
 // Artifact records a versioned file produced by a work item. The path is always
@@ -257,11 +274,38 @@ func mergeWorkRefresh(current, incoming WorkRef) WorkRef {
 	if strings.TrimSpace(incoming.ReasoningEffort) == "" {
 		incoming.ReasoningEffort = current.ReasoningEffort
 	}
-	if incoming.HarnessVersion == 0 {
+	if incoming.HarnessVersion == 0 && current.HarnessVersion != 0 {
 		incoming.HarnessVersion = current.HarnessVersion
 	}
-	if strings.TrimSpace(incoming.Stage) == "" {
+	if strings.TrimSpace(string(incoming.Stage)) == "" {
 		incoming.Stage = current.Stage
+	}
+	if len(incoming.HarnessSteps) == 0 && len(current.HarnessSteps) > 0 {
+		incoming.HarnessSteps = append([]HarnessStep(nil), current.HarnessSteps...)
+	}
+	if incoming.CurrentHarnessStep == "" && current.CurrentHarnessStep != "" {
+		incoming.CurrentHarnessStep = current.CurrentHarnessStep
+	}
+	if len(incoming.Materials) == 0 && len(current.Materials) > 0 {
+		incoming.Materials = append([]string(nil), current.Materials...)
+	}
+	if incoming.ExpectedArtifact == "" {
+		incoming.ExpectedArtifact = current.ExpectedArtifact
+	}
+	if incoming.Audience == "" {
+		incoming.Audience = current.Audience
+	}
+	if len(incoming.Constraints) == 0 && len(current.Constraints) > 0 {
+		incoming.Constraints = append([]string(nil), current.Constraints...)
+	}
+	if incoming.PausePolicy == "" {
+		incoming.PausePolicy = current.PausePolicy
+	}
+	if len(incoming.Acceptance) == 0 && len(current.Acceptance) > 0 {
+		incoming.Acceptance = append([]AcceptanceItem(nil), current.Acceptance...)
+	}
+	if len(incoming.UnresolvedFindings) == 0 && len(current.UnresolvedFindings) > 0 {
+		incoming.UnresolvedFindings = append([]string(nil), current.UnresolvedFindings...)
 	}
 	if incoming.CompletedCriteria == 0 && incoming.TotalCriteria == 0 && current.TotalCriteria > 0 {
 		incoming.CompletedCriteria = current.CompletedCriteria
@@ -299,7 +343,7 @@ func (s *Store) UpdateWorkProgress(workspaceRoot, workID, stage string, complete
 	}
 	updated := project.Works[index]
 	if strings.TrimSpace(stage) != "" {
-		updated.Stage = strings.TrimSpace(stage)
+		updated.Stage = WorkStage(strings.TrimSpace(stage))
 	}
 	updated.CompletedCriteria = completedCriteria
 	updated.TotalCriteria = totalCriteria

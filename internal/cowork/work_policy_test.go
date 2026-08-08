@@ -110,3 +110,78 @@ func TestValidateWorkPolicyRejectsFutureHarness(t *testing.T) {
 		t.Fatalf("ValidateWorkPolicy error = %v, want ErrUnsupportedHarnessVersion", err)
 	}
 }
+
+func TestHarnessStepsForQuality(t *testing.T) {
+	quick := HarnessStepsForQuality("quick")
+	if len(quick) != 3 || quick[0] != HarnessStepInspect || quick[1] != HarnessStepProduce || quick[2] != HarnessStepValidate {
+		t.Fatalf("quick steps = %v", quick)
+	}
+	standard := HarnessStepsForQuality("standard")
+	if len(standard) != 6 || standard[0] != HarnessStepInventory || standard[5] != HarnessStepValidate {
+		t.Fatalf("standard steps = %v", standard)
+	}
+	deep := HarnessStepsForQuality("deep")
+	if len(deep) != 9 || deep[1] != HarnessStepEvidenceLedger || deep[5] != HarnessStepIndependentReview || deep[8] != HarnessStepRequirementAudit {
+		t.Fatalf("deep steps = %v", deep)
+	}
+}
+
+func TestWorkStageForHarnessStep(t *testing.T) {
+	tests := []struct {
+		step  HarnessStep
+		stage WorkStage
+	}{
+		{HarnessStepInspect, WorkStageIntake},
+		{HarnessStepInventory, WorkStageIntake},
+		{HarnessStepEvidenceLedger, WorkStageIntake},
+		{HarnessStepPlan, WorkStagePlanning},
+		{HarnessStepProduce, WorkStageProducing},
+		{HarnessStepReview, WorkStageReviewing},
+		{HarnessStepIndependentReview, WorkStageReviewing},
+		{HarnessStepRepair, WorkStageRepairing},
+		{HarnessStepValidate, WorkStageValidating},
+		{HarnessStepRequirementAudit, WorkStageValidating},
+	}
+	for _, tc := range tests {
+		stage, err := WorkStageForHarnessStep(tc.step)
+		if err != nil {
+			t.Fatalf("WorkStageForHarnessStep(%s): %v", tc.step, err)
+		}
+		if stage != tc.stage {
+			t.Fatalf("WorkStageForHarnessStep(%s) = %s, want %s", tc.step, stage, tc.stage)
+		}
+	}
+	if _, err := WorkStageForHarnessStep("unknown"); !errors.Is(err, ErrUnsupportedHarnessStep) {
+		t.Fatalf("unknown step error = %v, want ErrUnsupportedHarnessStep", err)
+	}
+}
+
+func TestNormalizeWorkPolicyDefaultsHarnessStepsAndStage(t *testing.T) {
+	work := WorkRef{Quality: "deep"}
+	if err := NormalizeWorkPolicy(&work); err != nil {
+		t.Fatalf("NormalizeWorkPolicy: %v", err)
+	}
+	if work.Stage != WorkStageIntake {
+		t.Fatalf("Stage = %s, want intake", work.Stage)
+	}
+	if len(work.HarnessSteps) != 9 || work.HarnessSteps[0] != HarnessStepInventory {
+		t.Fatalf("HarnessSteps = %v", work.HarnessSteps)
+	}
+}
+
+func TestNormalizeWorkPolicyMigratesLegacyInventoryStage(t *testing.T) {
+	work := WorkRef{Stage: "inventory", Quality: "standard"}
+	if err := NormalizeWorkPolicy(&work); err != nil {
+		t.Fatalf("NormalizeWorkPolicy: %v", err)
+	}
+	if work.Stage != WorkStageIntake {
+		t.Fatalf("Stage = %s, want intake", work.Stage)
+	}
+}
+
+func TestNormalizeWorkPolicyRejectsUnsupportedHarnessStep(t *testing.T) {
+	work := WorkRef{HarnessSteps: []HarnessStep{"unknown_step"}}
+	if err := NormalizeWorkPolicy(&work); !errors.Is(err, ErrUnsupportedHarnessStep) {
+		t.Fatalf("error = %v, want ErrUnsupportedHarnessStep", err)
+	}
+}
