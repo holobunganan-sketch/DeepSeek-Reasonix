@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="docs/logo.svg" alt="Reasonix" width="640"/>
+  <strong>Northwing</strong>
+</p>
+
+<p align="center">
+  <em>从目标到成品。</em>
 </p>
 
 <p align="center">
@@ -7,197 +11,87 @@
   &nbsp;·&nbsp;
   <strong>简体中文</strong>
   &nbsp;·&nbsp;
-  <a href="./docs/GUIDE.zh-CN.md">指南</a>
+  <a href="./docs/NORTHWING_USER_GUIDE.md">用户指南</a>
   &nbsp;·&nbsp;
-  <a href="./docs/ACP.zh-CN.md">ACP</a>
+  <a href="./docs/NORTHWING_ARCHITECTURE.md">架构</a>
   &nbsp;·&nbsp;
-  <a href="./docs/SPEC.zh-CN.md">规格</a>
+  <a href="./docs/NORTHWING_RELEASE_NOTES.md">发布说明</a>
   &nbsp;·&nbsp;
-  <a href="https://esengine.github.io/DeepSeek-Reasonix/">官方网站</a>
-  &nbsp;·&nbsp;
-  <strong><a href="https://discord.gg/XF78rEME2D">Discord</a></strong>
+  <a href="https://github.com/holobunganan-sketch/DeepSeek-Reasonix">GitHub</a>
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/reasonix"><img src="https://img.shields.io/npm/v/reasonix.svg?style=flat-square&color=cb3837&labelColor=161b22&logo=npm&logoColor=white" alt="npm version"/></a>
-  <a href="https://github.com/esengine/DeepSeek-Reasonix/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/esengine/DeepSeek-Reasonix/ci.yml?style=flat-square&label=ci&labelColor=161b22&logo=githubactions&logoColor=white" alt="CI"/></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/npm/l/reasonix.svg?style=flat-square&color=8b949e&labelColor=161b22" alt="license"/></a>
-  <a href="https://www.npmjs.com/package/reasonix"><img src="https://img.shields.io/npm/dm/reasonix.svg?style=flat-square&color=3fb950&labelColor=161b22&label=downloads" alt="downloads"/></a>
-  <a href="https://github.com/esengine/DeepSeek-Reasonix/stargazers"><img src="https://img.shields.io/github/stars/esengine/DeepSeek-Reasonix.svg?style=flat-square&color=dbab09&labelColor=161b22&logo=github&logoColor=white" alt="GitHub stars"/></a>
-  <a href="https://atomgit.com/esengine/DeepSeek-Reasonix"><img src="https://atomgit.com/esengine/DeepSeek-Reasonix/star/badge.svg" alt="AtomGit stars"/></a>
-  <a href="https://github.com/esengine/DeepSeek-Reasonix/graphs/contributors"><img src="https://img.shields.io/github/contributors/esengine/DeepSeek-Reasonix.svg?style=flat-square&color=bc8cff&labelColor=161b22&logo=github&logoColor=white" alt="contributors"/></a>
-  <a href="https://github.com/esengine/DeepSeek-Reasonix/discussions"><img src="https://img.shields.io/github/discussions/esengine/DeepSeek-Reasonix.svg?style=flat-square&color=58a6ff&labelColor=161b22&logo=github&logoColor=white" alt="Discussions"/></a>
-  <a href="https://discord.gg/XF78rEME2D"><img src="https://img.shields.io/badge/discord-join-5865F2.svg?style=flat-square&labelColor=161b22&logo=discord&logoColor=white" alt="Discord"/></a>
+  <a href="https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases"><img src="https://img.shields.io/github/v/release/holobunganan-sketch/DeepSeek-Reasonix?style=flat-square&color=3fb950&labelColor=161b22&label=release" alt="release"/></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/holobunganan-sketch/DeepSeek-Reasonix?style=flat-square&color=8b949e&labelColor=161b22" alt="license"/></a>
+  <a href="https://github.com/holobunganan-sketch/DeepSeek-Reasonix/stargazers"><img src="https://img.shields.io/github/stars/holobunganan-sketch/DeepSeek-Reasonix?style=flat-square&color=dbab09&labelColor=161b22&logo=github&logoColor=white" alt="GitHub stars"/></a>
+  <a href="https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases"><img src="https://img.shields.io/badge/platform-windows%20x64-0078d6?style=flat-square&labelColor=161b22" alt="platform"/></a>
 </p>
 
 <br/>
 
-<h3 align="center">面向终端的 DeepSeek 原生 AI coding agent。</h3>
-<p align="center">由配置与插件驱动的极薄 harness——单一静态 Go 二进制，围绕 DeepSeek 的前缀缓存调优，长会话也能把 token 成本压低。</p>
+Northwing 是基于完整 Reasonix 内核构建的本地优先（local-first）知识工作桌面应用。
+Chat 与 Work 共用同一工作区、同一批已配置的 provider 和模型，以及同一套工具、
+权限、checkpoint 与恢复系统。
 
-<br/>
-
-> [!IMPORTANT]
-> **加入社区 · Community** — 双语 Discord，提供安装答疑（`#help` / `#求助`）、工作流展示与功能想法。→ **<https://discord.gg/XF78rEME2D>**
+- **Chat** 是普通的 Reasonix 会话，用于提问、讨论、起草、写代码和直接操作工具。
+- **Work** 是绑定目标、交付策略和版本化工件边界的 Reasonix 会话。给它一个目标，
+  它交回一份完成的成品文件。
 
 ## 特性
 
-- **配置驱动**：provider、agent、启用的工具、插件全部在 `reasonix.toml` 中声明，
-  内核无硬编码模型。
-- **多模型 · 可组合**：DeepSeek 作为预设内置；任何 OpenAI 兼容
-  端点都只是一条配置。可选让两个模型协同（执行器 + 规划器），各自独立、缓存稳定的 session。
-- **插件驱动**：外部工具以子进程形式运行，通过 stdio JSON-RPC 通信（MCP 兼容）；
-  内置工具在编译期自注册。
-- **缓存友好的上下文维护**：启动时注入稳定的环境摘要；旧工具输出会先 snip/prune，
-  再进入摘要 compaction；内置工具 schema 合约有文档和回归测试保护。
-- **零摩擦分发**：`CGO_ENABLED=0` 单二进制；一条命令交叉编译到六个目标平台。
-  唯一依赖是一个 TOML 解析库。
+- **原生 Work 会话。** Work 是原生的 Reasonix 项目会话，启用 Goal 与 Delivery，
+  带结构化质量策略（Quick / Standard / Deep）、持久化的执行模型绑定，以及确定的
+  `deliverables/<work-id>/` 输出目录。
+- **同一工作区里的 Chat 与 Work。** 项目创建菜单把 Chat、Work 和添加项目文件夹
+  整合为一个原生入口。Work 行复用项目树运行时状态，直接显示质量等级和验收进度。
+- **本地优先。** Northwing 只在 `<workspace>/.northwing/` 存放紧凑的元数据——
+  Work 链接、质量与来源策略、工件哈希和版本。不复制任何会话记录、provider
+  密钥、模型配置或工具输出。
+- **完整的内核能力。** provider、模型目录、subagents、Skills、MCP、Hooks、
+  权限、审批、沙箱、checkpoint、rewind 与恢复全部来自 Reasonix 引擎。任何
+  OpenAI 兼容、Anthropic 兼容、GLM、Kimi 或 OpenCode Go 端点都只是一条配置，
+  无需新增代码。
+- **原生 Office 交付。** 本地生成可编辑的 DOCX、PPTX、XLSX 与可检索 PDF，
+  带结构校验和独立的互操作性检查。
+- **独立分发与更新。** Northwing 只检查 `northwing-v*` release 线，提供带校验
+  自动更新的 Windows x64 安装程序，并为每个安装包发布 SHA-256 校验和。
 
 ## 安装
 
-选择适合你的使用路径。CLI/TUI、桌面端和 VS Code 扩展都使用同一套本地
-Reasonix 引擎。
+当前版本：**Northwing 0.2.0**（Windows x64）。从
+[GitHub Releases](https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases) 下载：
 
-### 路径 A：CLI / TUI
+| 安装包 | 说明 |
+| --- | --- |
+| `Northwing-0.2.0-windows-x64-setup.exe` | 按用户安装，带自动更新 |
+| `Northwing-0.2.0-windows-x64-portable.zip` | 便携版，无需安装 |
+| `Northwing-0.2.0-SHA256SUMS.txt` | 运行前先用它校验所选安装包 |
 
-任意支持的平台都可以通过 npm 安装原生二进制；macOS 也可以使用 Homebrew：
+预览构建可能因未签名而弹出 Windows SmartScreen 警告。运行前请核对发布来源与校验和。
 
-```sh
-npm i -g reasonix                  # 任意系统;自动拉取对应平台的原生二进制
-brew install esengine/reasonix/reasonix   # macOS
-```
-
-预编译归档(`darwin|linux|windows × amd64|arm64`)和 `SHA256SUMS` 见每个
-[GitHub release](https://github.com/esengine/DeepSeek-Reasonix/releases)。
-
-### 路径 B：桌面端
-
-前往[官方下载页](https://reasonix.io/?download=desktop#start)获取最新桌面版本。
-
-| 平台 | 安装包 | 架构 |
-| --- | --- | --- |
-| macOS | 通用 `.dmg` 或 `.zip` | Apple Silicon / Intel |
-| Windows | 安装器 `.exe` 或便携 `.zip` | x64 / ARM64 |
-| Linux | `.deb` 或 `.tar.gz` | x64 |
-
-Windows 安装器通过 [SignPath.io](https://signpath.io/) 完成代码签名，证书由
-[SignPath 基金会](https://signpath.org/) 免费提供。
-
-### 路径 C：VS Code 扩展
-
-请先完成路径 A。扩展不内置 CLI，而是启动本机的 `reasonix acp` 后端，
-并提供原生聊天、编辑器上下文、工具调用审批、模型选择和工作区会话。
-
-- **VS Code：** [从 Visual Studio Marketplace 安装](https://marketplace.visualstudio.com/items?itemName=SivanLiu.reasonix-agent)
-- **VSCodium / Eclipse Theia：** [从 Open VSX Registry 安装](https://open-vsx.org/extension/SivanLiu/reasonix-agent)
-- **扩展 ID：** `SivanLiu.reasonix-agent` · [源码与使用说明](https://github.com/SivanCola/reasonix-vscode)
-
-### 路径 D：从源码构建
-
-```sh
-git clone https://github.com/esengine/DeepSeek-Reasonix.git
-cd DeepSeek-Reasonix
-make build      # -> bin/reasonix(.exe)
-make cross      # -> dist/（darwin|linux|windows × amd64|arm64）
-```
+macOS 与 Linux 版本正在准备中。
 
 ## 快速开始
 
-### CLI / TUI
+1. 安装 Windows x64 安装程序，或解压便携版后启动 `northwing`。
+2. 打开 **Settings → Model** 配置 provider。DeepSeek、OpenAI 兼容、Anthropic
+   兼容、GLM 和 Kimi 端点都可以作为预设或普通配置使用。
+3. 在项目侧边栏新建 **Work**。填写目标、可选材料、工作类型、交付质量和执行模型。
+4. Work 的产出进入 `deliverables/<work-id>/`。在 Work 专属的 Artifact 抽屉里
+   跟踪工件版本、预览并校验 Office 文件，最后标记定稿工件。
 
-以下命令仅适用于通过路径 A 安装的 CLI/TUI：
-
-```sh
-reasonix setup                      # 配置 provider 和模型
-reasonix                            # 启动交互式会话
-reasonix run "把 main.go 里的 TODO 实现掉"
-```
-
-需要项目指令时，可在交互式会话中运行 `/init`。
-
-### 桌面端
-
-从[官方下载页](https://reasonix.io/?download=desktop#start)下载对应系统的安装包，
-安装并启动 Reasonix，然后在应用内配置 provider 和模型即可使用。桌面端无需执行
-上面的 CLI 命令。
-
-CLI 进阶用法和详细配置见 **[CLI 命令参考](./docs/CLI.zh-CN.md)**、
-**[指南](./docs/GUIDE.zh-CN.md)** 和
-**[配置路径](./docs/CONFIG_PATHS.zh-CN.md)**。
+完整流程见 **[Northwing 用户指南](./docs/NORTHWING_USER_GUIDE.md)**。
 
 ## 文档
 
-- **开始使用：** [指南](./docs/GUIDE.zh-CN.md) ·
+- **Northwing：** [用户指南](./docs/NORTHWING_USER_GUIDE.md) ·
+  [架构](./docs/NORTHWING_ARCHITECTURE.md) · [发布说明](./docs/NORTHWING_RELEASE_NOTES.md) ·
+  [工具合约](./docs/NORTHWING_TOOL_CONTRACT.zh-CN.md)
+- **引擎参考（Reasonix 内核）：** [指南](./docs/GUIDE.zh-CN.md) ·
   [CLI 命令参考](./docs/CLI.zh-CN.md) · [配置路径](./docs/CONFIG_PATHS.zh-CN.md) ·
-  [ACP 编辑器接入](./docs/ACP.zh-CN.md)
-- **功能与排障：** [子智能体 Profile](./docs/SUBAGENT_PROFILES.zh-CN.md) ·
-  [Context Engine v2](./docs/SESSION_MEMORY_RETRIEVAL.zh-CN.md) ·
-  [能力诊断](./docs/CAPABILITY_DIAGNOSTICS.zh-CN.md) ·
-  [恢复与安全模式](./docs/RECOVERY.zh-CN.md) ·
-  [机器人使用指南](./docs/BOT_GUIDE.zh-CN.md) ·
-  [Checkpoints 与 rewind](./docs/CHECKPOINTS.zh-CN.md)
-- **工程与迁移：** [规格](./docs/SPEC.zh-CN.md) ·
-  [任务合约与暂停策略](./docs/TASK_CONTRACT.zh-CN.md) ·
-  [工具合约](./docs/TOOL_CONTRACT.zh-CN.md) ·
-  [从 0.x 迁移](./docs/MIGRATING.zh-CN.md)
+  [规格](./docs/SPEC.zh-CN.md)
 
-## Star 趋势
+## 许可证
 
-<a href="https://www.star-history.com/?repos=esengine%2FDeepSeek-Reasonix&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/esengine/DeepSeek-Reasonix/star-history/assets/star-history/star-history-dark.svg" />
-   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/esengine/DeepSeek-Reasonix/star-history/assets/star-history/star-history-light.svg" />
-   <img alt="Star History Chart" src="https://raw.githubusercontent.com/esengine/DeepSeek-Reasonix/star-history/assets/star-history/star-history-light.svg" />
- </picture>
-</a>
-
-<br/>
-
-## 致谢
-
-下面这些朋友的工作塑造了 Reasonix 今天的样子 —— 当前按 commit 数统计的前 20 名贡献者。
-完整贡献者列表在
-[GitHub](https://github.com/esengine/DeepSeek-Reasonix/graphs/contributors?all=1)。
-
-<!-- reasonix-top-contributors:start -->
-| Contributor | Contributor | Contributor | Contributor |
-| --- | --- | --- | --- |
-| [**SivanCola**](https://github.com/SivanCola) | [**esengine**](https://github.com/esengine) | [**ttmouse**](https://github.com/ttmouse) | [**lifu963**](https://github.com/lifu963) |
-| **reasonix**（anonymous） | [**HUQIANTAO**](https://github.com/HUQIANTAO) | [**GTC2080**](https://github.com/GTC2080) | [**light-front-theory**](https://github.com/light-front-theory) |
-| **merge-order-check**（anonymous） | [**Li-Charles-One**](https://github.com/Li-Charles-One) | [**eghrhegpe**](https://github.com/eghrhegpe) | **wufengfan**（anonymous） |
-| [**CVEngineer66**](https://github.com/CVEngineer66) | [**dependabot\[bot\]**](https://github.com/apps/dependabot) | [**lanshi17**](https://github.com/lanshi17) | [**SuMuxi66**](https://github.com/SuMuxi66) |
-| [**CnsMaple**](https://github.com/CnsMaple) | [**cyq1017**](https://github.com/cyq1017) | [**JesonChou**](https://github.com/JesonChou) | [**XTLine**](https://github.com/XTLine) |
-<!-- reasonix-top-contributors:end -->
-
-另外特别感谢 [**Bernardxu123**](https://github.com/Bernardxu123) 设计的项目 logo，
-以及 [AIGC Link](https://xhslink.com/m/80ngts127cA) 在小红书上的推广。
-
-<p align="center">
-  <a href="https://github.com/esengine/DeepSeek-Reasonix/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=esengine/DeepSeek-Reasonix&max=100&columns=12" alt="esengine/DeepSeek-Reasonix 贡献者" width="860"/>
-  </a>
-</p>
-
-<br/>
-
----
-
-<p align="center">
-  <sub>MIT —— 见 <a href="./LICENSE">LICENSE</a></sub>
-  <br/>
-  <sub>由 <a href="https://github.com/esengine/DeepSeek-Reasonix/graphs/contributors">esengine/DeepSeek-Reasonix</a> 社区共建</sub>
-</p>
-
----
-
-<p align="center"><sub><strong>支持本项目</strong></sub></p>
-
-如果 Reasonix 帮你省了时间或 token，欢迎请杯咖啡。捐助不会换来 feature
-优先级，也不会影响 issue 的处理顺序——就是「谢谢」。
-
-- **国内** — 微信支付（扫下方二维码）
-- **海外** — PayPal: [paypal.me/yuhuahui](https://paypal.me/yuhuahui)
-
-<p align="center">
-  <img src=".github/sponsor/wechat-pay.jpg" alt="微信支付收款码" width="180"/>
-</p>
+MIT —— 见 [LICENSE](./LICENSE)。Northwing 是基于 Reasonix 内核构建的独立产品；
+Reasonix 保留 MIT 许可，版权归其原作者所有。
