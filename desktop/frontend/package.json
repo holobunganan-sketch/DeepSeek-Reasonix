@@ -22,7 +22,9 @@
     "test:delivery-worktree": "tsx src/__tests__/delivery-worktree.test.ts",
     "test:updater": "tsx src/__tests__/updater-shared-state.test.tsx",
     "test:window-state": "tsx src/__tests__/window-state-ordering.test.ts",
-    "test:all": "pnpm test:typecheck && pnpm test:updater && pnpm test:window-state && pnpm test && pnpm test:remote && pnpm test:performance"
+    "test:all": "pnpm test:typecheck && pnpm test:updater && pnpm test:window-state && pnpm test && pnpm test:e2e && pnpm test:remote && pnpm test:performance",
+    "test:e2e": "playwright test",
+    "test:e2e:report": "playwright show-report e2e-report"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
@@ -60,7 +62,8 @@
     "terser": "^5.48.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "@playwright/test": "^1.58.0"
   },
   "overrides": {
     "mdast-util-gfm-autolink-literal": "2.0.0"
