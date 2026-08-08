@@ -17,10 +17,14 @@ export type WorkProjection = {
 };
 
 export type WorkRuntimeEvidence = {
-  canonicalTodos: { text: string; status: string }[];
-  pendingApproval: boolean;
+  // Undefined means the native session has not supplied an authoritative
+  // runtime snapshot. A missing snapshot must leave the durable projection
+  // untouched rather than being treated as an empty session.
+  canonicalTodos?: { text: string; status: string }[];
+  pendingApproval?: boolean;
   startupError?: string;
-  goalStatus: string;
+  goalStatus?: string;
+  runtimeActive?: boolean;
 };
 
 const HARNESS_TAG = /\[harness:(inspect|inventory|evidence_ledger|plan|produce|review|independent_review|repair|validate|requirement_audit)\]/i;
@@ -80,9 +84,9 @@ export function classifyTodo(todo: { text: string; status: string }) {
 }
 
 export function projectWork(previous: WorkProjection, evidence: WorkRuntimeEvidence): WorkProjection {
-  const stage = computeStage(previous, evidence);
-  const currentStep = computeCurrentHarnessStep(evidence, previous.currentHarnessStep);
   const acceptance = computeAcceptance(previous.acceptance, evidence.canonicalTodos);
+  const stage = computeStage({ ...previous, acceptance }, evidence);
+  const currentStep = computeCurrentHarnessStep(evidence, previous.currentHarnessStep);
   const findings = previous.unresolvedFindings ?? [];
 
   return {
@@ -94,10 +98,10 @@ export function projectWork(previous: WorkProjection, evidence: WorkRuntimeEvide
 }
 
 function computeStage(prev: WorkProjection, evidence: WorkRuntimeEvidence): WorkStage {
-  if (evidence.pendingApproval) return "waiting_user";
+  if (evidence.pendingApproval === true) return "waiting_user";
   if (evidence.startupError) return "failed";
 
-  const harnessTodos = evidence.canonicalTodos
+  const harnessTodos = (evidence.canonicalTodos ?? [])
     .map((todo) => ({ ...classifyTodo(todo), todo }))
     .filter((item) => item.kind === "harness")
     .sort((a, b) => {
@@ -111,7 +115,7 @@ function computeStage(prev: WorkProjection, evidence: WorkRuntimeEvidence): Work
     return harnessStepToWorkStage(inProgress.harnessStep);
   }
 
-  if (evidence.goalStatus === "complete") {
+  if (evidence.goalStatus === "complete" && evidence.runtimeActive !== true) {
     const allDone = prev.acceptance.every((item) => item.status === "done");
     if (allDone) return "completed";
   }
@@ -120,7 +124,7 @@ function computeStage(prev: WorkProjection, evidence: WorkRuntimeEvidence): Work
 }
 
 function computeCurrentHarnessStep(evidence: WorkRuntimeEvidence, previous: HarnessStep): HarnessStep {
-  const harnessTodos = evidence.canonicalTodos
+  const harnessTodos = (evidence.canonicalTodos ?? [])
     .map((todo) => ({ ...classifyTodo(todo), todo }))
     .filter((item) => item.kind === "harness");
 
@@ -133,7 +137,8 @@ function computeCurrentHarnessStep(evidence: WorkRuntimeEvidence, previous: Harn
   return previous;
 }
 
-function computeAcceptance(current: AcceptanceItem[], todos: { text: string; status: string }[]): AcceptanceItem[] {
+function computeAcceptance(current: AcceptanceItem[], todos: { text: string; status: string }[] | undefined): AcceptanceItem[] {
+  if (!todos) return current;
   if (current.length === 0 || todos.length === 0) return current;
   return current.map((item) => {
     const matchingTodo = todos.find((todo) => {
