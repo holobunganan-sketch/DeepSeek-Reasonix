@@ -11,6 +11,7 @@ import { NorthwingProjectView } from "../Projects/NorthwingProjectView";
 import { NorthwingWorkList } from "../Work/NorthwingWorkList";
 import { NorthwingWorkView } from "../Work/NorthwingWorkView";
 import { NorthwingNewWork } from "../NewWork/NorthwingNewWork";
+import { NorthwingQuickChat } from "../QuickChat/NorthwingQuickChat";
 import { launchNewWork } from "../NewWork/newWorkController";
 
 export type { NorthwingDestination } from "../Navigation/routes";
@@ -262,7 +263,12 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
     case "advanced":
       return <NorthwingAdvancedPage />;
     case "quick-chat":
-      return <PlaceholderPage title="Quick Chat">Quick chat workspace will appear here.</PlaceholderPage>;
+      return (
+        <NorthwingQuickChat
+          SessionWorkspace={gw?.SessionWorkspace}
+          onNavigate={_navigate}
+        />
+      );
     case "new-work": {
       const wsRoot = destination.workspaceRoot ?? "";
       return (

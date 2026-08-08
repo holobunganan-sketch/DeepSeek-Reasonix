@@ -10,7 +10,7 @@ export type NorthwingDestination =
   | { kind: "new-work"; workspaceRoot?: string };
 
 export function isSessionDestination(destination: NorthwingDestination): boolean {
-  return destination.kind === "quick-chat" || destination.kind === "work";
+  return destination.kind === "work";
 }
 
 export function destinationPageName(destination: NorthwingDestination): string {
