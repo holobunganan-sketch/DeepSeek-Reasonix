@@ -10,13 +10,12 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"reasonix/internal/northwing"
 	"path/filepath"
+	"reasonix/internal/northwing"
 	"regexp"
 	"strings"
 
 	"golang.org/x/mod/semver"
-
 )
 
 // NorthwingUpdateAsset describes a single downloadable release asset.
@@ -30,20 +29,20 @@ type NorthwingUpdateAsset struct {
 // NorthwingUpdateManifest is the signed release manifest distributed
 // alongside northwing-update.json.sig.
 type NorthwingUpdateManifest struct {
-	SchemaVersion int                      `json:"schemaVersion"`
-	Product       string                   `json:"product"`
-	Version       string                   `json:"version"`
-	Channel       string                   `json:"channel"`
-	PublishedAt   string                   `json:"publishedAt"`
-	Repository    string                   `json:"repository"`
-	ReleaseNotes  string                   `json:"releaseNotes"`
-	Assets        []NorthwingUpdateAsset   `json:"assets"`
+	SchemaVersion int                    `json:"schemaVersion"`
+	Product       string                 `json:"product"`
+	Version       string                 `json:"version"`
+	Channel       string                 `json:"channel"`
+	PublishedAt   string                 `json:"publishedAt"`
+	Repository    string                 `json:"repository"`
+	ReleaseNotes  string                 `json:"releaseNotes"`
+	Assets        []NorthwingUpdateAsset `json:"assets"`
 }
 
 var (
-	northwingSafeNameRE  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+\-]*$`)
-	northwingGitHubHost  = "github.com"
-	northwingGitHubCDN   = "objects.githubusercontent.com"
+	northwingSafeNameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+\-]*$`)
+	northwingGitHubHost = "github.com"
+	northwingGitHubCDN  = "objects.githubusercontent.com"
 )
 
 // VerifyNorthwingManifest verifies a detached SHA-256 RSA PKCS#1 v1.5

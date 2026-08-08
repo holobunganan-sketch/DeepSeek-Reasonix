@@ -1056,7 +1056,7 @@ export const en = {
   "approval.memoryBodyLabel": "body",
   "approval.memoryArchivePrefix": "Archive memory ",
   "approval.planModeBashTrustSubject": "Trust {prefix} as a read-only command prefix while planning\nCommand: {command}",
-  "approval.planModeBashTrustReason": "This bash command is not in Reasonix's built-in read-only set. Confirm only if this exact prefix is read-only for planning and research. Auto/YOLO approval cannot answer this trust prompt.",
+  "approval.planModeBashTrustReason": "This bash command is not in Northwing's built-in read-only set. Confirm only if this exact prefix is read-only for planning and research. Auto/YOLO approval cannot answer this trust prompt.",
   "approval.dynamicBashReason": "This command contains nested or indirect execution. Auto and broad allow rules cannot verify the inner command. Approve this exact command, or use YOLO only when you accept that risk.",
   "approval.matchedPermissionRule": "Matched permission rule: {rule}.",
   "approval.sandboxEscapeSubjectFallback": "run shell command unconfined once",

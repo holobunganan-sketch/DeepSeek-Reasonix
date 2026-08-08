@@ -4,7 +4,6 @@ package windowsauth
 
 import (
 	"errors"
-	"runtime"
 )
 
 // VerifyAuthenticode checks that a PE file has a valid SHA-256 Authenticode
@@ -18,5 +17,5 @@ func VerifyAuthenticode(path string) error {
 // IsAvailable reports whether the current platform can perform Authenticode
 // verification.
 func IsAvailable() bool {
-	return runtime.GOOS == "windows"
+	return false
 }

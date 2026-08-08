@@ -22,8 +22,8 @@ import (
 	"golang.org/x/mod/semver"
 
 	"reasonix/internal/config"
-	"reasonix/internal/northwing"
 	"reasonix/internal/netclient"
+	"reasonix/internal/northwing"
 )
 
 const (

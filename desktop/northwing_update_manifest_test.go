@@ -31,10 +31,10 @@ func testManifest(t *testing.T) NorthwingUpdateManifest {
 		ReleaseNotes:  "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/tag/northwing-v0.3.0",
 		Assets: []NorthwingUpdateAsset{
 			{
-				Name:     northwing.WindowsSetupAssetName("0.3.0"),
-				URL:      "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/download/northwing-v0.3.0/" + northwing.WindowsSetupAssetName("0.3.0"),
-				Size:     104857600,
-				SHA256:   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+				Name:   northwing.WindowsSetupAssetName("0.3.0"),
+				URL:    "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/download/northwing-v0.3.0/" + northwing.WindowsSetupAssetName("0.3.0"),
+				Size:   104857600,
+				SHA256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 			},
 		},
 	}

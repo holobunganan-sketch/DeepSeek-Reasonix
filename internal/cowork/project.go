@@ -126,13 +126,13 @@ type WorkProjectionUpdate struct {
 // workspace-relative and slash-normalized so moving the whole project keeps the
 // manifest valid.
 type Artifact struct {
-	ID        string    `json:"id"`
-	Path      string    `json:"path"`
-	Kind      string    `json:"kind"`
-	WorkID    string    `json:"workId,omitempty"`
-	Version   int       `json:"version"`
-	SHA256    string    `json:"sha256"`
-	Size      int64     `json:"size"`
+	ID          string    `json:"id"`
+	Path        string    `json:"path"`
+	Kind        string    `json:"kind"`
+	WorkID      string    `json:"workId,omitempty"`
+	Version     int       `json:"version"`
+	SHA256      string    `json:"sha256"`
+	Size        int64     `json:"size"`
 	CreatedAt   time.Time `json:"createdAt"`
 	Validated   bool      `json:"validated"`
 	ValidatedAt time.Time `json:"validatedAt,omitempty"`

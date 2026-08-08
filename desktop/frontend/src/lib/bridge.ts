@@ -157,6 +157,8 @@ export interface AppBindings {
   ToggleMaximiseMainWindow(): Promise<void>;
   IsMainWindowMaximised(): Promise<boolean>;
   CloseMainWindow(): Promise<void>;
+  NormalizeWorkBindings?: (workspaceRoot: string) => Promise<unknown>;
+  UpdateCoworkWorkProjection?: (workspaceRoot: string, workID: string, projection: unknown) => Promise<unknown>;
   // ── Heartbeat ──
   HeartbeatListTasks(): Promise<unknown>;
   HeartbeatReloadTasks(): Promise<unknown>;

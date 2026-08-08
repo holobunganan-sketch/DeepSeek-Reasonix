@@ -13,44 +13,44 @@ import (
 const (
 	winTrustActionGenericVerifyV2 = "{00AAC56B-CD44-11d0-8CC2-00C04FC295EE}"
 
-	wtdChoiceFile    = 1
+	wtdChoiceFile        = 1
 	wtdStateActionVerify = 1
-	wtdUINone       = 2
-	wtdRevokeNone    = 0x00000000
+	wtdUINone            = 2
+	wtdRevokeNone        = 0x00000000
 
-	wtdProviderUsage    = 0x00000010
+	wtdProviderUsage = 0x00000010
 
-	trustESigstateUnknown    = 0
-	trustESigstateValid      = 1
+	trustESigstateUnknown = 0
+	trustESigstateValid   = 1
 
 	signtoolErrorSuccess = 0
 )
 
 type winTrustFileInfo struct {
-	Size     uint32
-	FilePath *uint16
-	File     windows.Handle
+	Size         uint32
+	FilePath     *uint16
+	File         windows.Handle
 	KnownSubject *windows.GUID
 }
 
 type winTrustData struct {
-	Size                    uint32
-	PolicyCallbackData      uintptr
-	SIPClientData           uintptr
-	UIChoice                uint32
-	RevocationChecks        uint32
-	UnionChoice             uint32
-	FileInfo                *winTrustFileInfo
-	StateAction             uint32
-	StateData               windows.Handle
-	URLReference            *uint16
-	ProviderFlags           uint32
-	UIContext               uint32
-	SignatureSettings       uintptr
+	Size               uint32
+	PolicyCallbackData uintptr
+	SIPClientData      uintptr
+	UIChoice           uint32
+	RevocationChecks   uint32
+	UnionChoice        uint32
+	FileInfo           *winTrustFileInfo
+	StateAction        uint32
+	StateData          windows.Handle
+	URLReference       *uint16
+	ProviderFlags      uint32
+	UIContext          uint32
+	SignatureSettings  uintptr
 }
 
 var (
-	modWinTrust     = windows.NewLazySystemDLL("wintrust.dll")
+	modWinTrust        = windows.NewLazySystemDLL("wintrust.dll")
 	procWinVerifyTrust = modWinTrust.NewProc("WinVerifyTrust")
 )
 
