@@ -86,6 +86,20 @@ function Assert-GuiStarts([string]$ExePath) {
   }
 }
 
+function Wait-NorthwingRestart([string]$ExePath) {
+  $deadline = [DateTime]::UtcNow.AddSeconds(15)
+  do {
+    $process = @(Get-Process -Name "northwing" -ErrorAction SilentlyContinue | Where-Object {
+      $_.Path -eq $ExePath
+    } | Select-Object -First 1)
+    if ($process.Count -eq 1) {
+      return $process[0]
+    }
+    Start-Sleep -Milliseconds 250
+  } while ([DateTime]::UtcNow -lt $deadline)
+  throw "Northwing helper did not restart $ExePath"
+}
+
 $scratch = Join-Path ([IO.Path]::GetTempPath()) "northwing-acceptance-$([guid]::NewGuid().ToString('N'))"
 $portableDir = Join-Path $scratch "portable"
 $installDir = Join-Path $scratch "installed"
@@ -144,32 +158,105 @@ try {
   Assert-NorthwingVersion $installedExe
   Assert-GuiStarts $installedExe
 
-  # Exercise the actual failure mode that prompted the installer repair: run
-  # Northwing, then perform a silent overwrite into the same directory. The
-  # installer must close the app, replace it without an Ignore path, preserve a
-  # valid executable, and return without hanging on a locked file.
+  # A silent installer cannot own application shutdown. With Northwing still
+  # running it must fail promptly without touching either installed payload.
   $runningNorthwing = Start-Process -FilePath $installedExe -PassThru
+  $helperUpdate = $null
   try {
     Start-Sleep -Seconds 5
     if ($runningNorthwing.HasExited) {
-      throw "Installed Northwing exited before overwrite testing with code $($runningNorthwing.ExitCode)"
+      throw "Installed Northwing exited before live-app preservation testing with code $($runningNorthwing.ExitCode)"
     }
+    $beforeExe = (Get-FileHash -Algorithm SHA256 -LiteralPath $installedExe).Hash
+    $beforeHelper = (Get-FileHash -Algorithm SHA256 -LiteralPath $installedHelper).Hash
     $overwrite = Start-Process -FilePath $installer -ArgumentList @("/S", "/NORTHWING_UPDATE=1", "/D=$installDir") -PassThru
-    if (-not $overwrite.WaitForExit(90000)) {
+    if (-not $overwrite.WaitForExit(15000)) {
       Stop-Process -Id $overwrite.Id -Force
-      throw "Northwing overwrite installer did not exit within 90 seconds"
+      throw "Northwing live-app installer did not reject the silent overwrite within 15 seconds"
     }
     $overwrite.WaitForExit()
-    if ($overwrite.ExitCode -ne 0) {
-      throw "Northwing overwrite installer exited $($overwrite.ExitCode)"
+    if ($overwrite.ExitCode -eq 0) {
+      throw "Northwing live-app installer unexpectedly accepted the silent overwrite"
+    }
+    if ($runningNorthwing.HasExited) {
+      throw "Northwing live-app installer terminated the running application with code $($runningNorthwing.ExitCode)"
+    }
+    if ((Get-FileHash -Algorithm SHA256 -LiteralPath $installedExe).Hash -ne $beforeExe) {
+      throw "Northwing live-app installer modified northwing.exe"
+    }
+    if ((Get-FileHash -Algorithm SHA256 -LiteralPath $installedHelper).Hash -ne $beforeHelper) {
+      throw "Northwing live-app installer modified northwing-update-helper.exe"
+    }
+
+    # Start the shipped helper while the actual Northwing process is alive.
+    # This mirrors production: the helper waits for this PID while Northwing
+    # exits through its normal window-close path.
+    # Keep a space in the staged directory so the verifier exercises the same
+    # argument-boundary requirement as a typical Program Files installation.
+    $helperStaging = Join-Path $scratch "helper staging"
+    New-Item -ItemType Directory -Force -Path $helperStaging | Out-Null
+    $stagedHelper = Join-Path $helperStaging "northwing-update-helper.exe"
+    Copy-Item -LiteralPath $installedHelper -Destination $stagedHelper
+    $helperStart = [System.Diagnostics.ProcessStartInfo]::new()
+    $helperStart.FileName = $stagedHelper
+    $helperStart.UseShellExecute = $false
+    foreach ($argument in @(
+      "--installer", $installer,
+      "--pid", "$($runningNorthwing.Id)",
+      "--restart", $installedExe,
+      "--expected-version", $Version,
+      "--cleanup", $helperStaging
+    )) {
+      [void]$helperStart.ArgumentList.Add($argument)
+    }
+    $helperUpdate = [System.Diagnostics.Process]::Start($helperStart)
+    if ($null -eq $helperUpdate) {
+      throw "Could not start the staged Northwing update helper"
+    }
+    Start-Sleep -Milliseconds 250
+    if ($helperUpdate.HasExited) {
+      throw "Northwing update helper exited before the live application closed with code $($helperUpdate.ExitCode)"
+    }
+
+    if (-not $runningNorthwing.CloseMainWindow()) {
+      throw "Could not request a normal Northwing exit before helper update"
     }
     if (-not $runningNorthwing.WaitForExit(15000)) {
-      throw "Northwing remained running after the overwrite installer requested a normal close"
+      throw "Northwing did not exit normally before helper update"
+    }
+    if (-not $helperUpdate.WaitForExit(90000)) {
+      Stop-Process -Id $helperUpdate.Id -Force
+      throw "Northwing update helper did not complete within 90 seconds"
+    }
+    $helperUpdate.WaitForExit()
+    if ($helperUpdate.ExitCode -ne 0) {
+      throw "Northwing update helper exited $($helperUpdate.ExitCode)"
     }
   } finally {
+    if ($helperUpdate -and -not $helperUpdate.HasExited) {
+      # Isolated verifier cleanup after a failed assertion only.
+      Stop-Process -Id $helperUpdate.Id -Force
+      $helperUpdate.WaitForExit()
+    }
     if (-not $runningNorthwing.HasExited) {
+      # Isolated verifier cleanup after a failed assertion only; the update
+      # path above never force-terminates Northwing.
       Stop-Process -Id $runningNorthwing.Id -Force
       $runningNorthwing.WaitForExit()
+    }
+  }
+
+  # The helper completed after waiting for the live PID, installing, validating
+  # the version, and requesting a restart.
+  $restartedNorthwing = Wait-NorthwingRestart $installedExe
+  try {
+    Assert-NorthwingVersion $installedExe
+  } finally {
+    if (-not $restartedNorthwing.CloseMainWindow()) {
+      Stop-Process -Id $restartedNorthwing.Id -Force
+    } elseif (-not $restartedNorthwing.WaitForExit(15000)) {
+      Stop-Process -Id $restartedNorthwing.Id -Force
+      $restartedNorthwing.WaitForExit()
     }
   }
   Assert-NorthwingVersion $installedExe

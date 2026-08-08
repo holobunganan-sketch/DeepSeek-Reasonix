@@ -4,6 +4,8 @@ RequestExecutionLevel user
 !include "MUI2.nsh"
 !include "FileFunc.nsh"
 !include "LogicLib.nsh"
+!include "StrFunc.nsh"
+${StrStr}
 
 !define APP_NAME "Northwing"
 !ifndef APP_VERSION
@@ -19,8 +21,6 @@ RequestExecutionLevel user
 !define APP_ID "io.github.holobunganansketch.northwing"
 !define APP_EXE "northwing.exe"
 !define APP_HELPER "northwing-update-helper.exe"
-
-Var NorthwingUpdateMode
 
 Name "${APP_NAME}"
 OutFile "${__FILEDIR__}\..\..\Northwing-${APP_VERSION}-windows-x64-setup.exe"
@@ -40,50 +40,11 @@ BrandingText "Northwing — From intent to finished work."
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "SimpChinese"
 
-Function .onInit
-  StrCpy $NorthwingUpdateMode "0"
-  ${GetParameters} $R7
-  ClearErrors
-  ${GetOptions} $R7 "/NORTHWING_UPDATE=" $NorthwingUpdateMode
-  IfErrors 0 +2
-  StrCpy $NorthwingUpdateMode "0"
-FunctionEnd
-
 Section "Northwing" SEC_MAIN
   SetShellVarContext current
   SetOutPath "$INSTDIR"
 
-  ; Ask every running Northwing window to close before replacing the executable.
-  ; taskkill without /F uses the normal GUI-close path, allowing Northwing to
-  ; snapshot sessions and stop child processes before the installer continues.
-  nsExec::ExecToStack 'taskkill /IM ${APP_EXE}'
-  Pop $R8
-  Pop $R9
-  Sleep 500
-
-  ; Silent overwrite installs should preserve the normal close path first, then
-  ; abort if the running GUI cannot be closed normally. Northwing must never be
-  ; force-killed during a normal update; the updater helper already waits up to
-  ; 2 minutes for the main process to exit.
-  ${If} $NorthwingUpdateMode == "1"
-    StrCpy $R2 0
-NorthwingWaitForGracefulExit:
-    nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq ${APP_EXE}"'
-    Pop $R3
-    Pop $R4
-    StrCmp $R4 "" NorthwingUpdateForceStop
-    StrCmp $R4 "INFO: No tasks are running which match the specified criteria." NorthwingAfterForceStop 0
-    IntOp $R2 $R2 + 1
-    IntCmp $R2 20 NorthwingUpdateForceStop 0 0
-    Sleep 500
-    Goto NorthwingWaitForGracefulExit
-
-NorthwingUpdateForceStop:
-    MessageBox MB_OK|MB_ICONSTOP "Northwing could not close within the expected time. Close Northwing manually, then run the installer again. The current installation has not been modified."
-    Abort "Northwing update: application did not exit."
-
-NorthwingAfterForceStop:
-  ${EndIf}
+  Call NorthwingAbortForRunningApp
 
   ; Keep an exact previous executable until the replacement has succeeded.
   ; This prevents a failed overwrite from leaving a missing or partial app.
@@ -149,6 +110,28 @@ NorthwingExecutableInstalled:
   WriteRegStr HKCU "Software\Classes\northwing\DefaultIcon" "" "$INSTDIR\${APP_EXE},0"
   WriteRegStr HKCU "Software\Classes\northwing\shell\open\command" "" '"$INSTDIR\${APP_EXE}" "%1"'
 SectionEnd
+
+Function NorthwingAbortForRunningApp
+  ; The helper owns normal application shutdown for updates. tasklist itself
+  ; returns zero when no task matches, so inspect its short filtered CSV output.
+  nsExec::ExecToStack '"$SYSDIR\tasklist.exe" /FI "IMAGENAME eq ${APP_EXE}" /NH /FO CSV'
+  Pop $R8
+  Pop $R9
+  ${StrStr} $R7 $R9 "${APP_EXE}"
+  StrCmp $R7 "" NorthwingNoRunningApp NorthwingAppIsRunning
+
+NorthwingAppIsRunning:
+  IfSilent NorthwingSilentRunningApp NorthwingInteractiveRunningApp
+
+NorthwingSilentRunningApp:
+  Abort "Northwing update: application is still running."
+
+NorthwingInteractiveRunningApp:
+  MessageBox MB_OK|MB_ICONSTOP "Northwing is still running. Close Northwing manually, then run the installer again. The current installation has not been modified."
+  Abort "Northwing update: application is still running."
+
+NorthwingNoRunningApp:
+FunctionEnd
 
 Section "Uninstall"
   SetShellVarContext current

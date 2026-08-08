@@ -221,6 +221,10 @@ jobs:
         working-directory: desktop/frontend
         run: pnpm install --frozen-lockfile
 
+      - name: Install pinned NSIS
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/install-nsis.ps1
+
       - name: Desktop tests
         working-directory: desktop
         run: go test ./...
@@ -256,10 +260,6 @@ jobs:
           } finally {
             Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
           }
-
-      - name: Install pinned NSIS
-        shell: pwsh
-        run: pwsh -NoProfile -File scripts/install-nsis.ps1
 
       - name: Package installer and portable build
         shell: pwsh
