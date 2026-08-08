@@ -118,6 +118,10 @@ $previousRuntimeEnvironment = @{}
 New-Item -ItemType Directory -Force -Path $portableDir, $runtimeHome, $runtimeState, $runtimeCache | Out-Null
 @"
 [desktop]
+# This isolated verifier profile makes CloseMainWindow simulate a user who
+# explicitly chose Quit. Production update handoff starts the helper and then
+# calls the app's own Quit path; it does not depend on this profile.
+close_behavior = "quit"
 telemetry = false
 metrics = false
 check_updates = false
