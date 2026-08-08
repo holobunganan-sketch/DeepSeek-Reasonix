@@ -17,11 +17,16 @@ export type NorthwingSessionGateway = {
 
 type NorthwingSessionDestination = Extract<NorthwingDestination, { kind: "work" | "quick-chat" }>;
 
+export type PreparedNorthwingSession = {
+  ready: boolean;
+  tabId?: string;
+};
+
 type NorthwingSessionCoordinator = {
   prepare: (
     destination: NorthwingSessionDestination,
     gateway: NorthwingSessionGateway,
-  ) => Promise<boolean>;
+  ) => Promise<PreparedNorthwingSession>;
 };
 
 export function northwingProjectWorkspaceRoots(nodes: readonly ProjectNode[]): string[] {
@@ -57,26 +62,26 @@ function createNorthwingSessionCoordinator(): NorthwingSessionCoordinator {
         .then(async () => {
           // A newer destination can arrive while this request is still queued.
           // Skip it before it can change the active desktop tab.
-          if (request !== latestRequest) return false;
+          if (request !== latestRequest) return { ready: false };
 
           if (destination.kind === "work") {
             const tab = await gateway.EnsureWorkTab(destination.workspaceRoot, destination.workId);
             // EnsureWorkTab also activates newly created/restored tabs. The
             // queue guarantees a newer request runs after this one and wins.
-            if (request !== latestRequest) return false;
+            if (request !== latestRequest) return { ready: false };
             await gateway.SetActiveTab(tab.id);
-            return request === latestRequest;
+            return { ready: request === latestRequest, tabId: tab.id };
           }
 
           if (destination.tabId) {
             await gateway.SetActiveTab(destination.tabId);
-            return request === latestRequest;
+            return { ready: request === latestRequest, tabId: destination.tabId };
           }
 
           const tab = await gateway.EnsureBlankTab("global", "");
-          if (request !== latestRequest) return false;
+          if (request !== latestRequest) return { ready: false };
           await gateway.SetActiveTab(tab.id);
-          return request === latestRequest;
+          return { ready: request === latestRequest, tabId: tab.id };
         });
       queue = result.then(() => undefined, () => undefined);
       return result;
@@ -89,9 +94,16 @@ function createNorthwingSessionCoordinator(): NorthwingSessionCoordinator {
 // Wails bridge is replaced during startup, recovery, or a test seam.
 const desktopSessionCoordinator = createNorthwingSessionCoordinator();
 
+export async function prepareNorthwingSessionDestinationDetails(
+  destination: NorthwingSessionDestination,
+  gateway: NorthwingSessionGateway = app,
+): Promise<PreparedNorthwingSession> {
+  return desktopSessionCoordinator.prepare(destination, gateway);
+}
+
 export async function prepareNorthwingSessionDestination(
   destination: NorthwingSessionDestination,
   gateway: NorthwingSessionGateway = app,
 ): Promise<boolean> {
-  return desktopSessionCoordinator.prepare(destination, gateway);
+  return (await prepareNorthwingSessionDestinationDetails(destination, gateway)).ready;
 }

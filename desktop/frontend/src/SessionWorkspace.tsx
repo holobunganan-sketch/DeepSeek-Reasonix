@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { NorthwingDestination } from "./northwing/Navigation/routes";
-import { prepareNorthwingSessionDestination, type NorthwingSessionGateway } from "./northwing/entryGateway";
+import { prepareNorthwingSessionDestinationDetails, type NorthwingSessionGateway } from "./northwing/entryGateway";
 import { app } from "./lib/bridge";
 
 const App = lazy(() => import("./App"));
@@ -12,9 +12,10 @@ const App = lazy(() => import("./App"));
 export type SessionWorkspaceProps = {
   destination: NorthwingDestination;
   sessionGateway?: NorthwingSessionGateway;
+  onSessionTabReady?: (tabId: string) => void;
 };
 
-export default function SessionWorkspace({ destination, sessionGateway = app }: SessionWorkspaceProps) {
+export default function SessionWorkspace({ destination, sessionGateway = app, onSessionTabReady }: SessionWorkspaceProps) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const workspaceRoot = destination.kind === "work" ? destination.workspaceRoot : undefined;
@@ -39,9 +40,12 @@ export default function SessionWorkspace({ destination, sessionGateway = app }: 
         cancelled = true;
       };
     }
-    void prepareNorthwingSessionDestination(sessionDestination, sessionGateway)
+    void prepareNorthwingSessionDestinationDetails(sessionDestination, sessionGateway)
       .then((prepared) => {
-        if (!cancelled && prepared) setReady(true);
+        if (!cancelled && prepared.ready) {
+          if (prepared.tabId) onSessionTabReady?.(prepared.tabId);
+          setReady(true);
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
@@ -49,7 +53,7 @@ export default function SessionWorkspace({ destination, sessionGateway = app }: 
     return () => {
       cancelled = true;
     };
-  }, [sessionDestination, sessionGateway]);
+  }, [sessionDestination, sessionGateway, onSessionTabReady]);
 
   if (error) {
     return (

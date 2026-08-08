@@ -12,6 +12,7 @@ import { NorthwingWorkList } from "../Work/NorthwingWorkList";
 import { NorthwingWorkView } from "../Work/NorthwingWorkView";
 import { NorthwingNewWork } from "../NewWork/NorthwingNewWork";
 import { NorthwingQuickChat } from "../QuickChat/NorthwingQuickChat";
+import type { ChatWorkDraft } from "../QuickChat/convertChatToWork";
 import { launchNewWork } from "../NewWork/newWorkController";
 import { NorthwingArtifacts } from "../Artifacts/NorthwingArtifacts";
 
@@ -19,7 +20,7 @@ export type { NorthwingDestination } from "../Navigation/routes";
 
 export type NorthwingShellGateway = {
   workspaceRoots?: string[];
-  SessionWorkspace?: React.ComponentType<{ destination: NorthwingDestination }>;
+  SessionWorkspace?: React.ComponentType<{ destination: NorthwingDestination; onSessionTabReady?: (tabId: string) => void }>;
   readCatalog?: () => Promise<NorthwingCatalog>;
   onNewWork?: () => void;
   onOpenQuickChat?: () => void;
@@ -258,6 +259,11 @@ function NorthwingAdvancedPage() {
 function renderProductPage(gateway: NorthwingShellGateway | undefined,
   destination: NorthwingDestination,
   _navigate: (destination: NorthwingDestination) => void,
+  conversionDraft: ChatWorkDraft | null,
+  onBeginConversion: (draft: ChatWorkDraft) => void,
+  onSessionTabReady: (tabId: string) => void,
+  onCancelNewWork: () => void,
+  onCompleteConversion: () => void,
 ): React.ReactElement {
   switch (destination.kind) {
     case "home":
@@ -290,19 +296,25 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
         <NorthwingQuickChat
           tabId={destination.tabId}
           SessionWorkspace={gateway?.SessionWorkspace ?? undefined}
-          onNavigate={_navigate}
+          onBeginWork={onBeginConversion}
+          onSessionTabReady={onSessionTabReady}
         />
       );
     case "new-work": {
       const wsRoot = destination.workspaceRoot ?? "";
       return (
         <NorthwingNewWork
-          preselectedWorkspace={wsRoot || undefined}
+          key={conversionDraft ? `convert-${conversionDraft.chatTabId}` : "new-work"}
+          preselectedWorkspace={conversionDraft ? undefined : wsRoot || undefined}
+          workspaceOptions={conversionDraft?.workspaceRoots}
+          requireProjectSelection={Boolean(conversionDraft)}
+          initialForm={conversionDraft ? { title: conversionDraft.title, objective: conversionDraft.objective } : undefined}
           onLaunch={async (root, form) => {
-            await launchNewWork(root, form);
-            _navigate({ kind: "project", workspaceRoot: root });
+            const { work } = await launchNewWork(root, form);
+            if (conversionDraft) onCompleteConversion();
+            _navigate({ kind: "work", workspaceRoot: root, workId: work.id });
           }}
-          onCancel={() => _navigate({ kind: "home" })}
+          onCancel={conversionDraft ? onCancelNewWork : () => _navigate({ kind: "home" })}
         />
       );
     }
@@ -311,6 +323,7 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
 
 export function NorthwingShell({ initialDestination = { kind: "home" }, gateway }: NorthwingShellProps) {
   const [destination, setDestination] = useState<NorthwingDestination>(initialDestination);
+  const [conversionDraft, setConversionDraft] = useState<ChatWorkDraft | null>(null);
 
   useEffect(() => {
     setDestination(initialDestination);
@@ -324,26 +337,52 @@ export function NorthwingShell({ initialDestination = { kind: "home" }, gateway 
     [gateway],
   );
 
+  const handleAbandonConversionAndNavigate = useCallback((next: NorthwingDestination) => {
+    setConversionDraft(null);
+    handleNavigate(next);
+  }, [handleNavigate]);
+
   const handleNewWork = useCallback(() => {
-    handleNavigate({ kind: "new-work" });
+    handleAbandonConversionAndNavigate({ kind: "new-work" });
     gateway?.onNewWork?.();
-  }, [gateway]);
+  }, [gateway, handleAbandonConversionAndNavigate]);
 
   const handleQuickChat = useCallback(() => {
-    handleNavigate({ kind: "quick-chat" });
+    handleAbandonConversionAndNavigate({ kind: "quick-chat" });
     gateway?.onOpenQuickChat?.();
-  }, [handleNavigate, gateway]);
+  }, [handleAbandonConversionAndNavigate, gateway]);
+
+  const handleBeginConversion = useCallback((draft: ChatWorkDraft) => {
+    setConversionDraft(draft);
+    handleNavigate({ kind: "new-work" });
+  }, [handleNavigate]);
+
+  const handleCancelNewWork = useCallback(() => {
+    const chatTabId = conversionDraft?.chatTabId;
+    setConversionDraft(null);
+    handleNavigate(chatTabId ? { kind: "quick-chat", tabId: chatTabId } : { kind: "home" });
+  }, [conversionDraft, handleNavigate]);
+
+  const handleCompleteConversion = useCallback(() => {
+    setConversionDraft(null);
+  }, []);
+
+  const handleQuickChatTabReady = useCallback((tabId: string) => {
+    setDestination((current) => current.kind === "quick-chat" && !current.tabId
+      ? { kind: "quick-chat", tabId }
+      : current);
+  }, []);
 
   const pageContent = useMemo(() => {
-    return <div className="northwing-shell__page">{renderProductPage(gateway, destination, handleNavigate)}</div>;
-  }, [destination, gateway, handleNavigate]);
+    return <div className="northwing-shell__page">{renderProductPage(gateway, destination, handleNavigate, conversionDraft, handleBeginConversion, handleQuickChatTabReady, handleCancelNewWork, handleCompleteConversion)}</div>;
+  }, [destination, gateway, handleNavigate, conversionDraft, handleBeginConversion, handleQuickChatTabReady, handleCancelNewWork, handleCompleteConversion]);
 
   return (
     <div className="northwing-shell">
       <NorthwingGatewayContext.Provider value={gateway}>
-      <NorthwingNavigateContext.Provider value={handleNavigate}>
+      <NorthwingNavigateContext.Provider value={handleAbandonConversionAndNavigate}>
         <div className="northwing-shell__navigation">
-          <NorthwingNavigation current={destination} onNavigate={handleNavigate} onNewWork={handleNewWork} />
+          <NorthwingNavigation current={destination} onNavigate={handleAbandonConversionAndNavigate} onNewWork={handleNewWork} />
         </div>
         <div className="northwing-shell__main">
           <header className="northwing-shell__topbar">

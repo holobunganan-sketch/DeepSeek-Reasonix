@@ -1,84 +1,69 @@
 import { app } from "../../lib/bridge";
-import { createCoworkWorkID } from "../../lib/northwingCowork";
-import { upsertCoworkWork } from "../../lib/northwingCowork";
-import { workbenchTargetToken } from "../../lib/goalSubmit";
+import { northwingProjectWorkspaceRoots } from "../entryGateway";
+import type { HistoryMessage, ProjectNode, TabMeta } from "../../lib/types";
 
-export type ConvertChatResult = {
-  workId: string;
-  tabId: string;
+export type ChatWorkDraft = {
+  chatTabId: string;
+  title: string;
+  objective: string;
+  workspaceRoots: string[];
 };
 
-export async function convertChatToWork(
-  workspaceRoot: string,
-  objective: string,
-  _chatTabId?: string,
-): Promise<ConvertChatResult> {
-  if (!workspaceRoot.trim()) throw new Error("No project workspace available for conversion.");
-  if (!objective.trim()) throw new Error("Describe what you want to finish.");
+export type ChatConversionGateway = {
+  listTabs: () => Promise<TabMeta[]>;
+  historyForTab: (tabId: string) => Promise<HistoryMessage[]>;
+  listProjectTree: () => Promise<ProjectNode[]>;
+};
 
-  const workId = createCoworkWorkID();
+const desktopGateway: ChatConversionGateway = {
+  listTabs: () => app.ListTabs(),
+  historyForTab: (tabId) => app.HistoryForTab(tabId),
+  listProjectTree: () => app.ListProjectTree(),
+};
 
-  // Bind the current tab to native Work identity.
-  const target = await localTargetToken();
-  let tab = await app.EnsureWorkTab(workspaceRoot, workId);
-  if (tab.topicId) {
-    await app.RenameTopic(tab.topicId, objective.length > 80 ? objective.slice(0, 77) + "..." : objective)
-      .catch(() => undefined);
+function chatTabForConversion(tabs: TabMeta[], requestedTabId?: string): TabMeta {
+  const tab = requestedTabId ? tabs.find((candidate) => candidate.id === requestedTabId) : undefined;
+  if (!tab || tab.sessionKind !== "chat") {
+    throw new Error("Quick Chat session is unavailable for conversion.");
   }
-
-  // Persist a minimal Work contract.
-  await upsertCoworkWork(workspaceRoot, {
-    id: workId,
-    title: objective,
-    sessionPath: tab.sessionPath ?? "",
-    goalId: tab.topicId ?? "",
-    profile: "delivery",
-    kind: "general",
-    quality: "standard",
-    sourcePolicy: "project_only",
-    harnessVersion: 3,
-    stage: "intake",
-    harnessSteps: ["inventory", "plan", "produce", "review", "repair", "validate"],
-    currentHarnessStep: "inventory",
-    materials: [],
-    pausePolicy: "pause",
-    acceptance: [],
-    completedCriteria: 0,
-    totalCriteria: 0,
-    constraints: [],
-  });
-
-  // Submit a conversion goal that references the existing conversation.
-  const brief = [
-    "## Conversion from Quick Chat",
-    "",
-    `Goal: ${objective}`,
-    "",
-    "Continue from the existing conversation above. The chat history is preserved.",
-    "Proceed with inventory, plan, produce, review, repair, and validation.",
-  ].join("\n");
-
-  await app.SubmitInitialGoalToTab(
-    tab.id,
-    objective,
-    objective,
-    brief,
-    [],
-    "goal",
-    "auto",
-    target.kind,
-    target.identityGen,
-    target.requestSeq,
-  );
-  await app.SetActiveTab(tab.id);
-
-  return { workId, tabId: tab.id };
+  return tab;
 }
 
-async function localTargetToken() {
-  let target = await app.WorkbenchActiveTarget();
-  if (target.kind !== "local") target = await app.WorkbenchSwitchLocal();
-  const token = workbenchTargetToken(target);
-  if (!token || token.kind !== "local") throw new Error("Northwing could not establish the local project target.");
-  return token;
+export function deriveWorkDraftFromChat(
+  messages: HistoryMessage[],
+  topicTitle: string,
+  chatTabId: string,
+): ChatWorkDraft {
+  const userMessages = messages
+    .filter((message) => message.role === "user")
+    .map((message) => message.content.trim())
+    .filter(Boolean);
+  if (userMessages.length === 0) {
+    throw new Error("Quick Chat has no user messages to convert.");
+  }
+  const title = topicTitle.trim() || userMessages[0].split(/\r?\n/, 1)[0].slice(0, 80) || "Quick Chat Work";
+  return {
+    chatTabId,
+    title,
+    objective: userMessages.join("\n\n"),
+    workspaceRoots: [],
+  };
+}
+
+// Conversion only reads the source chat. Work creation remains owned by the
+// New Work controller after the user confirms its prefilled draft.
+export async function readChatWorkDraft(
+  chatTabId?: string,
+  gateway: ChatConversionGateway = desktopGateway,
+): Promise<ChatWorkDraft> {
+  const tabs = await gateway.listTabs();
+  const chatTab = chatTabForConversion(tabs, chatTabId);
+  const [history, projectTree] = await Promise.all([
+    gateway.historyForTab(chatTab.id),
+    gateway.listProjectTree(),
+  ]);
+  return {
+    ...deriveWorkDraftFromChat(history, chatTab.topicTitle, chatTab.id),
+    workspaceRoots: northwingProjectWorkspaceRoots(projectTree),
+  };
 }

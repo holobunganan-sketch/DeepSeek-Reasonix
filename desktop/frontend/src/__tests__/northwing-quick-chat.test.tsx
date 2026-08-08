@@ -1,71 +1,52 @@
-/**
- * Northwing Quick Chat and Convert to Work - structural validation
- * Run: tsx src/__tests__/northwing-quick-chat.test.tsx
- */
-import { readFileSync, existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+// Run: node --import tsx --import ./scripts/register-css-test-loader.mjs src/__tests__/northwing-quick-chat.test.tsx
+// Break caught: Quick Chat must remain a chat-only semantic session surface.
+import { JSDOM } from "jsdom";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import React from "react";
+import { NorthwingQuickChat } from "../northwing/QuickChat/NorthwingQuickChat";
+import type { NorthwingDestination } from "../northwing/Navigation/routes";
 
-const dir = dirname(fileURLToPath(import.meta.url));
+const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
+  pretendToBeVisual: true,
+  url: "http://localhost/",
+});
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+globalThis.window = dom.window as unknown as Window & typeof globalThis;
+globalThis.document = dom.window.document;
+globalThis.Node = dom.window.Node;
+globalThis.Element = dom.window.Element;
+globalThis.HTMLElement = dom.window.HTMLElement;
+globalThis.Event = dom.window.Event;
 
 let failed = 0;
 function ok(value: unknown, label: string) {
-  if (value) process.stdout.write("  PASS  " + label + "\n");
+  if (value) process.stdout.write(`  PASS  ${label}\n`);
   else {
     failed += 1;
-    process.stdout.write("  FAIL  " + label + "\n");
+    process.stdout.write(`  FAIL  ${label}\n`);
   }
 }
 
-console.log("\nNorthwing Quick Chat");
+function SessionWorkspaceStub({ destination }: { destination: NorthwingDestination }) {
+  return <section data-testid="chat-session" data-tab-id={destination.kind === "quick-chat" ? destination.tabId : undefined}>Transcript</section>;
+}
 
-// File existence
-const chatPath = resolve(dir, "../northwing/QuickChat/NorthwingQuickChat.tsx");
-const convertDialogPath = resolve(dir, "../northwing/QuickChat/NorthwingConvertToWorkDialog.tsx");
-const convertControllerPath = resolve(dir, "../northwing/QuickChat/convertChatToWork.ts");
-const cssPath = resolve(dir, "../northwing/QuickChat/NorthwingQuickChat.css");
-ok(existsSync(chatPath), "QuickChat component exists");
-ok(existsSync(convertDialogPath), "ConvertToWork dialog exists");
-ok(existsSync(convertControllerPath), "convertChatToWork controller exists");
-ok(existsSync(cssPath), "QuickChat CSS exists");
+const rootNode = document.getElementById("root");
+if (!rootNode) throw new Error("missing test root");
+const root = createRoot(rootNode);
+await act(async () => {
+  root.render(<NorthwingQuickChat tabId="chat-7" SessionWorkspace={SessionWorkspaceStub} />);
+});
 
-// Component checks
-const chatSrc = readFileSync(chatPath, "utf8");
-ok(/NorthwingQuickChat/.test(chatSrc), "exports NorthwingQuickChat");
-ok(/Convert to Work/.test(chatSrc), "has Convert to Work button");
-ok(/data-northwing-page="quick-chat"/i.test(chatSrc), "uses data-northwing-page attribute");
-ok(/convertChatToWork/.test(chatSrc), "imports convertChatToWork controller");
-ok(!/Reasonix/.test(chatSrc), "no Reasonix mention in Quick Chat UI");
+console.log("\nNorthwing Quick Chat behavior");
+const main = document.querySelector('main[data-session-kind="chat"]');
+ok(main, "Quick Chat exposes a semantic chat main region");
+ok(document.querySelector('[data-testid="chat-session"]')?.getAttribute("data-tab-id") === "chat-7", "Quick Chat keeps its SessionWorkspace tab");
+for (const forbidden of ["Acceptance", "Artifacts", "Versions", "Final Work"]) {
+  ok(!document.body.textContent?.includes(forbidden), `Quick Chat omits the Work-only ${forbidden} region`);
+}
 
-// Convert dialog checks
-const dialogSrc = readFileSync(convertDialogPath, "utf8");
-ok(/NorthwingConvertToWorkDialog/.test(dialogSrc), "exports dialog component");
-ok(/role="dialog"/i.test(dialogSrc), "dialog uses dialog role");
-ok(/objective/.test(dialogSrc) && /finish/.test(dialogSrc), "prompts for objective");
-ok(/"Create Work"/.test(dialogSrc), "confirm button says Create Work");
-ok(/role="alert"/i.test(dialogSrc), "error uses alert role");
-
-// Controller checks
-const controllerSrc = readFileSync(convertControllerPath, "utf8");
-ok(/convertChatToWork/.test(controllerSrc), "exports convertChatToWork");
-ok(/EnsureWorkTab/.test(controllerSrc), "uses EnsureWorkTab for native Work binding");
-ok(/UpsertCoworkWork/.test(controllerSrc), "persists Work contract");
-ok(/SubmitInitialGoalToTab/.test(controllerSrc), "submits conversion goal");
-ok(/Conversion from Quick Chat/.test(controllerSrc), "goal brief references chat origin");
-
-// CSS checks
-const cssSrc = readFileSync(cssPath, "utf8");
-ok(/nw-quick-chat/.test(cssSrc), "CSS has Quick Chat layout");
-ok(/nw-convert-dialog/.test(cssSrc), "CSS has dialog layout");
-ok(/nw-quick-chat__convert/.test(cssSrc), "CSS has convert button styles");
-
-// Routes: Quick Chat is NOT a session bypass destination
-const routesPath = resolve(dir, "../northwing/Navigation/routes.ts");
-const routesSrc = readFileSync(routesPath, "utf8");
-ok(/isSessionDestination/.test(routesSrc), "isSessionDestination exists");
-ok(/"quick-chat"/.test(routesSrc), "quick-chat is in the destination union");
-ok(/isSessionDestination[^}]*return[^"]*"work"/.test(routesSrc),
-  "isSessionDestination only returns work kind (quick-chat not bypassed)");
-
-if (failed) process.exit(1);
-console.log("Northwing Quick Chat tests passed");
+await act(async () => root.unmount());
+process.stdout.write(`\n${failed === 0 ? "Northwing Quick Chat tests passed." : `${failed} test(s) FAILED.`}\n`);
+process.exit(failed > 0 ? 1 : 0);

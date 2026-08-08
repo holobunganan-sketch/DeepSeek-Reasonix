@@ -21,7 +21,8 @@ export async function launchNewWork(
   const objective = form.objective.trim();
   if (!objective) throw new Error("Describe what you want to finish.");
 
-  const title = objective.length > 80 ? objective.slice(0, 77) + "..." : objective;
+  const requestedTitle = form.title?.trim() ?? "";
+  const title = requestedTitle || (objective.length > 80 ? objective.slice(0, 77) + "..." : objective);
   const workID = createCoworkWorkID();
 
   // Ensure native Work identity before any provider request.

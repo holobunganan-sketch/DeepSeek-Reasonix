@@ -5,6 +5,7 @@ import { WORK_KINDS, WORK_QUALITIES, SOURCE_POLICIES } from "../../lib/northwing
 import "./NorthwingNewWork.css";
 
 export type NewWorkFormState = {
+  title?: string;
   objective: string;
   materials: string[];
   outputType: WorkKind;
@@ -19,6 +20,7 @@ export type NewWorkFormState = {
 };
 
 const DEFAULT_FORM: NewWorkFormState = {
+  title: "",
   objective: "",
   materials: [],
   outputType: "general",
@@ -34,6 +36,9 @@ const DEFAULT_FORM: NewWorkFormState = {
 
 export type NorthwingNewWorkProps = {
   preselectedWorkspace?: string;
+  workspaceOptions?: string[];
+  requireProjectSelection?: boolean;
+  initialForm?: Partial<Pick<NewWorkFormState, "title" | "objective">>;
   availableModels?: { id: string; name: string }[];
   onLaunch: (workspaceRoot: string, form: NewWorkFormState) => Promise<void>;
   onCancel?: () => void;
@@ -41,11 +46,14 @@ export type NorthwingNewWorkProps = {
 
 export function NorthwingNewWork({
   preselectedWorkspace,
+  workspaceOptions = [],
+  requireProjectSelection = false,
+  initialForm,
   availableModels = [],
   onLaunch,
   onCancel,
 }: NorthwingNewWorkProps) {
-  const [form, setForm] = useState<NewWorkFormState>({ ...DEFAULT_FORM });
+  const [form, setForm] = useState<NewWorkFormState>(() => ({ ...DEFAULT_FORM, ...initialForm }));
   const [workspaceRoot, setWorkspaceRoot] = useState(preselectedWorkspace ?? "");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -84,14 +92,37 @@ export function NorthwingNewWork({
         {/* Project / folder */}
         <label className="nw-new-work__field">
           <span className="nw-new-work__label">Project folder</span>
+          {requireProjectSelection ? (
+            <select
+              className="nw-input"
+              value={workspaceRoot}
+              onChange={(e) => setWorkspaceRoot(e.target.value)}
+              aria-label="Project workspace"
+            >
+              <option value="">Select a project workspace...</option>
+              {workspaceOptions.map((workspace) => <option key={workspace} value={workspace}>{workspace}</option>)}
+            </select>
+          ) : (
+            <input
+              type="text"
+              className="nw-input"
+              placeholder={preselectedWorkspace || "Select or enter a project folder..."}
+              value={workspaceRoot}
+              onChange={(e) => setWorkspaceRoot(e.target.value)}
+              disabled={!!preselectedWorkspace}
+              aria-label="Project folder"
+            />
+          )}
+        </label>
+
+        <label className="nw-new-work__field">
+          <span className="nw-new-work__label">Work title</span>
           <input
             type="text"
             className="nw-input"
-            placeholder={preselectedWorkspace || "Select or enter a project folder..."}
-            value={workspaceRoot}
-            onChange={(e) => setWorkspaceRoot(e.target.value)}
-            disabled={!!preselectedWorkspace}
-            aria-label="Project folder"
+            value={form.title ?? ""}
+            onChange={(e) => update("title", e.target.value)}
+            aria-label="Work title"
           />
         </label>
 
