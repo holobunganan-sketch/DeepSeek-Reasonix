@@ -6,6 +6,9 @@ import { destinationPageName, isSessionDestination } from "../Navigation/routes"
 import { NorthwingHome } from "../Home/NorthwingHome";
 import type { NorthwingCatalog } from "../domain/catalog";
 import { normalizeNorthwingCatalog } from "../domain/catalog";
+import { NorthwingProjects } from "../Projects/NorthwingProjects";
+import { NorthwingProjectView } from "../Projects/NorthwingProjectView";
+import { NorthwingWorkList } from "../Work/NorthwingWorkList";
 
 export type { NorthwingDestination } from "../Navigation/routes";
 
@@ -79,25 +82,127 @@ function NorthwingHomePage() {
   );
 }
 
+function useShellCatalog() {
+  const gateway = useContext(NorthwingGatewayContext);
+  const [catalog, setCatalog] = useState<NorthwingCatalog>(() =>
+    normalizeNorthwingCatalog({ projects: [], activeWorks: [], waitingForUser: [], recentArtifacts: [] }),
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | undefined>();
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(undefined);
+    try {
+      const result = await gateway?.readCatalog?.();
+      setCatalog(normalizeNorthwingCatalog(result));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [gateway]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return { catalog, loading, error, reload: load };
+}
+
 function NorthwingProjectsPage() {
+  const navigate = useContext(NorthwingNavigateContext);
+  const { catalog, loading, error, reload } = useShellCatalog();
+  if (loading || error) {
+    return (
+      <main role="main" data-northwing-page="projects" className="nw-page">
+        <h1 className="nw-page__title">Projects</h1>
+        <p className="nw-page__subtitle">{loading ? "Loading projects..." : error}</p>
+        {error && (
+          <button type="button" className="nw-btn nw-btn--primary" onClick={reload}>
+            Retry
+          </button>
+        )}
+      </main>
+    );
+  }
   return (
-    <main role="main" data-northwing-page="projects" className="nw-page">
-      <h1 className="nw-page__title">Projects</h1>
-      <div className="nw-card">
-        <p>Projects list will appear here.</p>
-      </div>
-    </main>
+    <NorthwingProjects
+      projects={catalog.projects}
+      onOpenProject={(project) =>
+        navigate({ kind: project.id ? "project" : "projects", workspaceRoot: project.workspace })
+      }
+      onNewProject={() => navigate({ kind: "projects" })}
+    />
   );
 }
 
 function NorthwingWorkListPage() {
+  const navigate = useContext(NorthwingNavigateContext);
+  const { catalog, loading, error, reload } = useShellCatalog();
+  if (loading || error) {
+    return (
+      <main role="main" data-northwing-page="work-list" className="nw-page">
+        <h1 className="nw-page__title">Work</h1>
+        <p className="nw-page__subtitle">{loading ? "Loading work..." : error}</p>
+        {error && (
+          <button type="button" className="nw-btn nw-btn--primary" onClick={reload}>
+            Retry
+          </button>
+        )}
+      </main>
+    );
+  }
+  const works = [...catalog.activeWorks, ...catalog.waitingForUser].sort((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt),
+  );
   return (
-    <main role="main" data-northwing-page="work-list" className="nw-page">
-      <h1 className="nw-page__title">Work</h1>
-      <div className="nw-card">
-        <p>Work list will appear here.</p>
-      </div>
-    </main>
+    <NorthwingWorkList
+      works={works}
+      onOpenWork={(work) => navigate({ kind: "work", workspaceRoot: work.workspace, workId: work.workId })}
+      onNewWork={() => navigate({ kind: "home" })}
+    />
+  );
+}
+
+function NorthwingProjectDetailPage({ workspaceRoot }: { workspaceRoot: string }) {
+  const navigate = useContext(NorthwingNavigateContext);
+  const { catalog, loading, error, reload } = useShellCatalog();
+  if (loading || error) {
+    return (
+      <main role="main" data-northwing-page="project" className="nw-page">
+        <h1 className="nw-page__title">Project</h1>
+        <p className="nw-page__subtitle">{loading ? "Loading project..." : error}</p>
+        {error && (
+          <button type="button" className="nw-btn nw-btn--primary" onClick={reload}>
+            Retry
+          </button>
+        )}
+      </main>
+    );
+  }
+  const project = catalog.projects.find((p) => p.workspace === workspaceRoot);
+  if (!project) {
+    return (
+      <main role="main" data-northwing-page="project" className="nw-page">
+        <h1 className="nw-page__title">Project not found</h1>
+        <p className="nw-page__subtitle">The requested project could not be loaded.</p>
+      </main>
+    );
+  }
+  const works = catalog.activeWorks.filter((w) => w.workspace === workspaceRoot);
+  const artifacts = catalog.recentArtifacts.filter((a) => a.workspace === workspaceRoot);
+  return (
+    <NorthwingProjectView
+      project={project}
+      works={works}
+      artifacts={artifacts}
+      onOpenWork={(work) => navigate({ kind: "work", workspaceRoot: work.workspace, workId: work.workId })}
+      onOpenArtifact={(artifact) =>
+        navigate({ kind: "work", workspaceRoot: artifact.workspace, workId: artifact.workId })
+      }
+      onNewWork={() => navigate({ kind: "home" })}
+    />
   );
 }
 
@@ -133,7 +238,7 @@ function renderProductPage(
     case "projects":
       return <NorthwingProjectsPage />;
     case "project":
-      return <PlaceholderPage title="Project">Project detail will appear here.</PlaceholderPage>;
+      return <NorthwingProjectDetailPage workspaceRoot={destination.workspaceRoot} />;
     case "work-list":
       return <NorthwingWorkListPage />;
     case "work":

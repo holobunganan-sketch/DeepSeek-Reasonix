@@ -18,6 +18,7 @@ import "./styles.css";
 import { NorthwingShell } from "./northwing/Shell/NorthwingShell";
 import "./northwing/Shell/NorthwingShell.css";
 import "./northwing/Home/NorthwingHome.css";
+import "./northwing/Projects/NorthwingProjects.css";
 import { normalizeNorthwingCatalog } from "./northwing/domain/catalog";
 
 const SessionWorkspace = lazy(() => import("./SessionWorkspace"));
