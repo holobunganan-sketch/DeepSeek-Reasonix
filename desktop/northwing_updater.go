@@ -22,13 +22,14 @@ import (
 	"golang.org/x/mod/semver"
 
 	"reasonix/internal/config"
+	"reasonix/internal/northwing"
 	"reasonix/internal/netclient"
 )
 
 const (
-	northwingRepository        = "holobunganan-sketch/DeepSeek-Reasonix"
-	northwingLatestReleaseAPI  = "https://api.github.com/repos/holobunganan-sketch/DeepSeek-Reasonix/releases/latest"
-	northwingReleasesPage      = "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases"
+	northwingRepository        = northwing.ReleaseRepository
+	northwingLatestReleaseAPI  = northwing.LatestReleaseAPIURL
+	northwingReleasesPage      = northwing.ReleasePageURL
 	maxNorthwingReleaseJSON    = int64(1 << 20)
 	maxNorthwingChecksumSize   = int64(1 << 20)
 	maxNorthwingInstallerSize  = int64(1 << 30)
@@ -89,7 +90,7 @@ func trustedNorthwingReleaseURL(rawURL, tag string) bool {
 	if err != nil || u.Scheme != "https" || !strings.EqualFold(u.Hostname(), "github.com") || u.Port() != "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return false
 	}
-	return u.EscapedPath() == "/"+northwingRepository+"/releases/tag/"+tag
+	return u.EscapedPath() == "/"+northwing.ReleaseRepository+"/releases/tag/"+tag
 }
 
 func trustedNorthwingAssetURL(rawURL, tag, filename string) bool {
@@ -97,7 +98,7 @@ func trustedNorthwingAssetURL(rawURL, tag, filename string) bool {
 	if err != nil || u.Scheme != "https" || !strings.EqualFold(u.Hostname(), "github.com") || u.Port() != "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return false
 	}
-	return u.EscapedPath() == "/"+northwingRepository+"/releases/download/"+tag+"/"+filename
+	return u.EscapedPath() == "/"+northwing.ReleaseRepository+"/releases/download/"+tag+"/"+filename
 }
 
 func northwingAssetNames(version, goos, goarch string) (setup, checksum string, ok bool) {

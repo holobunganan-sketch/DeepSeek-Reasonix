@@ -11,12 +11,27 @@ import (
 	"syscall"
 
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"reasonix/internal/windowsauth"
 )
 
 const (
 	northwingDetachedProcess       = 0x00000008
 	northwingCreateNewProcessGroup = 0x00000200
 )
+
+func (a *App) verifyNorthwingBinaryBeforeUpdate(installerPath, helperPath string) error {
+	if !windowsauth.IsAvailable() {
+		return nil
+	}
+	if err := windowsauth.VerifyAuthenticode(helperPath); err != nil {
+		return fmt.Errorf("northwing update: helper Authenticode verification failed: %w", err)
+	}
+	if err := windowsauth.VerifyAuthenticode(installerPath); err != nil {
+		return fmt.Errorf("northwing update: installer Authenticode verification failed: %w", err)
+	}
+	return nil
+}
 
 func (a *App) handoffNorthwingUpdate(requestID, expectedVersion, installerPath, helperPath, stagingDir string, assetSize int64) error {
 	executable, err := os.Executable()
@@ -25,6 +40,9 @@ func (a *App) handoffNorthwingUpdate(requestID, expectedVersion, installerPath, 
 	}
 	executable, err = filepath.Abs(executable)
 	if err != nil {
+		return err
+	}
+	if err := a.verifyNorthwingBinaryBeforeUpdate(installerPath, helperPath); err != nil {
 		return err
 	}
 	command := exec.Command(
