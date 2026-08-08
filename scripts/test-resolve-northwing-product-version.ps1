@@ -77,3 +77,4 @@ try {
 }
 
 Write-Host "Northwing product version resolver tests passed."
+exit 0
