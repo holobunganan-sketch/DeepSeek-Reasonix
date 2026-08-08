@@ -1,41 +1,101 @@
-# Northwing 0.2.0
+# Northwing 0.3.0
 
-Northwing 0.2.0 promotes Work into the native Reasonix project/session architecture and establishes an independent Northwing distribution chain.
+Northwing 0.3.0 is a full product rebuild that makes Northwing a Work-first CoWork desktop product. Reasonix is retained as the internal execution kernel and is no longer visible in the product.
 
-## Native Work sessions
+## Work-first product shell
 
-- Work is represented by the existing Reasonix project topic and session, with compact Northwing Work metadata layered onto it.
-- The detached `NorthwingProjectCenter` toolbar has been removed.
-- The project create menu now exposes Chat, Work, and Add project folder in one native entry.
-- Work creation applies the selected configured model, optional reasoning effort, Delivery profile, Goal contract, Harness policy, and deterministic `deliverables/<work-id>/` boundary before the first provider request.
-- Work rows reuse project-tree runtime states and display Work quality plus acceptance progress.
-- The active Work shows a compact context header and a Work-scoped Artifact drawer.
-- Artifact sync, preview, Office inspection, final selection, open, reveal, revision, and continuation remain bound to the owning Work session.
-- Work stage and acceptance progress persist across restarts and session rebinding.
+- Northwing opens to Home, not an empty chat window.
+- The left navigation centers on New Work, Home, Projects, Work, and Artifacts.
+- Quick Chat is available as a secondary entry point for questions, exploration, and informal tasks.
+- Developer tools (Terminal, Git, code workflows) are accessible through Advanced tools but do not occupy the default navigation.
 
-## Migration
+## Native Work Session identity
 
-- Project manifests advance to version 2.
-- Existing version-1 manifests are backed up byte-for-byte as `.northwing/project.v1.backup.json` before atomic migration.
-- Migration is idempotent. When a safe backup or write is impossible, the legacy project remains available as a read-only projection instead of being modified.
-- Existing session paths, topic/Goal links, Artifact versions, hashes, and final selections are preserved.
+- Sessions carry a native `sessionKind` field: `chat` or `work`.
+- Each Work session holds a stable `workId` that persists across restarts, rebinding, and session recovery.
+- Tab metadata, project tree metadata, and history metadata all expose `sessionKind` and `workId`.
+- The UI no longer scans `project.json` to determine whether a session is a Work.
 
-## Independent updates and Windows installation
+## 0.2 to 0.3 migration
 
-- Northwing checks only the `northwing-v*` release line and exact Northwing package names.
-- The inherited Reasonix update endpoints and apply path are not used by the Northwing product flow.
-- Automatic Windows x64 updates require the exact setup asset and the matching Northwing SHA-256 checksum entry.
-- A dedicated `northwing-update-helper.exe` waits for the running app to exit, applies the verified installer, validates `northwing 0.2.0`, restarts the application, and removes staging files.
-- The installer requests a normal Northwing shutdown before replacement, retries locked executable writes, provides no Ignore path, and restores the previous executable when replacement fails.
-- Windows acceptance runs a real silent overwrite while Northwing is running, followed by CLI version, GUI startup, protocol, uninstall, portable-content, and checksum checks.
+- Existing 0.2 Work references are migrated into native session identity.
+- Migration is idempotent; repeated launches produce no additional changes.
+- Artifact hashes, versions, final selections, Work IDs, model bindings, and quality/source policies are preserved.
+- Sessions that cannot be safely matched are preserved as legacy WorkRef entries with a "needs rebinding" marker.
+
+## Unified Work lifecycle
+
+- `WorkStage` (user-visible): intake, planning, producing, reviewing, repairing, validating, waiting_user, completed, failed.
+- `HarnessStep` (internal quality): inspect, inventory, evidence_ledger, plan, produce, review, independent_review, repair, validate, requirement_audit.
+- Stage progression is driven by real runtime evidence (Goal, todo, tool events, approvals, turn lifecycle), not timers.
+
+## CoWork Harness v3
+
+- Work Contract is versioned as Northwing Harness v3.
+- Contract explicitly separates Goal, Work type, Inputs, Materials, Expected artifact, Source policy, Constraints, Acceptance, Execution policy, and Internal Harness steps.
+- Quick, Standard, and Deep quality tiers are preserved.
+- Source policies (project_only, project_plus_web, verified_web) are preserved.
+- Work metadata does not enter the stable system prompt; the Contract is submitted once as a normal user task at Work start.
+
+## Northwing UI Shell
+
+- Components are organized under `desktop/frontend/src/northwing/` with dedicated Shell, Home, Projects, Work, Artifacts, Navigation, and DesignSystem modules.
+- `NorthwingShell` replaces the Reasonix sidebar as the primary product wrapper.
+- Reasonix ProjectTree is retained as a compatibility/internal component, not as the main navigation.
+
+## Work Workspace
+
+- Three-panel desktop layout: Work Plan (left), Activity (center), Materials/Artifacts (right).
+- Work Plan shows stages, harness steps, acceptance items, and unresolved findings.
+- The central Activity panel reuses the validated Transcript, Composer, Approval, Ask, Reasoning, and Tool event components within the Northwing Work Workspace.
+- The right panel displays Materials, Artifacts, and Versions with preview, open, reveal, revise, mark-final, and history actions.
+- Work Header shows title, project, status, acceptance progress, quality, source policy, and executor model.
+
+## New Work entry
+
+- New Work is the primary CTA, visible from Home, Projects, Work list, and command palette.
+- Creation flow: What do you want to finish? → Materials → Output type → Quality → Source policy → Model.
+- Advanced options (Audience, Constraints, Acceptance overrides, Pause policy, Reasoning effort) are collapsible.
+- From a Project, New Work auto-binds the current Project. From Home, the user selects an existing or new Project.
+
+## Quick Chat and Convert to Work
+
+- Chat sessions carry `sessionKind=chat` and do not display Work acceptance or artifact lifecycle UI.
+- Chat provides the full Reasonix kernel capability for questions, exploration, and informal tasks.
+- Convert to Work preserves the chat history, creates a formal Work with a Work ID, extracts goals from the existing conversation, and requires explicit user confirmation.
+
+## Artifacts as first-class objects
+
+- Global Artifacts page with filters by Project, Work, file type, final-only, and update time.
+- Artifacts are stored under `deliverables/<work-id>/` with SHA-256 deduplication and versioning.
+- Office CoWork (DOCX, PPTX, XLSX, PDF) is preserved with create, inspect, validate, and replace/revise capabilities.
+- Generated Office files appear immediately in the Artifact panel with file type, version, validation status, update time, and final badge.
+
+## Brand isolation
+
+- Reasonix is removed from all user-visible surfaces: window title, splash, sidebar, menus, settings, dialogs, update UI, and error screens.
+- Automated brand surface tests verify that "Reasonix" does not appear in the normal UI DOM.
+- Reasonix is acknowledged in About, Licenses, and third-party attribution as the kernel baseline.
+
+## Windows signing and graceful updates
+
+- Authenticode SHA-256 signing with RFC3161 timestamping is required for northwing.exe, northwing-update-helper.exe, and setup.exe in formal releases.
+- The updater no longer uses forced process termination; it downloads, verifies, launches the helper, exits cleanly, and the helper waits for PID before applying the installer.
+- Update manifests are signed: `northwing-update.json` plus `northwing-update.json.sig`.
+- The updater verifies the manifest signature before trusting asset URLs, then verifies SHA-256 on download.
+- If a signing credential is not configured, the build produces unsigned test artifacts and the release gate blocks formal publication.
+
+## UI acceptance testing
+
+- 33 Playwright browser tests cover the full Work-first path: Home → New Work → Work Workspace → Artifact lifecycle → restart → state preservation → Quick Chat → convert to Work.
+- Brand surface audit verifies no Reasonix in user-facing DOM.
+- Bundle boundary tests confirm that Home does not load Office preview, terminal, Git diff, or large settings modules.
+- Viewport is fixed at 1440×900.
 
 ## Packages
 
-The release contains only Northwing distribution assets:
-
-- `Northwing-0.2.0-windows-x64-setup.exe`
-- `Northwing-0.2.0-windows-x64-portable.zip`
-- `Northwing-0.2.0-SHA256SUMS.txt`
+- `Northwing-0.3.0-windows-x64-setup.exe`
+- `Northwing-0.3.0-windows-x64-portable.zip`
+- `Northwing-0.3.0-SHA256SUMS.txt`
 - `northwing-update.json`
-
-Northwing remains local-first and retains the complete frozen Reasonix kernel, applicable MIT license, and third-party notices.
+- `northwing-update.json.sig`

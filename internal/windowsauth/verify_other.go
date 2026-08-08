@@ -20,4 +20,3 @@ func VerifyAuthenticode(path string) error {
 func IsAvailable() bool {
 	return runtime.GOOS == "windows"
 }
-

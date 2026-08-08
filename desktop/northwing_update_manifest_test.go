@@ -225,4 +225,3 @@ func TestFullVerifyAndParseRoundTrip(t *testing.T) {
 		t.Fatalf("parsed = %+v", parsed)
 	}
 }
-

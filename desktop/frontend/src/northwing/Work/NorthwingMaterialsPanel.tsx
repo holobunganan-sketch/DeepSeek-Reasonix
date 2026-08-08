@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { FileText, ExternalLink, FolderOpen } from "lucide-react";
 import type { CoworkArtifact } from "../../lib/northwingCowork";
 import { previewCoworkArtifact, openCoworkArtifact } from "../../lib/northwingCowork";
@@ -190,4 +190,3 @@ export function NorthwingMaterialsPanel({
     </div>
   );
 }
-
