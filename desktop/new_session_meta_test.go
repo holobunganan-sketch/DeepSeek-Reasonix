@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"reasonix/internal/agent"
 	"reasonix/internal/control"
@@ -97,6 +98,81 @@ func TestEnsureWorkTabPersistsSessionIdentity(t *testing.T) {
 	}
 	if kind != agent.SessionKindWork || workID != "work-123" {
 		t.Fatalf("persisted identity = %q/%q", kind, workID)
+	}
+}
+
+func TestEnsureWorkTabRestoresExistingNativeWork(t *testing.T) {
+	isolateDesktopUserDirs(t)
+
+	root := t.TempDir()
+	app := NewApp()
+	first, err := app.EnsureWorkTab(root, "work-123")
+	if err != nil {
+		t.Fatalf("first EnsureWorkTab: %v", err)
+	}
+	second, err := app.EnsureWorkTab(root, "work-123")
+	if err != nil {
+		t.Fatalf("second EnsureWorkTab: %v", err)
+	}
+	if second.ID != first.ID {
+		t.Fatalf("EnsureWorkTab created %q, want existing Work tab %q", second.ID, first.ID)
+	}
+	if !second.Active || second.SessionKind != agent.SessionKindWork || second.WorkID != "work-123" {
+		t.Fatalf("restored Work tab = %+v, want active native work-123", second)
+	}
+}
+
+func TestEnsureWorkTabWaitsForStartupRestore(t *testing.T) {
+	isolateDesktopUserDirs(t)
+
+	root := t.TempDir()
+	app := NewApp()
+	first, err := app.EnsureWorkTab(root, "work-123")
+	if err != nil {
+		t.Fatalf("first EnsureWorkTab: %v", err)
+	}
+
+	app.mu.Lock()
+	app.tabsRestored = make(chan struct{})
+	restored := app.tabsRestored
+	app.mu.Unlock()
+
+	type result struct {
+		meta TabMeta
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		meta, err := app.EnsureWorkTab(root, "work-123")
+		done <- result{meta: meta, err: err}
+	}()
+
+	select {
+	case got := <-done:
+		t.Fatalf("EnsureWorkTab returned before restore gate: %+v", got)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(restored)
+
+	var got result
+	select {
+	case got = <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("EnsureWorkTab did not continue after restore gate opened")
+	}
+	if got.err != nil {
+		t.Fatalf("EnsureWorkTab after restore: %v", got.err)
+	}
+	if got.meta.ID != first.ID {
+		t.Fatalf("restored Work tab = %q, want %q", got.meta.ID, first.ID)
+	}
+}
+
+func TestEnsureWorkTabRejectsEmptyWorkspaceRoot(t *testing.T) {
+	isolateDesktopUserDirs(t)
+
+	if _, err := NewApp().EnsureWorkTab("  ", "work-123"); err == nil {
+		t.Fatal("EnsureWorkTab accepted an empty workspaceRoot")
 	}
 }
 

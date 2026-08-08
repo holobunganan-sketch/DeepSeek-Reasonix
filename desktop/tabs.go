@@ -2797,7 +2797,41 @@ func nativeSessionIdentityForTab(tab *WorkspaceTab) (agent.SessionKind, string) 
 // is started, so callers cannot begin a provider request against an unbound
 // session.
 func (a *App) EnsureWorkTab(workspaceRoot, workID string) (TabMeta, error) {
+	workID = strings.TrimSpace(workID)
+	if err := agent.ValidateSessionIdentity(agent.SessionKindWork, workID); err != nil {
+		return TabMeta{}, err
+	}
+	workspaceRoot = strings.TrimSpace(workspaceRoot)
+	if workspaceRoot == "" {
+		return TabMeta{}, fmt.Errorf("workspaceRoot is required")
+	}
+	abs, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		return TabMeta{}, fmt.Errorf("resolve workspaceRoot: %w", err)
+	}
+	workspaceRoot = abs
+
+	// Startup restores tabs asynchronously. Never inspect or create Work tabs
+	// against the temporary empty map or the restore pass can replace the tab
+	// selected by this navigation.
+	<-a.tabsRestoredSignal()
+
 	return a.withWorkbenchLocalNavigation(func() (TabMeta, error) {
+		a.mu.Lock()
+		for _, id := range a.orderedTabIDsLocked() {
+			tab := a.tabs[id]
+			kind, existingWorkID := nativeSessionIdentityForTab(tab)
+			if kind != agent.SessionKindWork || existingWorkID != workID || !sameProjectRoot(tab.WorkspaceRoot, workspaceRoot) {
+				continue
+			}
+			a.activeTabID = tab.ID
+			meta := a.tabMeta(tab, true)
+			a.saveTabsLocked()
+			a.mu.Unlock()
+			return enrichTabMeta(meta), nil
+		}
+		a.mu.Unlock()
+
 		meta, err := a.ensureBlankTab("project", workspaceRoot, boot.TokenModeDelivery, true)
 		if err != nil {
 			return TabMeta{}, err

@@ -11,7 +11,11 @@ import {
 
 function SessionWorkspaceMock({ destination }: { destination: NorthwingDestination }) {
   return (
-    <main data-testid="session-workspace" data-destination-kind={destination.kind}>
+    <main
+      data-testid="session-workspace"
+      data-destination-kind={destination.kind}
+      data-tab-id={destination.kind === "quick-chat" ? destination.tabId : undefined}
+    >
       <h1>Session Workspace</h1>
     </main>
   );
@@ -76,7 +80,7 @@ async function render(element: React.ReactElement) {
 console.log("\nNorthwing Shell");
 
 async function run() {
-  await render(<NorthwingShell initialDestination={{ kind: "home" }} gateway={createGateway()} />);
+  const homeRoot = await render(<NorthwingShell initialDestination={{ kind: "home" }} gateway={createGateway()} />);
   const main = document.querySelector('[role="main"]');
   equal(main?.getAttribute("data-northwing-page"), "home", "default route renders Home page");
   ok(document.querySelector('[aria-label="New Work"]'), "New Work button is visible");
@@ -90,6 +94,68 @@ async function run() {
 
   const quickChat = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes("Quick Chat"));
   ok(quickChat, "Quick Chat secondary entry exists");
+
+  await act(async () => {
+    homeRoot.unmount();
+    await flush();
+  });
+
+  (window as typeof window & { go?: { main?: { App?: unknown } } }).go = {
+    main: {
+      App: {
+        CoworkProjectState: async () => ({
+          exists: true,
+          project: {
+            version: 1,
+            id: "medical-strategy",
+            name: "Medical strategy",
+            createdAt: "2026-08-09T00:00:00Z",
+            updatedAt: "2026-08-09T00:00:00Z",
+            works: [{ id: "work-123", title: "Draft report", profile: "delivery" }],
+          },
+        }),
+        UpdateCoworkWorkProjection: async () => ({}),
+      },
+    },
+  };
+  const workRoot = await render(
+    <NorthwingShell
+      initialDestination={{ kind: "work", workspaceRoot: "/workspace/medical-strategy", workId: "work-123" }}
+      gateway={createGateway()}
+    />,
+  );
+  const workPage = document.querySelector('[data-northwing-page="work"]');
+  ok(workPage, "work destination renders the Northwing Work page");
+  equal(document.querySelector(".nw-work-header h1")?.textContent, "Draft report", "work destination renders the Work header");
+  ok(document.querySelector('[aria-label="Work plan"]'), "work destination renders the Work plan");
+  ok(document.querySelector('[aria-label="Work activity"]'), "work destination renders the Work activity");
+  ok(document.querySelector('[aria-label="Materials and artifacts"]'), "work destination renders materials and artifacts");
+  equal(
+    document.querySelector('[data-testid="session-workspace"]')?.getAttribute("data-destination-kind"),
+    "work",
+    "work page passes the work destination to its session adapter",
+  );
+
+  await act(async () => {
+    workRoot.unmount();
+    await flush();
+  });
+
+  const quickChatRoot = await render(
+    <NorthwingShell
+      initialDestination={{ kind: "quick-chat", tabId: "chat-tab-42" }}
+      gateway={createGateway()}
+    />,
+  );
+  equal(
+    document.querySelector('[data-testid="session-workspace"]')?.getAttribute("data-tab-id"),
+    "chat-tab-42",
+    "Quick Chat route preserves its existing tab id",
+  );
+  await act(async () => {
+    quickChatRoot.unmount();
+    await flush();
+  });
 
   if (failed) process.exit(1);
   console.log("Northwing Shell tests passed");

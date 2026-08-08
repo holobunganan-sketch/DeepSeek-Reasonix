@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { Suspense, useState, useCallback } from "react";
 import { ArrowRightLeft } from "lucide-react";
 import type { NorthwingDestination } from "../Navigation/routes";
 import { NorthwingConvertToWorkDialog } from "./NorthwingConvertToWorkDialog";
@@ -66,7 +66,9 @@ export function NorthwingQuickChat({
       </div>
       <div className="nw-quick-chat__session">
         {SessionWorkspace ? (
-          <SessionWorkspace destination={destination} />
+          <Suspense fallback={<p className="nw-quick-chat__placeholder" role="status">Preparing Quick Chat...</p>}>
+            <SessionWorkspace destination={destination} />
+          </Suspense>
         ) : (
           <p className="nw-quick-chat__placeholder">Start a quick chat to explore ideas or ask questions.</p>
         )}

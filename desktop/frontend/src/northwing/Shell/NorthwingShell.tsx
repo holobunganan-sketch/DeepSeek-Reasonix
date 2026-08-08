@@ -1,8 +1,8 @@
-import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import { NorthwingNavigation } from "../Navigation/NorthwingNavigation";
 import type { NorthwingDestination } from "../Navigation/routes";
-import { destinationPageName, isSessionDestination } from "../Navigation/routes";
+import { destinationPageName } from "../Navigation/routes";
 import { NorthwingHome } from "../Home/NorthwingHome";
 import type { NorthwingCatalog } from "../domain/catalog";
 import { normalizeNorthwingCatalog } from "../domain/catalog";
@@ -288,6 +288,7 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
     case "quick-chat":
       return (
         <NorthwingQuickChat
+          tabId={destination.tabId}
           SessionWorkspace={gateway?.SessionWorkspace ?? undefined}
           onNavigate={_navigate}
         />
@@ -310,8 +311,6 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
 
 export function NorthwingShell({ initialDestination = { kind: "home" }, gateway }: NorthwingShellProps) {
   const [destination, setDestination] = useState<NorthwingDestination>(initialDestination);
-  const SessionWorkspace = gateway?.SessionWorkspace;
-  const inSession = isSessionDestination(destination);
 
   useEffect(() => {
     setDestination(initialDestination);
@@ -336,17 +335,8 @@ export function NorthwingShell({ initialDestination = { kind: "home" }, gateway 
   }, [handleNavigate, gateway]);
 
   const pageContent = useMemo(() => {
-    if (inSession && SessionWorkspace) {
-      return (
-        <div className="northwing-shell__session" role="main" data-northwing-page={destinationPageName(destination)}>
-          <Suspense fallback={<PlaceholderPage title="Loading workspace">Starting session...</PlaceholderPage>}>
-            <SessionWorkspace destination={destination} />
-          </Suspense>
-        </div>
-      );
-    }
-  return <div className="northwing-shell__page">{renderProductPage(gateway, destination, handleNavigate)}</div>;
-  }, [destination, inSession, SessionWorkspace]);
+    return <div className="northwing-shell__page">{renderProductPage(gateway, destination, handleNavigate)}</div>;
+  }, [destination, gateway, handleNavigate]);
 
   return (
     <div className="northwing-shell">
