@@ -138,3 +138,29 @@ func TestSessionIdentityForkMetadataInheritsParent(t *testing.T) {
 		t.Fatalf("fork identity = %q/%q", kind, workID)
 	}
 }
+
+func TestSessionIdentityWriteFailsClosedOnUnreadableSidecar(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "session.jsonl")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	const corruptMeta = `{"session_kind":"work","work_id":"work-123"`
+	if err := os.WriteFile(BranchMetaPath(path), []byte(corruptMeta), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := SaveBranchMetaPreserveUpdated(path, BranchMeta{
+		SessionKind: SessionKindChat,
+		CustomTitle: "must not land",
+	})
+	if err == nil {
+		t.Fatal("SaveBranchMetaPreserveUpdated error = nil, want unreadable sidecar error")
+	}
+	got, readErr := os.ReadFile(BranchMetaPath(path))
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(got) != corruptMeta {
+		t.Fatalf("unreadable sidecar was overwritten: %q", got)
+	}
+}

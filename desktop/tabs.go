@@ -6110,7 +6110,7 @@ func (a *App) tabSessionRecoveryMeta(tab *WorkspaceTab) func(control.SessionReco
 		if scope == "global" {
 			workspaceRoot = ""
 		}
-		sessionKind := agent.SessionKindChat
+		var sessionKind agent.SessionKind
 		workID := ""
 		if kind, id, err := agent.LoadSessionIdentity(req.OriginalPath); err == nil {
 			sessionKind = kind

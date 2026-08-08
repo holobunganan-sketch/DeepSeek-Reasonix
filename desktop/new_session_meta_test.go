@@ -164,6 +164,27 @@ func TestNewSessionMetaResetsSessionIdentityToChat(t *testing.T) {
 	}
 }
 
+func TestRecoveryMetaOmitsSessionIdentityWhenParentUnreadable(t *testing.T) {
+	isolateDesktopUserDirs(t)
+
+	path := filepath.Join(t.TempDir(), "work.jsonl")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(agent.BranchMetaPath(path), []byte(`{"session_kind":"work"`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	app := NewApp()
+	meta := app.tabSessionRecoveryMeta(&WorkspaceTab{
+		Scope:         "project",
+		WorkspaceRoot: t.TempDir(),
+	})(control.SessionRecoveryRequest{OriginalPath: path})
+
+	if meta.SessionKind != "" || meta.WorkID != "" {
+		t.Fatalf("recovery identity on parent read failure = %q/%q, want omitted", meta.SessionKind, meta.WorkID)
+	}
+}
+
 func TestPinnedSessionMetaKeepsProjectBindingOutsideKnownDirectories(t *testing.T) {
 	isolateDesktopUserDirs(t)
 

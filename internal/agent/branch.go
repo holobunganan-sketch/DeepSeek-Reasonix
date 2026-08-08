@@ -199,11 +199,12 @@ func saveBranchMeta(sessionPath string, m BranchMeta, touchUpdated bool) error {
 	if touchUpdated || m.UpdatedAt.IsZero() {
 		m.UpdatedAt = now
 	}
-	existing, hasExisting, loadErr := LoadBranchMeta(sessionPath)
-	if loadErr == nil && hasExisting {
+	existing, hasExisting, loadErr := loadBranchMetaRetry(sessionPath)
+	if loadErr != nil {
+		return loadErr
+	}
+	if hasExisting {
 		preserveBranchMetaPersistence(&m, existing)
-	} else {
-		hasExisting = false
 	}
 	if err := prepareBranchMetaSessionIdentity(sessionPath, &m, existing, hasExisting); err != nil {
 		return err
