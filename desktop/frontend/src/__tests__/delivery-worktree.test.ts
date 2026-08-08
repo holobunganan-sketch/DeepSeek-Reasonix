@@ -93,7 +93,7 @@ ok(/deep:[\s\S]*"evidence_ledger"[\s\S]*"independent_review"[\s\S]*"requirement_
 ok(/todo_write/.test(workSpec) && /complete_step/.test(workSpec), "Harness compiles Delivery acceptance and sign-off requirements");
 ok(/project_only[\s\S]*project_plus_web[\s\S]*verified_web/.test(workSpec), "evidence policies compile explicit source boundaries");
 ok(/Kind[\s\S]*Quality[\s\S]*SourcePolicy[\s\S]*ModelRef[\s\S]*ReasoningEffort[\s\S]*HarnessVersion/.test(coworkProject), "Work reference persists compact model and Harness policy");
-ok(/CurrentHarnessVersion = 2/.test(coworkPolicy) && /NormalizeWorkPolicy/.test(coworkPolicy), "legacy Work policy normalizes to the current Harness contract");
+ok(/CurrentHarnessVersion = 3/.test(coworkPolicy) && /NormalizeWorkPolicy/.test(coworkPolicy), "legacy Work policy normalizes to the current Harness contract");
 
 console.log("\nNorthwing Office and Artifact center");
 ok(/Name\(\) string \{ return "northwing_office" \}/.test(officeTool), "Office pack exposes one stable tool schema");
