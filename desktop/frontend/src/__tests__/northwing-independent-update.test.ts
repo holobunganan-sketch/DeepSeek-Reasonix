@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 const dir = dirname(fileURLToPath(import.meta.url));
 const source = (path: string) => readFileSync(resolve(dir, path), "utf8");
 const updater = source("../../../northwing_updater.go");
+const releaseIdentity = source("../../../../internal/northwing/release_identity.go");
 const hook = source("../lib/useUpdater.ts");
 const bridge = source("../lib/northwingBridgeAugment.ts");
 const installer = source("../../../../scripts/windows/northwing-installer.nsi");
@@ -23,7 +24,16 @@ function ok(value: unknown, label: string) {
 }
 
 console.log("\nNorthwing independent update boundary");
-ok(/holobunganan-sketch\/DeepSeek-Reasonix\/releases/.test(updater), "runtime checks only the independent Northwing repository");
+ok(
+  /ReleaseRepository = "holobunganan-sketch\/DeepSeek-Reasonix"/.test(releaseIdentity) &&
+    /ReleasePageURL = "https:\/\/github\.com\/holobunganan-sketch\/DeepSeek-Reasonix\/releases"/.test(releaseIdentity) &&
+    /LatestReleaseAPIURL = "https:\/\/api\.github\.com\/repos\/holobunganan-sketch\/DeepSeek-Reasonix\/releases\/latest"/.test(releaseIdentity) &&
+    /northwing\.ReleaseRepository/.test(updater) &&
+    /northwing\.LatestReleaseAPIURL/.test(updater) &&
+    /northwing\.ReleasePageURL/.test(updater) &&
+    !/holobunganan-sketch\/DeepSeek-Reasonix\/releases/.test(updater),
+  "runtime uses the centralized independent Northwing release identity",
+);
 ok(!/esengine\/DeepSeek-Reasonix/.test(updater), "Northwing updater has no upstream Reasonix release endpoint");
 ok(/ApplyNorthwingUpdateRequest/.test(updater), "Northwing has a dedicated verified apply binding");
 ok(/ApplyNorthwingUpdateRequest/.test(hook) && !/app\.(?:CheckUpdate|ApplyUpdateRequest|OpenDownloadPage)\(/.test(hook), "frontend never hands a Northwing release to the inherited updater");
