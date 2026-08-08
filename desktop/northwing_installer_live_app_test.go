@@ -59,6 +59,7 @@ func TestNorthwingSilentUpdatePreservesLiveInstallation(t *testing.T) {
 	}
 
 	stopMarker := filepath.Join(t.TempDir(), "stop")
+	readyMarker := filepath.Join(t.TempDir(), "ready")
 	fixtureProfile := t.TempDir()
 	appData := filepath.Join(fixtureProfile, "AppData")
 	localAppData := filepath.Join(fixtureProfile, "LocalAppData")
@@ -68,13 +69,14 @@ func TestNorthwingSilentUpdatePreservesLiveInstallation(t *testing.T) {
 	if err := os.MkdirAll(localAppData, 0o700); err != nil {
 		t.Fatalf("create fixture LOCALAPPDATA: %v", err)
 	}
-	quotedMarker := strings.ReplaceAll(stopMarker, "'", "''")
+	quotedReadyMarker := strings.ReplaceAll(readyMarker, "'", "''")
+	quotedStopMarker := strings.ReplaceAll(stopMarker, "'", "''")
 	running := exec.Command(
 		installedExe,
 		"-NoProfile",
 		"-NonInteractive",
 		"-Command",
-		fmt.Sprintf("while (-not (Test-Path -LiteralPath '%s')) { Start-Sleep -Milliseconds 50 }", quotedMarker),
+		fmt.Sprintf("$null = New-Item -ItemType File -Path '%s' -Force; while (-not (Test-Path -LiteralPath '%s')) { Start-Sleep -Milliseconds 50 }", quotedReadyMarker, quotedStopMarker),
 	)
 	running.Env = append(
 		os.Environ(),
@@ -103,6 +105,7 @@ func TestNorthwingSilentUpdatePreservesLiveInstallation(t *testing.T) {
 		}
 	})
 	assertWindowsProcessImage(t, running.Process.Pid, "northwing.exe")
+	waitForNorthwingFixtureReady(t, readyMarker, runningExited)
 
 	replacementInstaller := buildNorthwingInstallerForTest(t, makensis, root, replacementSource, helperSource, "replacement")
 	update := exec.Command(replacementInstaller, "/S", "/NORTHWING_UPDATE=1", "/D="+installDir)
@@ -169,6 +172,25 @@ func stopNorthwingFixture(t *testing.T, running *exec.Cmd, exited <-chan error, 
 		}
 		t.Fatal("Northwing fixture did not exit after its voluntary exit request")
 	}
+}
+
+func waitForNorthwingFixtureReady(t *testing.T, readyMarker string, exited <-chan error) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(readyMarker); err == nil {
+			return
+		} else if !os.IsNotExist(err) {
+			t.Fatalf("check Northwing fixture readiness: %v", err)
+		}
+		select {
+		case err := <-exited:
+			t.Fatalf("Northwing fixture exited before readiness: %v", err)
+		default:
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("Northwing fixture did not reach its stop-marker loop within 15 seconds")
 }
 
 func assertWindowsProcessImage(t *testing.T, pid int, expected string) {
