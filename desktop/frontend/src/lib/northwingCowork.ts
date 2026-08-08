@@ -1,6 +1,8 @@
 import { app } from "./bridge";
 import { workbenchTargetToken } from "./goalSubmit";
 import type { FilePreview, TabMeta } from "./types";
+import type { NorthwingCatalog } from "../northwing/domain/catalog";
+import { normalizeNorthwingCatalog } from "../northwing/domain/catalog";
 import {
   compileWorkBrief,
   harnessStepsForQuality,
@@ -87,6 +89,7 @@ type CoworkBindings = {
   CreateCoworkProject?: (workspaceRoot: string, name: string) => Promise<CoworkProject>;
   CoworkProjectState?: (workspaceRoot: string, syncArtifacts: boolean) => Promise<CoworkProjectState>;
   CoworkProjectSummaries?: (workspaceRoots: string[]) => Promise<CoworkProjectSummary[]>;
+  NorthwingCatalog?: (workspaceRoots: string[]) => Promise<NorthwingCatalog>;
   UpsertCoworkWork?: (workspaceRoot: string, work: CoworkWorkRef) => Promise<CoworkProject>;
   UpdateCoworkWorkProgress?: (workspaceRoot: string, workID: string, stage: string, completedCriteria: number, totalCriteria: number) => Promise<CoworkProject>;
   SyncCoworkArtifacts?: (workspaceRoot: string) => Promise<CoworkProject>;
@@ -198,6 +201,10 @@ export async function readCoworkProjectSummaries(workspaceRoots: string[]): Prom
   const method = coworkApp.CoworkProjectSummaries;
   if (typeof method !== "function") return [];
   return method(workspaceRoots);
+}
+
+export async function readNorthwingCatalog(workspaceRoots: string[]): Promise<NorthwingCatalog> {
+  return normalizeNorthwingCatalog(await requiredBinding("NorthwingCatalog")(workspaceRoots));
 }
 
 export async function createCoworkProject(workspaceRoot: string, name: string): Promise<CoworkProject> {
