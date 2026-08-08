@@ -31,7 +31,7 @@ ok(
     /northwing\.ReleaseRepository/.test(updater) &&
     /northwing\.LatestReleaseAPIURL/.test(updater) &&
     /northwing\.ReleasePageURL/.test(updater) &&
-    !/holobunganan-sketch\/DeepSeek-Reasonix\/releases/.test(updater),
+    !/holobunganan-sketch\/DeepSeek-Reasonix/.test(updater),
   "runtime uses the centralized independent Northwing release identity",
 );
 ok(!/esengine\/DeepSeek-Reasonix/.test(updater), "Northwing updater has no upstream Reasonix release endpoint");
