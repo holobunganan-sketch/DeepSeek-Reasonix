@@ -1,11 +1,15 @@
 import { test } from "node:test";
 import { ok, strictEqual } from "node:assert";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   PRODUCT_NAME,
   PRODUCT_TAGLINE,
   PRODUCT_WINDOW_TITLE,
   PRODUCT_BRAND_TEXT,
 } from "../northwing/DesignSystem/productText";
+
+const testDir = dirname(fileURLToPath(import.meta.url));
 
 // -- Product identity constants --
 
@@ -80,8 +84,7 @@ test("brand: all Northwing components exist and are importable", async () => {
   for (const relPath of USER_VISIBLE_COMPONENT_PATHS) {
     // Just verify the files exist — they must be there for the E2E tests to work
     const fs = await import("node:fs/promises");
-    const path = await import("node:path");
-    const fullPath = path.resolve(__dirname, relPath);
+    const fullPath = resolve(testDir, relPath);
     try {
       await fs.access(fullPath);
       ok(true, relPath + " exists");
