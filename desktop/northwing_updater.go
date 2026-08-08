@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,10 +26,7 @@ import (
 )
 
 const (
-	northwingRepository        = northwing.ReleaseRepository
-	northwingLatestReleaseAPI  = northwing.LatestReleaseAPIURL
 	northwingReleasesPage      = northwing.ReleasePageURL
-	maxNorthwingReleaseJSON    = int64(1 << 20)
 	maxNorthwingChecksumSize   = int64(1 << 20)
 	maxNorthwingInstallerSize  = int64(1 << 30)
 	maxNorthwingManifestSize   = int64(1 << 20)
@@ -221,35 +217,6 @@ func newNorthwingHTTPClient(forceIPv4 bool) (*http.Client, error) {
 	return client, nil
 }
 
-func fetchNorthwingRelease(ctx context.Context, client *http.Client) (northwingGitHubRelease, error) {
-	var release northwingGitHubRelease
-	if client == nil {
-		return release, errors.New("northwing update: missing HTTP client")
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, northwingLatestReleaseAPI, nil)
-	if err != nil {
-		return release, err
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", fmt.Sprintf("Northwing-Updater/%s (%s/%s)", version, runtime.GOOS, runtime.GOARCH))
-	resp, err := client.Do(req)
-	if err != nil {
-		return release, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		return release, nil
-	}
-	if resp.StatusCode != http.StatusOK {
-		return release, fmt.Errorf("northwing release check returned HTTP %d", resp.StatusCode)
-	}
-	decoder := json.NewDecoder(io.LimitReader(resp.Body, maxNorthwingReleaseJSON+1))
-	if err := decoder.Decode(&release); err != nil {
-		return release, fmt.Errorf("decode Northwing release: %w", err)
-	}
-	return release, nil
-}
-
 func fetchNorthwingBounded(ctx context.Context, client *http.Client, rawURL string, limit int64) ([]byte, error) {
 	if client == nil {
 		return nil, errors.New("northwing update: missing HTTP client")
@@ -345,34 +312,6 @@ func rejectNorthwingManifestRollback(current string, manifest *NorthwingUpdateMa
 		return fmt.Errorf("northwing update: signed manifest rollback from %s to %s", current, candidate)
 	}
 	return nil
-}
-
-func fetchNorthwingAssetBytes(ctx context.Context, client *http.Client, asset northwingGitHubAsset, maxSize int64) ([]byte, error) {
-	if asset.Size <= 0 || asset.Size > maxSize {
-		return nil, fmt.Errorf("northwing update: invalid asset size %d for %s", asset.Size, asset.Name)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, asset.BrowserDownloadURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "application/octet-stream")
-	req.Header.Set("User-Agent", fmt.Sprintf("Northwing-Updater/%s", version))
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("northwing update: download %s returned HTTP %d", asset.Name, resp.StatusCode)
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxSize+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(data)) > maxSize || int64(len(data)) != asset.Size {
-		return nil, fmt.Errorf("northwing update: downloaded size %d does not match %d for %s", len(data), asset.Size, asset.Name)
-	}
-	return data, nil
 }
 
 func parseNorthwingChecksum(data []byte, filename string) (string, error) {

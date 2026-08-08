@@ -135,10 +135,7 @@ FunctionEnd
 
 Section "Uninstall"
   SetShellVarContext current
-  nsExec::ExecToStack 'taskkill /IM ${APP_EXE}'
-  Pop $R8
-  Pop $R9
-  Sleep 500
+  Call NorthwingAbortForRunningApp
   Delete "$SMPROGRAMS\Northwing\Northwing.lnk"
   Delete "$SMPROGRAMS\Northwing\Uninstall Northwing.lnk"
   RMDir "$SMPROGRAMS\Northwing"

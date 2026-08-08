@@ -1,239 +1,94 @@
 name: Northwing Release
+# UNSIGNED-TEST-ONLY artifacts are deliberately confined to northwing-ci.yml.
 
 on:
   push:
-    tags:
-      - "northwing-v*"
+    tags: ["northwing-v*"]
 
 permissions:
   contents: write
 
-concurrency:
-  group: northwing-release-${{ github.ref_name }}
-  cancel-in-progress: false
-
 jobs:
-  validate:
-    name: Validate release source
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Verify signing credential is available
-        shell: pwsh
-        run: |
-          $hasCred = $false
-          if ($env:SIGNPATH_API_TOKEN) { $hasCred = $true }
-          if ($env:AZURE_TRUSTED_SIGNING_CLIENT_SECRET) { $hasCred = $true }
-          if ($env:NORTHWING_SIGNING_CERTIFICATE) { $hasCred = $true }
-          if (-not $hasCred) {
-            Write-Host "No signing credential is configured."
-            Write-Host "  Set SIGNPATH_API_TOKEN, AZURE_TRUSTED_SIGNING_CLIENT_SECRET, or NORTHWING_SIGNING_CERTIFICATE."
-            Write-Host "  Formal release artifacts cannot be published without signing."
-            exit 1
-          }
-          Write-Host "Signing credential is available."
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: 1.26.5
-          cache-dependency-path: |
-            go.sum
-            desktop/go.sum
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: desktop/frontend/pnpm-lock.yaml
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Verify tag format
-        shell: bash
-        run: |
-          if [[ ! "${GITHUB_REF_NAME}" =~ ^northwing-v[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid Northwing release tag: ${GITHUB_REF_NAME}"
-            exit 1
-          fi
-
-      - name: Go tests
-        run: go test ./...
-
-      - name: Generate Office interoperability fixtures
-        env:
-          NORTHWING_OFFICE_FIXTURE_DIR: ${{ runner.temp }}/northwing-office
-        run: go test ./internal/office -run TestWriteExternalFixtures -count=1
-
-      - name: Verify Office interoperability
-        env:
-          NORTHWING_OFFICE_FIXTURE_DIR: ${{ runner.temp }}/northwing-office
-        run: |
-          python -m pip install --disable-pip-version-check --quiet \
-            python-docx==1.2.0 \
-            python-pptx==1.0.2 \
-            openpyxl==3.1.5 \
-            pypdf==5.9.0
-          python scripts/verify_northwing_office.py "$NORTHWING_OFFICE_FIXTURE_DIR"
-
-      - name: Install frontend
-        working-directory: desktop/frontend
-        run: pnpm install --frozen-lockfile
-
-      - name: Frontend validation
-        working-directory: desktop/frontend
-        run: |
-          pnpm typecheck
-          pnpm test
-          pnpm build
-
   windows:
-    name: Build and publish Windows release
+    name: Build and publish signed Northwing Windows release
     runs-on: windows-latest
-    needs: validate
+    environment: northwing-release
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version: 1.26.5
-          cache-dependency-path: |
-            go.sum
-            desktop/go.sum
-
       - uses: pnpm/action-setup@v4
         with:
           version: 10
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
-          cache-dependency-path: desktop/frontend/pnpm-lock.yaml
 
-      - name: Resolve release version
+      - name: Validate stable tag, product version, and ancestry
         id: version
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}" -replace '^northwing-v', ''
-          if (-not $version) { throw "Unable to parse version from ${{ github.ref_name }}" }
+          $tag = '${{ github.ref_name }}'
+          if ($tag -notmatch '^northwing-v(?<version>[0-9]+\.[0-9]+\.[0-9]+)$') { throw "Northwing release tag must be stable" }
+          $version = $Matches.version
+          $product = & ./scripts/resolve-northwing-product-version.ps1 -WailsConfig ./desktop/wails.json
+          if ($product -ne $version) { throw "tag version $version does not match product version $product" }
+          git fetch origin main-v2
+          git merge-base --is-ancestor $env:GITHUB_SHA origin/main-v2
+          if ($LASTEXITCODE -ne 0) { throw "tagged commit is not contained in origin/main-v2" }
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          "prerelease=$($version.Contains('-').ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Prepare and validate release credential
+        shell: pwsh
+        env:
+          NORTHWING_WINDOWS_RELEASE_CREDENTIAL: ${{ secrets.NORTHWING_WINDOWS_RELEASE_CREDENTIAL }}
+        run: ./scripts/sign-northwing-release.ps1 -PrepareCredential -RunnerTemp $env:RUNNER_TEMP
 
       - name: Install frontend
         working-directory: desktop/frontend
         run: pnpm install --frozen-lockfile
-
-      - name: Desktop tests
-        working-directory: desktop
-        run: go test ./...
-
-      - name: Generate Northwing icons
-        run: go run ./cmd/northwing-icon -root .
-
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
-
+      - name: Install Wails and NSIS
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+          ./scripts/install-nsis.ps1
       - name: Build Northwing Windows x64
         working-directory: desktop
         shell: pwsh
         run: |
-          $version = "${{ steps.version.outputs.version }}"
-          $channel = if ($version.Contains("-")) { "preview" } else { "stable" }
-          wails build -platform windows/amd64 -clean -ldflags "-X main.version=$version -X main.channel=$channel"
+          wails build -platform windows/amd64 -clean -ldflags "-X main.version=${{ steps.version.outputs.version }} -X main.channel=stable -X main.northwingManifestPublicKeySPKIBase64=$env:NORTHWING_MANIFEST_SPKI_BASE64"
 
-      - name: Verify unified Northwing CLI
+      - name: Sign and verify payload binaries
         shell: pwsh
-        timeout-minutes: 1
-        run: |
-          $expected = [regex]::Escape("northwing ${{ steps.version.outputs.version }}")
-          $stdout = Join-Path $env:RUNNER_TEMP "northwing-version.out"
-          $stderr = Join-Path $env:RUNNER_TEMP "northwing-version.err"
-          $process = Start-Process -FilePath .\desktop\build\bin\northwing.exe -ArgumentList version -PassThru `
-            -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-          try {
-            if (-not $process.WaitForExit(15000)) {
-              Stop-Process -Id $process.Id -Force
-              throw "northwing.exe version did not exit; the CLI path may have started the GUI"
-            }
-            $process.WaitForExit()
-            $output = @((Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue), (Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue))
-            if ($process.ExitCode -ne 0) { throw "northwing.exe version exited $($process.ExitCode)`n$($output -join "`n")" }
-            $text = $output -join "`n"
-            if ($text -notmatch $expected) { throw "unexpected CLI output: $text" }
-          } finally {
-            Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
-          }
-
-      - name: Install pinned NSIS
+        run: ./scripts/sign-northwing-release.ps1 -SignPayload -Version '${{ steps.version.outputs.version }}' -ArtifactDir desktop/build/bin
+      - name: Package signed Northwing artifacts
         shell: pwsh
-        run: pwsh -NoProfile -File scripts/install-nsis.ps1
-
-      - name: Package Northwing
+        run: ./scripts/package-northwing-windows.ps1 -Version '${{ steps.version.outputs.version }}'
+      - name: Sign and verify setup
         shell: pwsh
-        run: ./scripts/package-northwing-windows.ps1 -Version "${{ steps.version.outputs.version }}"
-
-      - name: Verify Windows installer and portable build
+        run: ./scripts/sign-northwing-release.ps1 -SignSetup -Version '${{ steps.version.outputs.version }}' -ArtifactDir dist
+      - name: Generate final checksums
         shell: pwsh
-        run: ./scripts/verify-northwing-windows.ps1 -Version "${{ steps.version.outputs.version }}"
-
-      - name: Create Northwing update manifest
+        run: ./scripts/package-northwing-windows.ps1 -Version '${{ steps.version.outputs.version }}' -FinalizeChecksums
+      - name: Sign and verify Northwing update manifest
         shell: pwsh
-        run: |
-          $version = "${{ steps.version.outputs.version }}"
-          $tag = "${{ github.ref_name }}"
-          $installerName = "Northwing-$version-windows-x64-setup.exe"
-          $checksumFile = "dist/Northwing-$version-SHA256SUMS.txt"
-          $checksumLine = Get-Content -LiteralPath $checksumFile | Where-Object { $_ -match [regex]::Escape($installerName) } | Select-Object -First 1
-          if (-not $checksumLine -or $checksumLine -notmatch '^(?<hash>[0-9a-f]{64})  ') { throw "Installer checksum is missing" }
-          $installerHash = $Matches.hash
-          $manifestSigPath = "dist/northwing-update.json.sig"
-          $hasSig = Test-Path -LiteralPath $manifestSigPath -PathType Leaf
-          $assetsWin = [ordered]@{
-            url = "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/download/$tag/$installerName"
-            sha256 = $installerHash
-          }
-          if ($hasSig) {
-            $sigBytes = Get-Content -LiteralPath $manifestSigPath -AsByteStream -Raw
-            $assetsWin.signature = [Convert]::ToBase64String($sigBytes)
-          }
-          $manifest = [ordered]@{
-            version = $version
-            channel = "stable"
-            publishedAt = [DateTime]::UtcNow.ToString("o")
-            releaseNotes = "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/tag/$tag"
-            assets = [ordered]@{
-              "windows-x64" = $assetsWin
-            }
-          }
-          $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath dist/northwing-update.json -Encoding utf8NoBOM
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Northwing-${{ steps.version.outputs.version }}-windows-x64
-          path: |
-            dist/Northwing-${{ steps.version.outputs.version }}-windows-x64-setup.exe
-            dist/Northwing-${{ steps.version.outputs.version }}-windows-x64-portable.zip
-            dist/Northwing-${{ steps.version.outputs.version }}-SHA256SUMS.txt
-            dist/northwing-update.json
-          if-no-files-found: error
-          retention-days: 30
-
+        run: ./scripts/sign-northwing-manifest.ps1 -Version '${{ steps.version.outputs.version }}' -ArtifactDir dist -Repository '${{ github.repository }}'
+      - name: Verify signed Windows release
+        shell: pwsh
+        run: ./scripts/verify-northwing-windows.ps1 -Version '${{ steps.version.outputs.version }}'
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Northwing ${{ steps.version.outputs.version }}
-          prerelease: ${{ fromJSON(steps.version.outputs.prerelease) }}
-          generate_release_notes: true
-          body_path: docs/NORTHWING_RELEASE_NOTES.md
           files: |
             dist/Northwing-${{ steps.version.outputs.version }}-windows-x64-setup.exe
             dist/Northwing-${{ steps.version.outputs.version }}-windows-x64-portable.zip
             dist/Northwing-${{ steps.version.outputs.version }}-SHA256SUMS.txt
             dist/northwing-update.json
+            dist/northwing-update.json.sig
+      - name: Remove release credential material
+        if: always()
+        shell: pwsh
+        run: ./scripts/sign-northwing-release.ps1 -CleanupCredential -RunnerTemp $env:RUNNER_TEMP

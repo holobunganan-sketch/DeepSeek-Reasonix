@@ -71,8 +71,8 @@ func HelperExeName() string {
 	return "northwing-update-helper.exe"
 }
 
-// SigningStatus reports whether Authenticode and manifest signing credentials
-// are available for a formal Northwing release.
+// SigningStatus reports whether the sole Northwing Windows release credential
+// is available for a formal release.
 type SigningStatus int
 
 const (
@@ -92,14 +92,8 @@ const (
 // In CI this is derived from environment variables. In local builds
 // it returns SigningMissing by default.
 func ReleaseSigningStatus() SigningStatus {
-	if token, ok := os.LookupEnv("SIGNPATH_API_TOKEN"); ok && token != "" {
-		return SigningService
-	}
-	if token, ok := os.LookupEnv("AZURE_TRUSTED_SIGNING_CLIENT_SECRET"); ok && token != "" {
-		return SigningService
-	}
-	certPath, ok := os.LookupEnv("NORTHWING_SIGNING_CERTIFICATE")
-	if !ok || certPath == "" {
+	credential, ok := os.LookupEnv("NORTHWING_WINDOWS_RELEASE_CREDENTIAL")
+	if !ok || credential == "" {
 		return SigningMissing
 	}
 	return SigningPresent
@@ -110,7 +104,7 @@ func ReleaseSigningStatus() SigningStatus {
 // instructions for what credentials are missing.
 func RequiresSigning() error {
 	if ReleaseSigningStatus() == SigningMissing {
-		return fmt.Errorf("Northwing formal release requires one of: SIGNPATH_API_TOKEN, AZURE_TRUSTED_SIGNING_CLIENT_SECRET, or NORTHWING_SIGNING_CERTIFICATE")
+		return fmt.Errorf("Northwing formal release requires NORTHWING_WINDOWS_RELEASE_CREDENTIAL")
 	}
 	return nil
 }

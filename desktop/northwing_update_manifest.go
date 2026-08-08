@@ -49,7 +49,6 @@ var northwingManifestPublicKeySPKIBase64 string
 var (
 	northwingSafeNameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+\-]*$`)
 	northwingGitHubHost = "github.com"
-	northwingGitHubCDN  = "objects.githubusercontent.com"
 )
 
 // VerifyNorthwingManifest verifies a detached SHA-256 RSA PKCS#1 v1.5
@@ -252,12 +251,6 @@ func validateNorthwingAsset(version string, a NorthwingUpdateAsset) error {
 		return fmt.Errorf("invalid SHA-256 %q", a.SHA256)
 	}
 	return nil
-}
-
-func isGitHubHost(host string) bool {
-	host = strings.ToLower(host)
-	return host == northwingGitHubHost || strings.HasSuffix(host, "."+northwingGitHubHost) ||
-		host == northwingGitHubCDN || strings.HasSuffix(host, "."+northwingGitHubCDN)
 }
 
 // LatestNorthwingManifestURL returns the public URL for the update manifest.

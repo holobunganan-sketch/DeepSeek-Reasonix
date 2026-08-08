@@ -2,7 +2,8 @@ param(
   [Parameter(Mandatory = $true)]
   [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$')]
   [string]$Version,
-  [string]$OutputDir = "dist"
+  [string]$OutputDir = "dist",
+  [switch]$AllowUnsignedTestArtifact
 )
 
 $ErrorActionPreference = "Stop"
@@ -83,6 +84,13 @@ function Assert-GuiStarts([string]$ExePath) {
       Stop-Process -Id $process.Id -Force
       $process.WaitForExit()
     }
+  }
+}
+
+if (-not $AllowUnsignedTestArtifact) {
+  foreach ($path in @($installer, (Join-Path $root "desktop\build\bin\northwing.exe"), (Join-Path $root "desktop\build\bin\northwing-update-helper.exe"))) {
+    $signature = Get-AuthenticodeSignature -LiteralPath $path
+    if ($signature.Status -ne "Valid") { throw "Formal Northwing verification requires a valid Authenticode signature: $path" }
   }
 }
 

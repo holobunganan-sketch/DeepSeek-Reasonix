@@ -34,43 +34,22 @@ func TestReleaseIdentityLatestReleaseAPI(t *testing.T) {
 	}
 }
 
-func TestReleaseRequiresSigningReturnsErrorWithoutCredentials(t *testing.T) {
-	t.Setenv("SIGNPATH_API_TOKEN", "")
-	t.Setenv("AZURE_TRUSTED_SIGNING_CLIENT_SECRET", "")
-	t.Setenv("NORTHWING_SIGNING_CERTIFICATE", "")
+func TestReleaseRequiresTheSingleNorthwingCredential(t *testing.T) {
+	t.Setenv("NORTHWING_WINDOWS_RELEASE_CREDENTIAL", "")
 	if err := RequiresSigning(); err == nil {
 		t.Fatal("RequiresSigning must return an error when no signing credential is configured")
 	}
 }
 
-func TestReleaseRequiresSigningReturnsNilWithSignPathToken(t *testing.T) {
-	t.Setenv("SIGNPATH_API_TOKEN", "test-token")
-	if err := RequiresSigning(); err != nil {
-		t.Fatalf("RequiresSigning must not return an error when SIGNPATH_API_TOKEN is set: %v", err)
-	}
-}
-
-func TestReleaseRequiresSigningReturnsNilWithAzureToken(t *testing.T) {
-	t.Setenv("SIGNPATH_API_TOKEN", "")
-	t.Setenv("AZURE_TRUSTED_SIGNING_CLIENT_SECRET", "azure-secret")
-	if err := RequiresSigning(); err != nil {
-		t.Fatalf("RequiresSigning must not return an error when AZURE_TRUSTED_SIGNING_CLIENT_SECRET is set: %v", err)
-	}
-}
-
-func TestReleaseRequiresSigningReturnsNilWithLocalCertificate(t *testing.T) {
-	t.Setenv("SIGNPATH_API_TOKEN", "")
-	t.Setenv("AZURE_TRUSTED_SIGNING_CLIENT_SECRET", "")
-	t.Setenv("NORTHWING_SIGNING_CERTIFICATE", "/path/to/cert.pfx")
+func TestReleaseRequiresSigningReturnsNilWithSingleCredential(t *testing.T) {
+	t.Setenv("NORTHWING_WINDOWS_RELEASE_CREDENTIAL", `{"pfxBase64":"AA==","password":"test"}`)
 	if err := RequiresSigning(); err != nil {
 		t.Fatalf("RequiresSigning must return nil when NORTHWING_SIGNING_CERTIFICATE is set: %v", err)
 	}
 }
 
 func TestReleaseSigningStatusDefaultsToMissing(t *testing.T) {
-	t.Setenv("SIGNPATH_API_TOKEN", "")
-	t.Setenv("AZURE_TRUSTED_SIGNING_CLIENT_SECRET", "")
-	t.Setenv("NORTHWING_SIGNING_CERTIFICATE", "")
+	t.Setenv("NORTHWING_WINDOWS_RELEASE_CREDENTIAL", "")
 	if status := ReleaseSigningStatus(); status != SigningMissing {
 		t.Fatalf("expected SigningMissing, got %d", status)
 	}

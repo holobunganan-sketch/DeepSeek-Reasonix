@@ -2,7 +2,9 @@ param(
   [Parameter(Mandatory = $true)]
   [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$')]
   [string]$Version,
-  [string]$OutputDir = "dist"
+  [string]$OutputDir = "dist",
+  [switch]$UnsignedTestArtifact,
+  [switch]$FinalizeChecksums
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,19 +13,38 @@ $desktop = Join-Path $root "desktop"
 $exe = Join-Path $desktop "build\bin\northwing.exe"
 $helper = Join-Path $desktop "build\bin\northwing-update-helper.exe"
 $out = Join-Path $root $OutputDir
+$portableZipFinal = Join-Path $out "Northwing-$Version-windows-x64-portable.zip"
+$installerFinal = Join-Path $out "Northwing-$Version-windows-x64-setup.exe"
+$checksumPath = Join-Path $out "Northwing-$Version-SHA256SUMS.txt"
+
+if ($FinalizeChecksums) {
+  foreach ($file in @($portableZipFinal, $installerFinal)) {
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Final checksum input is missing: $file" }
+  }
+  $lines = foreach ($file in @($portableZipFinal, $installerFinal)) {
+    "$((Get-FileHash -Algorithm SHA256 $file).Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($file))"
+  }
+  $lines | Set-Content -Encoding ascii $checksumPath
+  Write-Host "Created final checksums: $checksumPath"
+  exit 0
+}
 
 if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
   throw "Northwing executable not found: $exe. Run the Wails Windows build first."
 }
 
-Push-Location $root
-try {
-  go build -trimpath -ldflags "-s -w" -o $helper ./cmd/northwing-update-helper
-  if ($LASTEXITCODE -ne 0) {
-    throw "Northwing update helper build exited with code $LASTEXITCODE"
+if ($UnsignedTestArtifact) {
+  Push-Location $root
+  try {
+    go build -trimpath -ldflags "-s -w" -o $helper ./cmd/northwing-update-helper
+    if ($LASTEXITCODE -ne 0) { throw "Northwing update helper build exited with code $LASTEXITCODE" }
+  } finally { Pop-Location }
+} elseif (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
+  throw "Formal packaging requires the already signed helper: $helper"
+} else {
+  foreach ($payload in @($exe, $helper)) {
+    if ((Get-AuthenticodeSignature -LiteralPath $payload).Status -ne "Valid") { throw "Formal packaging requires signed payload: $payload" }
   }
-} finally {
-  Pop-Location
 }
 if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
   throw "Northwing update helper was not produced: $helper"
@@ -77,11 +98,12 @@ $installerTarget = Join-Path $out "Northwing-$Version-windows-x64-setup.exe"
 Move-Item -Force $installer $installerTarget
 
 $files = @($portableZip, $installerTarget)
-$checksumPath = Join-Path $out "Northwing-$Version-SHA256SUMS.txt"
-$lines = foreach ($file in $files) {
-  $hash = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLowerInvariant()
-  "$hash  $([IO.Path]::GetFileName($file))"
+if ($UnsignedTestArtifact -or $FinalizeChecksums) {
+  $lines = foreach ($file in $files) {
+    $hash = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLowerInvariant()
+    "$hash  $([IO.Path]::GetFileName($file))"
+  }
+  $lines | Set-Content -Encoding ascii $checksumPath
 }
-$lines | Set-Content -Encoding ascii $checksumPath
 Write-Host "Created:"
-$files + $checksumPath | ForEach-Object { Write-Host "  $_" }
+$files + $(if (Test-Path -LiteralPath $checksumPath) { $checksumPath }) | ForEach-Object { Write-Host "  $_" }
