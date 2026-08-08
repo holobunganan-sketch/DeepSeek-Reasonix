@@ -133,7 +133,9 @@ type Artifact struct {
 	Version   int       `json:"version"`
 	SHA256    string    `json:"sha256"`
 	Size      int64     `json:"size"`
-	CreatedAt time.Time `json:"createdAt"`
+	CreatedAt   time.Time `json:"createdAt"`
+	Validated   bool      `json:"validated"`
+	ValidatedAt time.Time `json:"validatedAt,omitempty"`
 }
 
 // Store serializes manifest changes inside one process and publishes each

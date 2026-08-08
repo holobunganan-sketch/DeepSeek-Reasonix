@@ -1,5 +1,6 @@
 import { app } from "../../lib/bridge";
 import { createCoworkWorkID } from "../../lib/northwingCowork";
+import { upsertCoworkWork } from "../../lib/northwingCowork";
 import { workbenchTargetToken } from "../../lib/goalSubmit";
 
 export type ConvertChatResult = {
@@ -26,8 +27,7 @@ export async function convertChatToWork(
   }
 
   // Persist a minimal Work contract.
-  const { UpsertCoworkWork } = await import("../../lib/northwingCowork");
-  await UpsertCoworkWork(workspaceRoot, {
+  await upsertCoworkWork(workspaceRoot, {
     id: workId,
     title: objective,
     sessionPath: tab.sessionPath ?? "",

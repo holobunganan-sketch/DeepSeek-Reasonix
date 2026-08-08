@@ -49,6 +49,7 @@ export type WorkSpecDraft = {
   deliverable?: string;
   constraints?: string;
   completionCriteria?: string;
+  acceptanceCriteria?: string[];
   pausePolicy?: string;
   modelRef?: string;
   reasoningEffort?: string;
@@ -232,6 +233,7 @@ export function normalizeWorkSpec(draft: WorkSpecDraft): NormalizedWorkSpec {
     "The latest version satisfies the goal, constraints, and source policy.",
     ...KIND_ACCEPTANCE[kind],
     ...userCriteria,
+    ...(draft.acceptanceCriteria ?? []),
   ].filter((item, index, items) => items.indexOf(item) === index);
 
   return {
@@ -255,7 +257,7 @@ export function normalizeWorkSpec(draft: WorkSpecDraft): NormalizedWorkSpec {
 }
 
 export function compileWorkBrief(workID: string, input: WorkSpecDraft | NormalizedWorkSpec): string {
-  const spec = "acceptanceCriteria" in input ? input : normalizeWorkSpec(input);
+  const spec = "harnessVersion" in input ? input : normalizeWorkSpec(input);
   const outputDir = workOutputDir(workID);
   const sections = ["# Northwing Work Contract"];
   sections.push(`\n## Goal\n${spec.objective}`);
@@ -315,7 +317,7 @@ export function compileWorkBrief(workID: string, input: WorkSpecDraft | Normaliz
 }
 
 export function workSpecSummary(input: WorkSpecDraft | NormalizedWorkSpec): string[] {
-  const spec = "acceptanceCriteria" in input ? input : normalizeWorkSpec(input);
+  const spec = "harnessVersion" in input ? input : normalizeWorkSpec(input);
   const model = spec.modelRef ? `Model: ${spec.modelRef}` : "Model: current/default Reasonix model";
   return [
     `${QUALITY_LABEL[spec.quality]} quality · ${spec.kind}`,

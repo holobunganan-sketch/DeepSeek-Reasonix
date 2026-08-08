@@ -1,5 +1,7 @@
 import { app } from "../../lib/bridge";
-import { createCoworkWorkID, compileWorkBrief, type CoworkWorkRef } from "../../lib/northwingCowork";
+import { createCoworkWorkID, type CoworkWorkRef } from "../../lib/northwingCowork";
+import { upsertCoworkWork } from "../../lib/northwingCowork";
+import { compileWorkBrief } from "../../lib/northwingWorkSpec";
 import {
   normalizeWorkSpec,
   harnessStepsForQuality,
@@ -8,7 +10,6 @@ import {
 } from "../../lib/northwingWorkSpec";
 import { workbenchTargetToken } from "../../lib/goalSubmit";
 import type { TabMeta } from "../../lib/types";
-import type { WorkKind, WorkQuality, SourcePolicy } from "../../lib/northwingWorkSpec";
 import type { NewWorkFormState } from "./NorthwingNewWork";
 
 export type { NewWorkFormState as NewWorkFormData };
@@ -42,7 +43,7 @@ export async function launchNewWork(
     sourcePolicy: form.sourcePolicy,
     materials: form.materials,
     audience: form.audience,
-    constraints: form.constraints ? [form.constraints] : [],
+    constraints: form.constraints,
     acceptanceCriteria: form.acceptanceCriteria,
     pausePolicy: form.pausePolicy,
     modelRef,
@@ -82,8 +83,7 @@ export async function launchNewWork(
   };
 
   // Persist the Work to the project.
-  const { UpsertCoworkWork } = await import("../../lib/northwingCowork");
-  await UpsertCoworkWork(workspaceRoot, work);
+  await upsertCoworkWork(workspaceRoot, work);
 
   // Submit the initial goal to Reasonix.
   const target = await localTargetToken();

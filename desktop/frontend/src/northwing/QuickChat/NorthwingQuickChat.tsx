@@ -30,7 +30,7 @@ export function NorthwingQuickChat({
       setConverting(true);
       setError(undefined);
       try {
-        const { default: convertChatToWork } = await import("./convertChatToWork");
+        const { convertChatToWork } = await import("./convertChatToWork");
         const result = await convertChatToWork(
           workspaceRoot ?? "",
           objective,

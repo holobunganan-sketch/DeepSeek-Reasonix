@@ -13,6 +13,8 @@ import {
   type WorkSpecDraft,
 } from "./northwingWorkSpec";
 
+export { compileWorkBrief } from "./northwingWorkSpec";
+
 export type CoworkWorkRef = {
   id: string;
   title: string;
@@ -119,6 +121,10 @@ function requiredBinding<K extends keyof CoworkBindings>(name: K): NonNullable<C
 function basename(path: string): string {
   const parts = path.replace(/\\/g, "/").split("/").filter(Boolean);
   return parts[parts.length - 1] ?? path;
+}
+
+export async function upsertCoworkWork(workspaceRoot: string, work: CoworkWorkRef): Promise<CoworkProject> {
+  return requiredBinding("UpsertCoworkWork")(workspaceRoot, work);
 }
 
 export function createCoworkWorkID(): string {

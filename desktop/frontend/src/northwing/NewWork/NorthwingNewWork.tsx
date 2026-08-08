@@ -2,7 +2,6 @@ import { useState, useCallback } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { WorkKind, WorkQuality, SourcePolicy } from "../../lib/northwingWorkSpec";
 import { WORK_KINDS, WORK_QUALITIES, SOURCE_POLICIES } from "../../lib/northwingWorkSpec";
-import type { NorthwingDestination } from "../Navigation/routes";
 import "./NorthwingNewWork.css";
 
 export type NewWorkFormState = {
