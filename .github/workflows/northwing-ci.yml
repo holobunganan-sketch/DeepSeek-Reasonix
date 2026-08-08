@@ -217,6 +217,17 @@ jobs:
           cache: pnpm
           cache-dependency-path: desktop/frontend/pnpm-lock.yaml
 
+      - name: Test Northwing product version resolver
+        shell: pwsh
+        run: ./scripts/test-resolve-northwing-product-version.ps1
+
+      - name: Resolve Northwing product version
+        id: product_version
+        shell: pwsh
+        run: |
+          $version = & ./scripts/resolve-northwing-product-version.ps1 -WailsConfig ./desktop/wails.json
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Install frontend
         working-directory: desktop/frontend
         run: pnpm install --frozen-lockfile
@@ -237,7 +248,7 @@ jobs:
 
       - name: Build Northwing Windows x64
         working-directory: desktop
-        run: wails build -platform windows/amd64 -clean -ldflags "-X main.version=0.2.0 -X main.channel=stable"
+        run: wails build -platform windows/amd64 -clean -ldflags "-X main.version=${{ steps.product_version.outputs.version }} -X main.channel=stable"
 
       - name: Verify unified Northwing CLI
         shell: pwsh
@@ -256,25 +267,26 @@ jobs:
             $output = @((Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue), (Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue))
             if ($process.ExitCode -ne 0) { throw "northwing.exe version exited $($process.ExitCode)`n$($output -join "`n")" }
             $text = $output -join "`n"
-            if ($text -notmatch "northwing 0\.2\.0") { throw "unexpected CLI output: $text" }
+            $expected = [regex]::Escape("northwing ${{ steps.product_version.outputs.version }}")
+            if ($text -notmatch $expected) { throw "unexpected CLI output: $text" }
           } finally {
             Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
           }
 
       - name: Package installer and portable build
         shell: pwsh
-        run: ./scripts/package-northwing-windows.ps1 -Version 0.2.0
+        run: ./scripts/package-northwing-windows.ps1 -Version ${{ steps.product_version.outputs.version }}
 
       - name: Verify Windows installer and portable build
         shell: pwsh
-        run: ./scripts/verify-northwing-windows.ps1 -Version 0.2.0
+        run: ./scripts/verify-northwing-windows.ps1 -Version ${{ steps.product_version.outputs.version }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Northwing-0.2.0-windows-x64
+          name: Northwing-${{ steps.product_version.outputs.version }}-windows-x64
           path: |
-            dist/Northwing-0.2.0-windows-x64-setup.exe
-            dist/Northwing-0.2.0-windows-x64-portable.zip
-            dist/Northwing-0.2.0-SHA256SUMS.txt
+            dist/Northwing-${{ steps.product_version.outputs.version }}-windows-x64-setup.exe
+            dist/Northwing-${{ steps.product_version.outputs.version }}-windows-x64-portable.zip
+            dist/Northwing-${{ steps.product_version.outputs.version }}-SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
