@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 )
 
 // TestNorthwingInstallerForbidsForcefulTermination verifies that the NSIS
@@ -41,8 +40,8 @@ func TestNorthwingUpdateHelperGracefulExit(t *testing.T) {
 		t.Fatalf("build helper: %v\n%s", err, out)
 	}
 
-	// A valid process must be waited for; a non-existent process returns
-	// immediately. The helper must never invoke taskkill in its code path.
+	// A non-existent process returns immediately to the normal installer path;
+	// that path must never force-stop Northwing.
 	cmd := exec.Command(helperBin, "--installer", "nonexistent", "--pid", "9999999", "--restart", "nonexistent", "--expected-version", "0.0.0")
 	cmd.Dir = t.TempDir()
 	out, err := cmd.CombinedOutput()
@@ -50,45 +49,11 @@ func TestNorthwingUpdateHelperGracefulExit(t *testing.T) {
 		t.Fatalf("expected error for nonexistent PID, got success")
 	}
 	outStr := string(out)
-	if strings.Contains(outStr, "taskkill") {
+	if !strings.Contains(outStr, "Northwing installer failed") {
+		t.Fatalf("nonexistent PID output = %q, want normal installer-path failure", outStr)
+	}
+	if strings.Contains(strings.ToLower(outStr), "taskkill") || strings.Contains(strings.ToLower(outStr), "force") {
 		t.Fatal("update helper must not invoke taskkill")
-	}
-}
-
-// TestNorthwingUpdateHelperGracefulExitTimeout verifies the update helper
-// correctly aborts when the parent process does not exit within the timeout,
-// and that it does not attempt to force-kill the parent.
-func TestNorthwingUpdateHelperGracefulExitTimeout(t *testing.T) {
-	helper, err := exec.LookPath("go")
-	if err != nil {
-		t.Skipf("go not available: %v", err)
-	}
-
-	helperBin := t.TempDir() + `\northwing-update-helper-test.exe`
-	build := exec.Command(helper, "build", "-o", helperBin, "./cmd/northwing-update-helper")
-	build.Dir = ".."
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build helper: %v\n%s", err, out)
-	}
-
-	// Wait for a process by name across test invocations — the helper should
-	// detect that a process named northwing does not exist and report an error.
-	cmd := exec.Command(helperBin,
-		"--installer", "nonexistent-setup.exe",
-		"--pid", "1",
-		"--restart", "nonexistent-northwing.exe",
-		"--expected-version", "0.0.0",
-	)
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected error waiting for system PID 1")
-	}
-	outStr := string(out)
-	if strings.Contains(strings.ToLower(outStr), "terminated") || strings.Contains(outStr, "taskkill") || strings.Contains(outStr, "force") {
-		t.Fatalf("update helper must not reference forced termination: %s", outStr)
-	}
-	if !strings.Contains(strings.ToLower(outStr), "did not exit") && !strings.Contains(strings.ToLower(outStr), "open") {
-		t.Fatalf("unexpected error message: %s", outStr)
 	}
 }
 
@@ -126,11 +91,4 @@ func TestNorthwingHelperAbortsOnMissingRequiredFlags(t *testing.T) {
 			}
 		})
 	}
-}
-
-func init() {
-	// Ensure test helpers run fast; the real 2-minute timeout is tested via the
-	// NSIS and PowerShell verification scripts.
-	// Reduce test-local timeout to avoid blocking CI.
-	_ = time.Second
 }

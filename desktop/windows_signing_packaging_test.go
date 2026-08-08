@@ -272,12 +272,8 @@ func TestProductionSigningRunsOnlyFromProtectedControlPlane(t *testing.T) {
 
 func TestSignPathConfigurationsCoverExactWindowsPayload(t *testing.T) {
 	expected := map[string]bool{
-		"reasonix-desktop.exe":       true,
-		"reasonix-guard.exe":         true,
-		"reasonix-launcher.exe":      true,
-		"reasonix-update-helper.exe": true,
-		"reasonix-cli.exe":           true,
-		"reasonix-uninstall.exe":     true,
+		"northwing.exe":               true,
+		"northwing-update-helper.exe": true,
 	}
 
 	payload := parseSignPathConfiguration(t, "windows-payload.xml")

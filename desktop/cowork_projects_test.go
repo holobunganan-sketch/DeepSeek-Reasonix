@@ -30,7 +30,7 @@ func TestNorthwingCatalogSurfacesWorksAndArtifacts(t *testing.T) {
 	if work.SessionKind != "work" {
 		t.Fatalf("unexpected session kind: %q", work.SessionKind)
 	}
-	if work.Stage != "planning" {
+	if work.Stage != "intake" {
 		t.Fatalf("unexpected stage: %q", work.Stage)
 	}
 

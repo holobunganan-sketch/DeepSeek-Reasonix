@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ type tabScopedActionController struct {
 	forkCalls         int
 	summarizeFrom     int
 	summarizeUpTo     int
+	sessionPath       string
 }
 
 func newTabScopedActionController() *tabScopedActionController {
@@ -44,9 +46,14 @@ func (c *tabScopedActionController) History() []provider.Message {
 	return append([]provider.Message(nil), c.history...)
 }
 func (c *tabScopedActionController) WorkspaceRoot() string { return "" }
-func (c *tabScopedActionController) SessionDir() string    { return "" }
-func (c *tabScopedActionController) SessionPath() string   { return "" }
-func (c *tabScopedActionController) Snapshot() error       { return nil }
+func (c *tabScopedActionController) SessionDir() string {
+	if c.sessionPath == "" {
+		return ""
+	}
+	return filepath.Dir(c.sessionPath)
+}
+func (c *tabScopedActionController) SessionPath() string { return c.sessionPath }
+func (c *tabScopedActionController) Snapshot() error     { return nil }
 func (c *tabScopedActionController) SetDisplayRecorder(func(content, display string)) {
 }
 func (c *tabScopedActionController) NewSession() error {
@@ -97,6 +104,10 @@ func TestTabScopedSessionActionsIgnoreFocusedTab(t *testing.T) {
 	isolateDesktopUserDirs(t)
 	targetCtrl := newTabScopedActionController()
 	focusedCtrl := newTabScopedActionController()
+	targetCtrl.sessionPath = filepath.Join(t.TempDir(), "target.jsonl")
+	if err := os.WriteFile(targetCtrl.sessionPath, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	app := &App{
 		tabs: map[string]*WorkspaceTab{
 			"target":  {ID: "target", Scope: "global", Ready: true, Ctrl: targetCtrl, disabledMCP: map[string]ServerView{}},
@@ -105,6 +116,7 @@ func TestTabScopedSessionActionsIgnoreFocusedTab(t *testing.T) {
 		tabOrder:    []string{"target", "focused"},
 		activeTabID: "focused",
 	}
+	t.Cleanup(app.tabs["target"].releaseSessionLease)
 
 	if err := app.NewSessionForTab("target"); err != nil {
 		t.Fatalf("NewSessionForTab: %v", err)
