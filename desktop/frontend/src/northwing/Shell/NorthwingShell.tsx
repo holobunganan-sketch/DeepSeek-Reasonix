@@ -13,6 +13,7 @@ import { NorthwingWorkView } from "../Work/NorthwingWorkView";
 import { NorthwingNewWork } from "../NewWork/NorthwingNewWork";
 import { NorthwingQuickChat } from "../QuickChat/NorthwingQuickChat";
 import { launchNewWork } from "../NewWork/newWorkController";
+import { NorthwingArtifacts } from "../Artifacts/NorthwingArtifacts";
 
 export type { NorthwingDestination } from "../Navigation/routes";
 
@@ -25,7 +26,7 @@ export type NorthwingShellGateway = {
   onNavigate?: (destination: NorthwingDestination) => void;
 };
 const NorthwingGatewayContext = createContext<NorthwingShellGateway | undefined>(undefined);
-const NorthwingNavigateContext = createContext<(destination: NorthwingDestination) => void>(() => {});
+export const NorthwingNavigateContext = createContext<(destination: NorthwingDestination) => void>(() => {});
 
 export type NorthwingShellProps = {
   initialDestination?: NorthwingDestination;
@@ -211,13 +212,35 @@ function NorthwingProjectDetailPage({ workspaceRoot }: { workspaceRoot: string }
 }
 
 function NorthwingArtifactsPage() {
+  const { catalog, loading, error } = useShellCatalog();
+  if (loading || error) {
+    return (
+      <main role="main" data-northwing-page="artifacts" className="nw-page">
+        <h1 className="nw-page__title">Artifacts</h1>
+        <p className="nw-page__subtitle">{loading ? "Loading artifacts..." : error}</p>
+      </main>
+    );
+  }
+  const artifacts = catalog.recentArtifacts.map((a) => ({
+    id: a.id,
+    path: a.path,
+    kind: a.kind,
+    workId: a.workId,
+    version: a.version,
+    final: a.final,
+    projectId: a.projectId,
+    workspace: a.workspace,
+    createdAt: a.createdAt,
+  }));
   return (
-    <main role="main" data-northwing-page="artifacts" className="nw-page">
-      <h1 className="nw-page__title">Artifacts</h1>
-      <div className="nw-card">
-        <p>Global artifacts will appear here.</p>
-      </div>
-    </main>
+    <NorthwingArtifacts
+      artifacts={artifacts}
+      loading={false}
+      onPreview={undefined}
+      onOpen={undefined}
+      onReveal={undefined}
+      onMarkFinal={undefined}
+    />
   );
 }
 
@@ -265,7 +288,7 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
     case "quick-chat":
       return (
         <NorthwingQuickChat
-          SessionWorkspace={gw?.SessionWorkspace}
+          SessionWorkspace={gateway?.SessionWorkspace ?? undefined}
           onNavigate={_navigate}
         />
       );
