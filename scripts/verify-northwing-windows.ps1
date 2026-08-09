@@ -4,6 +4,8 @@ param(
   [string]$Version,
   [string]$OutputDir = "dist",
   [string]$Repository,
+  [string]$ExpectedSignerSPKIBase64,
+  [string]$SignToolPath,
   [switch]$AllowUnsignedTestArtifact
 )
 
@@ -90,13 +92,19 @@ function Assert-GuiStarts([string]$ExePath) {
   }
 }
 
-function Assert-NorthwingAuthenticodeFile([string]$Path, [string]$SignTool) {
+function Assert-NorthwingAuthenticodeFile([string]$Path, [string]$SignTool, [byte[]]$ExpectedSPKI) {
   $signature = Get-AuthenticodeSignature -LiteralPath $Path
   if ($signature.Status -ne "Valid") { throw "Formal Northwing verification requires a valid Authenticode signature: $Path" }
   if ($null -eq $signature.SignerCertificate) { throw "Formal Northwing verification requires a signer certificate: $Path" }
   $codeSigning = @($signature.SignerCertificate.EnhancedKeyUsageList | Where-Object { $_.ObjectId.Value -eq '1.3.6.1.5.5.7.3.3' })
   if ($codeSigning.Count -eq 0) { throw "Formal Northwing verification requires a Code Signing signer certificate: $Path" }
   if ($null -eq $signature.TimeStamperCertificate) { throw "Formal Northwing verification requires an RFC3161 timestamp: $Path" }
+  $publicKey = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($signature.SignerCertificate)
+  if ($null -eq $publicKey) { throw "Formal Northwing verification requires an RSA signer certificate: $Path" }
+  try { $actualSPKI = $publicKey.ExportSubjectPublicKeyInfo() } finally { $publicKey.Dispose() }
+  if ($actualSPKI.Length -ne $ExpectedSPKI.Length -or -not [System.Security.Cryptography.CryptographicOperations]::FixedTimeEquals($actualSPKI, $ExpectedSPKI)) {
+    throw "Formal Northwing signer does not match the release trust root: $Path"
+  }
   & $SignTool verify /pa /all $Path
   if ($LASTEXITCODE -ne 0) { throw "signtool verify failed: $Path" }
 }
@@ -106,13 +114,19 @@ if ($AllowUnsignedTestArtifact) {
   Write-Warning "UNSIGNED-TEST-ONLY: Authenticode, timestamp, and manifest signature validation are intentionally skipped."
 } else {
   if ([string]::IsNullOrWhiteSpace($Repository)) { throw 'Repository is required for formal Northwing verification' }
+  if ([string]::IsNullOrWhiteSpace($ExpectedSignerSPKIBase64)) { throw 'ExpectedSignerSPKIBase64 is required for formal Northwing verification' }
+  try { $expectedSignerSPKI = [Convert]::FromBase64String($ExpectedSignerSPKIBase64) } catch { throw 'ExpectedSignerSPKIBase64 is not valid base64' }
   foreach ($path in @($manifestPath, $manifestSignaturePath)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Required signed update artifact is missing: $path" }
   }
-  $signtool = & (Join-Path $PSScriptRoot 'sign-northwing-release.ps1') -ResolveSignTool
+  $signtool = if ([string]::IsNullOrWhiteSpace($SignToolPath)) {
+    & (Join-Path $PSScriptRoot 'sign-northwing-release.ps1') -ResolveSignTool -RequireWindowsKits
+  } else {
+    & (Join-Path $PSScriptRoot 'sign-northwing-release.ps1') -ResolveSignTool -SignToolPath $SignToolPath
+  }
   if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($signtool)) { throw 'signtool.exe is required for formal Northwing verification' }
-  Assert-NorthwingAuthenticodeFile $installer $signtool
-  & (Join-Path $PSScriptRoot 'verify-northwing-release-signatures.ps1') -Version $Version -ArtifactDir $out -Repository $Repository
+  Assert-NorthwingAuthenticodeFile $installer $signtool $expectedSignerSPKI
+  & (Join-Path $PSScriptRoot 'verify-northwing-release-signatures.ps1') -Version $Version -ArtifactDir $out -Repository $Repository -ExpectedSPKIBase64 $ExpectedSignerSPKIBase64
   if ($LASTEXITCODE -ne 0) { throw 'independent Northwing manifest verification failed' }
 }
 
@@ -175,8 +189,8 @@ try {
     throw "Portable Northwing update helper is missing: $portableHelper"
   }
   if (-not $AllowUnsignedTestArtifact) {
-    Assert-NorthwingAuthenticodeFile $portableExe $signtool
-    Assert-NorthwingAuthenticodeFile $portableHelper $signtool
+    Assert-NorthwingAuthenticodeFile $portableExe $signtool $expectedSignerSPKI
+    Assert-NorthwingAuthenticodeFile $portableHelper $signtool $expectedSignerSPKI
   }
   Assert-NorthwingVersion $portableExe
   Assert-GuiStarts $portableExe

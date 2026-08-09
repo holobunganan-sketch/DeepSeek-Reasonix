@@ -2,7 +2,8 @@
 param(
   [Parameter(Mandatory = $true)][ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+$')][string]$Version,
   [Parameter(Mandatory = $true)][string]$ArtifactDir,
-  [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')][string]$Repository
+  [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')][string]$Repository,
+  [Parameter(Mandatory = $true)][string]$ExpectedSPKIBase64
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,9 +16,6 @@ function Assert-ExactProperties {
   if (($actual -join "`n") -ne ($expected -join "`n")) { throw "$Context has unexpected or missing fields" }
 }
 
-if (-not (Test-Path -LiteralPath $env:NORTHWING_RELEASE_PFX -PathType Leaf)) { throw 'prepared release PFX is unavailable' }
-if ($null -eq $env:NORTHWING_RELEASE_PFX_PASSWORD) { throw 'prepared release PFX password is unavailable' }
-
 $manifestPath = Join-Path $ArtifactDir 'northwing-update.json'
 $signaturePath = Join-Path $ArtifactDir 'northwing-update.json.sig'
 if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf) -or -not (Test-Path -LiteralPath $signaturePath -PathType Leaf)) { throw 'manifest and detached signature are required' }
@@ -26,22 +24,16 @@ $signature = [IO.File]::ReadAllBytes($signaturePath)
 if ($raw.Length -eq 0) { throw 'manifest is empty' }
 if ($signature.Length -eq 0) { throw 'manifest signature is empty' }
 
-try {
-  $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
-    $env:NORTHWING_RELEASE_PFX,
-    $env:NORTHWING_RELEASE_PFX_PASSWORD
-  )
-} catch {
-  throw 'prepared release PFX could not be opened'
-}
 $publicKey = $null
 try {
-  $publicKey = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
-  if ($null -eq $publicKey -or $publicKey.KeySize -lt 2048) { throw 'release credential requires RSA public key' }
+  try { $spki = [Convert]::FromBase64String($ExpectedSPKIBase64) } catch { throw 'expected release SPKI is not valid base64' }
+  $publicKey = [System.Security.Cryptography.RSA]::Create()
+  $bytesRead = 0
+  $publicKey.ImportSubjectPublicKeyInfo($spki, [ref]$bytesRead)
+  if ($bytesRead -ne $spki.Length -or $publicKey.KeySize -lt 2048) { throw 'expected release SPKI requires a complete RSA public key of at least 2048 bits' }
   if (-not $publicKey.VerifyData($raw, $signature, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)) { throw 'manifest signature verification failed' }
 } finally {
   if ($publicKey) { $publicKey.Dispose() }
-  $cert.Dispose()
 }
 
 try { $manifest = [Text.Encoding]::UTF8.GetString($raw) | ConvertFrom-Json -ErrorAction Stop } catch { throw 'manifest JSON is invalid' }

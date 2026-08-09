@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -19,13 +20,48 @@ func TestNorthwingReleaseWorkflowFailsClosedWithOneCredentialAndOrderedGates(t *
 		"environment: northwing-release",
 		"secrets.NORTHWING_WINDOWS_RELEASE_CREDENTIAL",
 		"origin/main-v2",
-		"github.repository",
+		"NORTHWING_RELEASE_TAG: ${{ github.ref_name }}",
+		"$tag = $env:NORTHWING_RELEASE_TAG",
+		"NORTHWING_RELEASE_REPOSITORY: ${{ github.repository }}",
 		"main.northwingManifestPublicKeySPKIBase64",
 		"northwing-update.json.sig",
-		"UNSIGNED-TEST-ONLY",
+		"persist-credentials: false",
+		"resolve-northwing-release-version.ps1",
+		"assert-northwing-release-checkout-clean.ps1",
+		"validate:",
+		"key_metadata:",
+		"build:",
+		"sign:",
+		"acceptance:",
+		"publish:",
 	} {
 		if !strings.Contains(source, want) {
 			t.Fatalf("release contract missing %q", want)
+		}
+	}
+	if strings.Contains(source, "$tag = '${{ github.ref_name }}'") {
+		t.Fatal("release workflow interpolates attacker-controlled tag data into PowerShell source")
+	}
+	if strings.Count(source, "secrets.NORTHWING_WINDOWS_RELEASE_CREDENTIAL") != 3 {
+		t.Fatal("the one signing secret must be scoped only to public-key extraction and the two required signing phases")
+	}
+	if strings.Count(source, "contents: write") != 1 {
+		t.Fatal("only the credential-free publish job may have contents: write")
+	}
+	if regexp.MustCompile(`uses:\s+[^\s]+@v[0-9]`).MatchString(source) {
+		t.Fatal("release workflow actions must be pinned to full commit SHAs")
+	}
+	for _, pinned := range []string{
+		"actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+		"actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff",
+		"pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1",
+		"actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+		"actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+		"actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+		"softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65",
+	} {
+		if !strings.Contains(source, pinned) {
+			t.Fatalf("release workflow missing pinned action %q", pinned)
 		}
 	}
 	for _, forbidden := range []string{"SIGNPATH_API_TOKEN", "AZURE_TRUSTED_SIGNING", "NORTHWING_SIGNING_CERTIFICATE"} {
@@ -35,7 +71,6 @@ func TestNorthwingReleaseWorkflowFailsClosedWithOneCredentialAndOrderedGates(t *
 	}
 	steps := []string{
 		"Validate stable tag, product version, and ancestry",
-		"Prepare and validate release credential",
 		"Test root Go",
 		"Install frontend",
 		"Typecheck frontend",
@@ -44,14 +79,15 @@ func TestNorthwingReleaseWorkflowFailsClosedWithOneCredentialAndOrderedGates(t *
 		"Install Playwright Chromium",
 		"Run Northwing browser E2E",
 		"Test desktop Go",
+		"Extract signing public key",
+		"Verify clean build checkout",
 		"Build Northwing Windows x64",
 		"Build Northwing update helper",
-		"Sign and verify payload binaries",
-		"Package signed Northwing artifacts",
-		"Sign and verify setup",
-		"Generate final checksums",
-		"Sign and verify Northwing update manifest",
+		"Sign release payload",
+		"Package signed release payload",
+		"Sign setup and update manifest",
 		"Independently verify signed manifest",
+		"Upload signed release candidate",
 		"Verify formal manifest with Northwing runtime",
 		"Verify signed Windows release",
 		"Publish GitHub Release",
@@ -76,15 +112,134 @@ func TestNorthwingReleaseWorkflowFailsClosedWithOneCredentialAndOrderedGates(t *
 		"NORTHWING_RELEASE_ARTIFACT_DIR",
 		"NORTHWING_MANIFEST_SPKI_BASE64",
 		"TestNorthwingReleaseManifestFormalArtifacts",
-		"verify-northwing-windows.ps1 -Version '${{ steps.version.outputs.version }}' -Repository '${{ github.repository }}'",
+		"-ExpectedSignerSPKIBase64",
+		"-RequireWindowsKits",
+		"finally {",
+		"-CleanupCredential",
 	} {
 		if !strings.Contains(source, command) {
 			t.Fatalf("release quality gate missing command %q", command)
 		}
 	}
-	cleanup := strings.Index(source, "Remove release credential material")
-	if cleanup < 0 || !strings.Contains(source[cleanup:], "if: always()") {
-		t.Fatal("release credential cleanup must run with if: always()")
+	if strings.Count(source, "assert-northwing-release-checkout-clean.ps1") < 3 {
+		t.Fatal("release build must recheck its checkout after Wails and before signing")
+	}
+	if strings.Index(source, "Sign release payload") >= strings.Index(source, "Extract signing public key") && strings.Index(source, "Extract signing public key") >= 0 {
+		// Text order is intentionally key metadata -> secret-free build -> signing.
+	} else {
+		t.Fatal("public-key extraction, secret-free build, and signing jobs are out of order")
+	}
+}
+
+func TestNorthwingReleaseSigningBindsTimestampAndSignerSPKI(t *testing.T) {
+	signScript, err := os.ReadFile("../scripts/sign-northwing-release.ps1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(signScript)
+	if strings.Contains(source, "GITHUB_ENV") {
+		t.Fatal("signing credential material must not be exported to the whole GitHub job")
+	}
+	for _, want := range []string{
+		"exactly one private key certificate",
+		"NORTHWING_MANIFEST_SPKI_BASE64",
+		"FixedTimeEquals",
+		"SignerCertificate",
+		"RequireWindowsKits",
+	} {
+		if !strings.Contains(source, want) {
+			t.Fatalf("signing identity contract missing %q", want)
+		}
+	}
+	fd := strings.Index(source, "/fd SHA256")
+	tr := strings.Index(source, "/tr https://timestamp.digicert.com")
+	td := strings.Index(source, "/td SHA256")
+	if fd < 0 || tr <= fd || td <= tr {
+		t.Fatal("signtool must use /fd SHA256 followed by /tr and then /td SHA256")
+	}
+}
+
+func TestNorthwingReleaseTagResolverTreatsTagAsData(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Northwing release workflow runs on Windows")
+	}
+	pwsh, err := exec.LookPath("pwsh")
+	if err != nil {
+		t.Skip("pwsh is unavailable")
+	}
+	config := filepath.Join(t.TempDir(), "wails.json")
+	if err := os.WriteFile(config, []byte(`{"info":{"productVersion":"0.3.0"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	resolver, err := filepath.Abs("../scripts/resolve-northwing-release-version.ps1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	valid := exec.Command(pwsh, "-NoProfile", "-File", resolver, "-Tag", "northwing-v0.3.0", "-WailsConfig", config)
+	if output, err := valid.CombinedOutput(); err != nil || strings.TrimSpace(string(output)) != "0.3.0" {
+		t.Fatalf("valid release tag resolution failed: %v\n%s", err, output)
+	}
+
+	marker := filepath.Join(t.TempDir(), "injected.txt")
+	maliciousTag := "northwing-v0.3.0'; Set-Content -LiteralPath '" + marker + "' -Value injected; #'"
+	malicious := exec.Command(pwsh, "-NoProfile", "-File", resolver, "-Tag", maliciousTag, "-WailsConfig", config)
+	if output, err := malicious.CombinedOutput(); err == nil {
+		t.Fatalf("malicious release tag unexpectedly succeeded: %s", output)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("release tag was evaluated as PowerShell source; marker error: %v", err)
+	}
+}
+
+func TestNorthwingReleaseCheckoutGuardRejectsUntrackedCompileInput(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Northwing release workflow runs on Windows")
+	}
+	pwsh, err := exec.LookPath("pwsh")
+	if err != nil {
+		t.Skip("pwsh is unavailable")
+	}
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git is unavailable")
+	}
+	repo := t.TempDir()
+	runGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command(git, args...)
+		cmd.Dir = repo
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, output)
+		}
+	}
+	runGit("init")
+	runGit("config", "user.email", "northwing-test@example.invalid")
+	runGit("config", "user.name", "Northwing Test")
+	if err := os.WriteFile(filepath.Join(repo, "main.go"), []byte("package main\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runGit("add", "main.go")
+	runGit("commit", "-m", "fixture")
+	guard, err := filepath.Abs("../scripts/assert-northwing-release-checkout-clean.ps1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	clean := exec.Command(pwsh, "-NoProfile", "-File", guard, "-RepositoryRoot", repo)
+	if output, err := clean.CombinedOutput(); err != nil {
+		t.Fatalf("clean release checkout was rejected: %v\n%s", err, output)
+	}
+
+	injected := "injected_windows.go"
+	if err := os.WriteFile(filepath.Join(repo, injected), []byte("package main\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dirty := exec.Command(pwsh, "-NoProfile", "-File", guard, "-RepositoryRoot", repo)
+	output, err := dirty.CombinedOutput()
+	if err == nil {
+		t.Fatalf("untracked compile input unexpectedly passed release checkout guard: %s", output)
+	}
+	if !strings.Contains(string(output), injected) {
+		t.Fatalf("checkout guard did not identify injected compile input: %v\n%s", err, output)
 	}
 }
 
@@ -132,6 +287,8 @@ func TestNorthwingReleasePackagingAndVerificationCoverFinalSignedArtifacts(t *te
 		"UnsignedTestArtifact",
 		"FinalizeChecksums",
 		"ValidatePayloadOnly",
+		"ExpectedSignerSPKIBase64",
+		"FixedTimeEquals",
 	} {
 		if !strings.Contains(packaging, want) {
 			t.Fatalf("formal packaging contract missing %q", want)
@@ -152,6 +309,8 @@ func TestNorthwingReleasePackagingAndVerificationCoverFinalSignedArtifacts(t *te
 		"TimeStamperCertificate",
 		"verify /pa /all",
 		"verify-northwing-release-signatures.ps1",
+		"ExpectedSignerSPKIBase64",
+		"FixedTimeEquals",
 	} {
 		if !strings.Contains(verification, want) {
 			t.Fatalf("formal verification contract missing %q", want)
@@ -180,7 +339,7 @@ func TestNorthwingReleasePackagingRejectsUnsignedPayloadByDefault(t *testing.T) 
 		}
 	}
 	output, err := runNorthwingPackagingScript(t,
-		"-Version", "0.3.0", "-OutputDir", t.TempDir(), "-PayloadDir", payloadDir, "-ValidatePayloadOnly")
+		"-Version", "0.3.0", "-OutputDir", t.TempDir(), "-PayloadDir", payloadDir, "-ValidatePayloadOnly", "-ExpectedSignerSPKIBase64", "AA==")
 	if err == nil {
 		t.Fatalf("formal packaging unexpectedly accepted unsigned payloads: %s", output)
 	}

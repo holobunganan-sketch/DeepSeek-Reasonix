@@ -4,6 +4,8 @@ param(
   [string]$Version,
   [string]$OutputDir = "dist",
   [string]$PayloadDir,
+  [string]$ExpectedSignerSPKIBase64,
+  [string]$SignToolPath,
   [switch]$UnsignedTestArtifact,
   [switch]$FinalizeChecksums,
   [switch]$ValidatePayloadOnly
@@ -29,7 +31,7 @@ if ($FinalizeChecksums) {
   }
   $lines | Set-Content -Encoding ascii $checksumPath
   Write-Host "Created final checksums: $checksumPath"
-  exit 0
+  return
 }
 
 if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
@@ -42,18 +44,30 @@ if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
 if ($UnsignedTestArtifact) {
   Write-Warning "UNSIGNED-TEST-ONLY: Authenticode and timestamp validation are intentionally skipped."
 } else {
-  function Assert-NorthwingAuthenticodePayload([string]$Path) {
+  if ([string]::IsNullOrWhiteSpace($ExpectedSignerSPKIBase64)) { throw 'ExpectedSignerSPKIBase64 is required for formal packaging' }
+  try { $expectedSignerSPKI = [Convert]::FromBase64String($ExpectedSignerSPKIBase64) } catch { throw 'ExpectedSignerSPKIBase64 is not valid base64' }
+  function Assert-NorthwingAuthenticodePayload([string]$Path, [byte[]]$ExpectedSPKI) {
     $signature = Get-AuthenticodeSignature -LiteralPath $Path
     if ($signature.Status -ne "Valid") { throw "Formal packaging requires a valid Authenticode signature: $Path" }
     if ($null -eq $signature.SignerCertificate) { throw "Formal packaging requires a signer certificate: $Path" }
     $codeSigning = @($signature.SignerCertificate.EnhancedKeyUsageList | Where-Object { $_.ObjectId.Value -eq '1.3.6.1.5.5.7.3.3' })
     if ($codeSigning.Count -eq 0) { throw "Formal packaging requires a Code Signing signer certificate: $Path" }
     if ($null -eq $signature.TimeStamperCertificate) { throw "Formal packaging requires an RFC3161 timestamp: $Path" }
+    $publicKey = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($signature.SignerCertificate)
+    if ($null -eq $publicKey) { throw "Formal packaging requires an RSA signer certificate: $Path" }
+    try { $actualSPKI = $publicKey.ExportSubjectPublicKeyInfo() } finally { $publicKey.Dispose() }
+    if ($actualSPKI.Length -ne $ExpectedSPKI.Length -or -not [System.Security.Cryptography.CryptographicOperations]::FixedTimeEquals($actualSPKI, $ExpectedSPKI)) {
+      throw "Formal packaging signer does not match the Northwing release trust root: $Path"
+    }
   }
   foreach ($payload in @($exe, $helper)) {
-    Assert-NorthwingAuthenticodePayload $payload
+    Assert-NorthwingAuthenticodePayload $payload $expectedSignerSPKI
   }
-  $signtool = & (Join-Path $PSScriptRoot 'sign-northwing-release.ps1') -ResolveSignTool
+  $signtool = if ([string]::IsNullOrWhiteSpace($SignToolPath)) {
+    & (Join-Path $PSScriptRoot 'sign-northwing-release.ps1') -ResolveSignTool -RequireWindowsKits
+  } else {
+    & (Join-Path $PSScriptRoot 'sign-northwing-release.ps1') -ResolveSignTool -SignToolPath $SignToolPath
+  }
   if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($signtool)) { throw 'signtool.exe is required for formal packaging verification' }
   foreach ($payload in @($exe, $helper)) {
     & $signtool verify /pa /all $payload
@@ -62,7 +76,7 @@ if ($UnsignedTestArtifact) {
 }
 if ($ValidatePayloadOnly) {
   Write-Host "Northwing payload validation completed."
-  exit 0
+  return
 }
 
 New-Item -ItemType Directory -Force -Path $out | Out-Null

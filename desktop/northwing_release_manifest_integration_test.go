@@ -140,13 +140,18 @@ func TestNorthwingReleaseManifestRoundTripAndTamperResistance(t *testing.T) {
 	spkiPath := filepath.Join(artifactDir, "release.spki")
 	createNorthwingEphemeralPFX(t, pwsh, pfxPath, spkiPath, password)
 	env := []string{"NORTHWING_RELEASE_PFX=" + pfxPath, "NORTHWING_RELEASE_PFX_PASSWORD=" + password}
+	spki, err := os.ReadFile(spkiPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedSPKI := strings.TrimSpace(string(spki))
 
 	if output, err := runNorthwingReleasePowerShell(t, pwsh, signer, env,
 		"-Version", version, "-ArtifactDir", artifactDir, "-Repository", repository); err != nil {
 		t.Fatalf("sign manifest: %v\n%s", err, output)
 	}
-	if output, err := runNorthwingReleasePowerShell(t, pwsh, verifier, env,
-		"-Version", version, "-ArtifactDir", artifactDir, "-Repository", repository); err != nil {
+	if output, err := runNorthwingReleasePowerShell(t, pwsh, verifier, nil,
+		"-Version", version, "-ArtifactDir", artifactDir, "-Repository", repository, "-ExpectedSPKIBase64", encodedSPKI); err != nil {
 		t.Fatalf("independent manifest verifier: %v\n%s", err, output)
 	}
 
@@ -160,11 +165,7 @@ func TestNorthwingReleaseManifestRoundTripAndTamperResistance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	spki, err := os.ReadFile(spkiPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	publicKey, err := parseNorthwingManifestPublicKey(strings.TrimSpace(string(spki)))
+	publicKey, err := parseNorthwingManifestPublicKey(encodedSPKI)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,8 +177,8 @@ func TestNorthwingReleaseManifestRoundTripAndTamperResistance(t *testing.T) {
 	if err := os.WriteFile(manifestPath, append(append([]byte(nil), raw...), ' '), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if output, err := runNorthwingReleasePowerShell(t, pwsh, verifier, env,
-		"-Version", version, "-ArtifactDir", artifactDir, "-Repository", repository); err == nil {
+	if output, err := runNorthwingReleasePowerShell(t, pwsh, verifier, nil,
+		"-Version", version, "-ArtifactDir", artifactDir, "-Repository", repository, "-ExpectedSPKIBase64", encodedSPKI); err == nil {
 		t.Fatalf("tampered manifest unexpectedly verified: %s", output)
 	}
 	if err := os.WriteFile(manifestPath, raw, 0o600); err != nil {
@@ -187,8 +188,8 @@ func TestNorthwingReleaseManifestRoundTripAndTamperResistance(t *testing.T) {
 	if err := os.WriteFile(signaturePath, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if output, err := runNorthwingReleasePowerShell(t, pwsh, verifier, env,
-		"-Version", version, "-ArtifactDir", artifactDir, "-Repository", repository); err == nil {
+	if output, err := runNorthwingReleasePowerShell(t, pwsh, verifier, nil,
+		"-Version", version, "-ArtifactDir", artifactDir, "-Repository", repository, "-ExpectedSPKIBase64", encodedSPKI); err == nil {
 		t.Fatalf("empty signature unexpectedly verified: %s", output)
 	}
 	if err := os.WriteFile(signaturePath, signature, 0o600); err != nil {
@@ -198,10 +199,13 @@ func TestNorthwingReleaseManifestRoundTripAndTamperResistance(t *testing.T) {
 	foreignPFX := filepath.Join(artifactDir, "foreign.pfx")
 	foreignSPKI := filepath.Join(artifactDir, "foreign.spki")
 	createNorthwingEphemeralPFX(t, pwsh, foreignPFX, foreignSPKI, password)
-	foreignEnv := []string{"NORTHWING_RELEASE_PFX=" + foreignPFX, "NORTHWING_RELEASE_PFX_PASSWORD=" + password}
-	if output, err := runNorthwingReleasePowerShell(t, pwsh, verifier, foreignEnv,
-		"-Version", version, "-ArtifactDir", artifactDir, "-Repository", repository); err == nil {
-		t.Fatalf("foreign certificate unexpectedly verified manifest: %s", output)
+	foreignEncodedSPKI, err := os.ReadFile(foreignSPKI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output, err := runNorthwingReleasePowerShell(t, pwsh, verifier, nil,
+		"-Version", version, "-ArtifactDir", artifactDir, "-Repository", repository, "-ExpectedSPKIBase64", strings.TrimSpace(string(foreignEncodedSPKI))); err == nil {
+		t.Fatalf("foreign public key unexpectedly verified manifest: %s", output)
 	}
 }
 

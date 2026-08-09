@@ -118,6 +118,28 @@ function Invoke-SignScript {
   return [pscustomobject]@{ ExitCode = $process.ExitCode; Stdout = $stdout.Trim(); Stderr = $stderr.Trim() }
 }
 
+function Invoke-PowerShellCommand {
+  param(
+    [Parameter(Mandatory = $true)][string]$Command,
+    [hashtable]$Environment = @{}
+  )
+
+  $start = [Diagnostics.ProcessStartInfo]::new()
+  $start.FileName = (Get-Command pwsh -ErrorAction Stop).Source
+  $start.UseShellExecute = $false
+  $start.RedirectStandardOutput = $true
+  $start.RedirectStandardError = $true
+  $start.ArgumentList.Add('-NoProfile')
+  $start.ArgumentList.Add('-Command')
+  $start.ArgumentList.Add($Command)
+  foreach ($name in $Environment.Keys) { $start.Environment[$name] = [string]$Environment[$name] }
+  $process = [Diagnostics.Process]::Start($start)
+  $stdout = $process.StandardOutput.ReadToEnd()
+  $stderr = $process.StandardError.ReadToEnd()
+  $process.WaitForExit()
+  return [pscustomobject]@{ ExitCode = $process.ExitCode; Stdout = $stdout.Trim(); Stderr = $stderr.Trim() }
+}
+
 function New-CredentialJson {
   param([string]$PfxPath, [string]$PfxPassword = $password, [hashtable]$Extra = @{})
   $payload = [ordered]@{
@@ -148,28 +170,28 @@ try {
   $valid = New-TestPfx -Path $validPfx
   $validRoot = Join-Path $testRoot 'valid-runner'
   $null = New-Item -ItemType Directory -Path $validRoot
-  $githubEnv = Join-Path $validRoot 'github-env.txt'
-  $validResult = Invoke-SignScript -Arguments @('-PrepareCredential', '-RunnerTemp', $validRoot) -Environment @{
+  $lifecycle = @'
+& $env:TEST_SIGN_SCRIPT -PrepareCredential -RunnerTemp $env:TEST_RUNNER_TEMP
+if (-not (Test-Path -LiteralPath $env:NORTHWING_RELEASE_PFX -PathType Leaf)) { throw 'prepared PFX missing from process environment' }
+$credentialAcl = Get-Acl -LiteralPath $env:NORTHWING_RELEASE_PFX
+if (-not $credentialAcl.AreAccessRulesProtected) { throw 'prepared PFX retained inherited filesystem permissions' }
+$prepared = [Security.Cryptography.X509Certificates.X509Certificate2]::new($env:NORTHWING_RELEASE_PFX, $env:NORTHWING_RELEASE_PFX_PASSWORD)
+try { Write-Output "THUMBPRINT=$($prepared.Thumbprint)" } finally { $prepared.Dispose() }
+Write-Output "SPKI=$env:NORTHWING_MANIFEST_SPKI_BASE64"
+& $env:TEST_SIGN_SCRIPT -CleanupCredential -RunnerTemp $env:TEST_RUNNER_TEMP
+if (Test-Path -LiteralPath (Join-Path $env:TEST_RUNNER_TEMP 'northwing-release.pfx')) { throw 'credential cleanup left the PFX on disk' }
+if ((Test-Path Env:NORTHWING_RELEASE_PFX) -or (Test-Path Env:NORTHWING_RELEASE_PFX_PASSWORD)) { throw 'credential cleanup left signing environment variables' }
+Write-Output 'CLEANUP=PASS'
+'@
+  $validResult = Invoke-PowerShellCommand -Command $lifecycle -Environment @{
+    TEST_SIGN_SCRIPT = $signScript
+    TEST_RUNNER_TEMP = $validRoot
     NORTHWING_WINDOWS_RELEASE_CREDENTIAL = (New-CredentialJson -PfxPath $validPfx)
-    GITHUB_ENV = $githubEnv
   }
   Assert-True ($validResult.ExitCode -eq 0) "valid credential failed: $($validResult.Stdout) $($validResult.Stderr)"
-  $environmentLines = Get-Content -LiteralPath $githubEnv
-  $preparedPfxLine = $environmentLines | Where-Object { $_ -like 'NORTHWING_RELEASE_PFX=*' }
-  $spkiLine = $environmentLines | Where-Object { $_ -like 'NORTHWING_MANIFEST_SPKI_BASE64=*' }
-  Assert-True ($null -ne $preparedPfxLine) 'valid credential did not export PFX path'
-  Assert-True ($null -ne $spkiLine) 'valid credential did not export SPKI'
-  $preparedPfx = $preparedPfxLine.Substring('NORTHWING_RELEASE_PFX='.Length)
-  $preparedCertificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new($preparedPfx, $password)
-  try {
-    Assert-True ($preparedCertificate.Thumbprint -eq $valid.Thumbprint) 'prepared certificate thumbprint changed'
-    Assert-True ($spkiLine.Substring('NORTHWING_MANIFEST_SPKI_BASE64='.Length) -eq $valid.SPKI) 'prepared certificate SPKI changed'
-  } finally {
-    $preparedCertificate.Dispose()
-  }
-  $cleanupResult = Invoke-SignScript -Arguments @('-CleanupCredential', '-RunnerTemp', $validRoot)
-  Assert-True ($cleanupResult.ExitCode -eq 0) "credential cleanup failed: $($cleanupResult.Stderr)"
-  Assert-True (-not (Test-Path -LiteralPath $preparedPfx)) 'credential cleanup left the PFX on disk'
+  Assert-True ($validResult.Stdout.Contains("THUMBPRINT=$($valid.Thumbprint)")) 'prepared certificate thumbprint changed'
+  Assert-True ($validResult.Stdout.Contains("SPKI=$($valid.SPKI)")) 'prepared certificate SPKI changed'
+  Assert-True ($validResult.Stdout.Contains('CLEANUP=PASS')) 'credential cleanup did not complete'
   $passed.Add('valid credential prepare and cleanup')
 
   Assert-RejectedCredential -Name 'malformed JSON' -CredentialJson '{' -ExpectedError 'must be compact JSON'
@@ -199,6 +221,19 @@ try {
   $publicOnlyPfx = Join-Path $testRoot 'public-only.pfx'
   $null = New-TestPfx -Path $publicOnlyPfx -PublicOnly
   Assert-RejectedCredential -Name 'certificate without private key' -CredentialJson (New-CredentialJson -PfxPath $publicOnlyPfx) -ExpectedError 'private key'
+
+  $secondPrivatePfx = Join-Path $testRoot 'second-private.pfx'
+  $null = New-TestPfx -Path $secondPrivatePfx
+  $multiPrivatePfx = Join-Path $testRoot 'multiple-private-keys.pfx'
+  $collection = [Security.Cryptography.X509Certificates.X509Certificate2Collection]::new()
+  try {
+    $collection.Import($validPfx, $password, [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
+    $collection.Import($secondPrivatePfx, $password, [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
+    [IO.File]::WriteAllBytes($multiPrivatePfx, $collection.Export([Security.Cryptography.X509Certificates.X509ContentType]::Pfx, $password))
+  } finally {
+    foreach ($certificate in $collection) { $certificate.Dispose() }
+  }
+  Assert-RejectedCredential -Name 'multiple private-key certificates' -CredentialJson (New-CredentialJson -PfxPath $multiPrivatePfx) -ExpectedError 'exactly one private key certificate'
 
   $explicitTool = Join-Path $testRoot 'explicit\signtool.exe'
   $null = New-Item -ItemType Directory -Path (Split-Path -Parent $explicitTool)
