@@ -699,14 +699,13 @@ func TestNewSessionNoopsWhenCurrentTabIsBlank(t *testing.T) {
 func TestNewSessionUsesFreshTopicIdentity(t *testing.T) {
 	isolateDesktopUserDirs(t)
 
-	projectRoot := t.TempDir()
 	dir := config.SessionDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir sessions: %v", err)
 	}
 	oldTopicID := "topic_old"
 	oldTopicTitle := "Old topic"
-	oldPath := writeTopicSessionWithPrompt(t, dir, "old.jsonl", oldTopicID, oldTopicTitle, projectRoot, "old prompt", time.Now().Add(-time.Hour))
+	oldPath := writeTopicSessionWithPrompt(t, dir, "old.jsonl", oldTopicID, oldTopicTitle, "", "old prompt", time.Now().Add(-time.Hour))
 	sess := &agent.Session{}
 	sess.Replace([]provider.Message{{Role: provider.RoleUser, Content: "old prompt"}})
 	ag := agent.New(stubProvider{}, tool.NewRegistry(), sess, agent.Options{}, event.Discard)
@@ -715,8 +714,8 @@ func TestNewSessionUsesFreshTopicIdentity(t *testing.T) {
 	app := NewApp()
 	app.setTestCtrl(ctrl, "model-a")
 	tab := app.tabs["test"]
-	tab.Scope = "project"
-	tab.WorkspaceRoot = projectRoot
+	tab.Scope = "global"
+	tab.WorkspaceRoot = ""
 	tab.TopicID = oldTopicID
 	tab.TopicTitle = oldTopicTitle
 	tab.SessionPath = oldPath
@@ -738,8 +737,12 @@ func TestNewSessionUsesFreshTopicIdentity(t *testing.T) {
 	if err := os.WriteFile(newPath, []byte(`{"role":"user","content":"new prompt"}`+"\n"), 0o644); err != nil {
 		t.Fatalf("write new session: %v", err)
 	}
-	if !app.maybeAutoTitleTopic(tab) {
-		t.Fatalf("new session should auto-title its fresh topic")
+	// Autosave may have already applied the same title before this direct call.
+	// The contract is the fresh topic's final title and metadata, not which
+	// invocation wins that idempotent update.
+	app.maybeAutoTitleTopic(tab)
+	if got := tab.TopicTitle; got != "new prompt" {
+		t.Fatalf("new session topic title = %q, want auto title %q", got, "new prompt")
 	}
 
 	oldMeta, ok, err := agent.LoadBranchMeta(oldPath)

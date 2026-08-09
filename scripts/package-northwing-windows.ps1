@@ -2,31 +2,81 @@ param(
   [Parameter(Mandatory = $true)]
   [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$')]
   [string]$Version,
-  [string]$OutputDir = "dist"
+  [string]$OutputDir = "dist",
+  [string]$PayloadDir,
+  [string]$ExpectedSignerSPKIBase64,
+  [string]$SignToolPath,
+  [switch]$UnsignedTestArtifact,
+  [switch]$FinalizeChecksums,
+  [switch]$ValidatePayloadOnly
 )
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $desktop = Join-Path $root "desktop"
-$exe = Join-Path $desktop "build\bin\northwing.exe"
-$helper = Join-Path $desktop "build\bin\northwing-update-helper.exe"
-$out = Join-Path $root $OutputDir
+$payloadRoot = if ([string]::IsNullOrWhiteSpace($PayloadDir)) { Join-Path $desktop "build\bin" } elseif ([IO.Path]::IsPathRooted($PayloadDir)) { [IO.Path]::GetFullPath($PayloadDir) } else { Join-Path $root $PayloadDir }
+$exe = Join-Path $payloadRoot "northwing.exe"
+$helper = Join-Path $payloadRoot "northwing-update-helper.exe"
+$out = if ([IO.Path]::IsPathRooted($OutputDir)) { [IO.Path]::GetFullPath($OutputDir) } else { Join-Path $root $OutputDir }
+$portableZipFinal = Join-Path $out "Northwing-$Version-windows-x64-portable.zip"
+$installerFinal = Join-Path $out "Northwing-$Version-windows-x64-setup.exe"
+$checksumPath = Join-Path $out "Northwing-$Version-SHA256SUMS.txt"
+
+if ($FinalizeChecksums) {
+  foreach ($file in @($portableZipFinal, $installerFinal)) {
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Final checksum input is missing: $file" }
+  }
+  $lines = foreach ($file in @($portableZipFinal, $installerFinal)) {
+    "$((Get-FileHash -Algorithm SHA256 $file).Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($file))"
+  }
+  $lines | Set-Content -Encoding ascii $checksumPath
+  Write-Host "Created final checksums: $checksumPath"
+  return
+}
 
 if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
   throw "Northwing executable not found: $exe. Run the Wails Windows build first."
 }
-
-Push-Location $root
-try {
-  go build -trimpath -ldflags "-s -w" -o $helper ./cmd/northwing-update-helper
-  if ($LASTEXITCODE -ne 0) {
-    throw "Northwing update helper build exited with code $LASTEXITCODE"
-  }
-} finally {
-  Pop-Location
-}
 if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
-  throw "Northwing update helper was not produced: $helper"
+  throw "Northwing update helper not found: $helper. Build it before packaging."
+}
+
+if ($UnsignedTestArtifact) {
+  Write-Warning "UNSIGNED-TEST-ONLY: Authenticode and timestamp validation are intentionally skipped."
+} else {
+  if ([string]::IsNullOrWhiteSpace($ExpectedSignerSPKIBase64)) { throw 'ExpectedSignerSPKIBase64 is required for formal packaging' }
+  try { $expectedSignerSPKI = [Convert]::FromBase64String($ExpectedSignerSPKIBase64) } catch { throw 'ExpectedSignerSPKIBase64 is not valid base64' }
+  function Assert-NorthwingAuthenticodePayload([string]$Path, [byte[]]$ExpectedSPKI) {
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path
+    if ($signature.Status -ne "Valid") { throw "Formal packaging requires a valid Authenticode signature: $Path" }
+    if ($null -eq $signature.SignerCertificate) { throw "Formal packaging requires a signer certificate: $Path" }
+    $codeSigning = @($signature.SignerCertificate.EnhancedKeyUsageList | Where-Object { $_.ObjectId.Value -eq '1.3.6.1.5.5.7.3.3' })
+    if ($codeSigning.Count -eq 0) { throw "Formal packaging requires a Code Signing signer certificate: $Path" }
+    if ($null -eq $signature.TimeStamperCertificate) { throw "Formal packaging requires an RFC3161 timestamp: $Path" }
+    $publicKey = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($signature.SignerCertificate)
+    if ($null -eq $publicKey) { throw "Formal packaging requires an RSA signer certificate: $Path" }
+    try { $actualSPKI = $publicKey.ExportSubjectPublicKeyInfo() } finally { $publicKey.Dispose() }
+    if ($actualSPKI.Length -ne $ExpectedSPKI.Length -or -not [System.Security.Cryptography.CryptographicOperations]::FixedTimeEquals($actualSPKI, $ExpectedSPKI)) {
+      throw "Formal packaging signer does not match the Northwing release trust root: $Path"
+    }
+  }
+  foreach ($payload in @($exe, $helper)) {
+    Assert-NorthwingAuthenticodePayload $payload $expectedSignerSPKI
+  }
+  $signtool = if ([string]::IsNullOrWhiteSpace($SignToolPath)) {
+    & (Join-Path $PSScriptRoot 'sign-northwing-release.ps1') -ResolveSignTool -RequireWindowsKits
+  } else {
+    & (Join-Path $PSScriptRoot 'sign-northwing-release.ps1') -ResolveSignTool -SignToolPath $SignToolPath
+  }
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($signtool)) { throw 'signtool.exe is required for formal packaging verification' }
+  foreach ($payload in @($exe, $helper)) {
+    & $signtool verify /pa /all $payload
+    if ($LASTEXITCODE -ne 0) { throw "signtool verify failed for formal payload: $payload" }
+  }
+}
+if ($ValidatePayloadOnly) {
+  Write-Host "Northwing payload validation completed."
+  return
 }
 
 New-Item -ItemType Directory -Force -Path $out | Out-Null
@@ -77,11 +127,12 @@ $installerTarget = Join-Path $out "Northwing-$Version-windows-x64-setup.exe"
 Move-Item -Force $installer $installerTarget
 
 $files = @($portableZip, $installerTarget)
-$checksumPath = Join-Path $out "Northwing-$Version-SHA256SUMS.txt"
-$lines = foreach ($file in $files) {
-  $hash = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLowerInvariant()
-  "$hash  $([IO.Path]::GetFileName($file))"
+if ($UnsignedTestArtifact -or $FinalizeChecksums) {
+  $lines = foreach ($file in $files) {
+    $hash = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLowerInvariant()
+    "$hash  $([IO.Path]::GetFileName($file))"
+  }
+  $lines | Set-Content -Encoding ascii $checksumPath
 }
-$lines | Set-Content -Encoding ascii $checksumPath
 Write-Host "Created:"
-$files + $checksumPath | ForEach-Object { Write-Host "  $_" }
+$files + $(if (Test-Path -LiteralPath $checksumPath) { $checksumPath }) | ForEach-Object { Write-Host "  $_" }

@@ -827,7 +827,7 @@ export const zhTW: Record<DictKey, string> = {
   "approval.memoryBodyLabel": "正文",
   "approval.memoryArchivePrefix": "封存記憶 ",
   "approval.planModeBashTrustSubject": "在計劃模式中信任 {prefix} 為唯讀命令前綴\n命令：{command}",
-  "approval.planModeBashTrustReason": "這條 bash 命令不在 Reasonix 內建唯讀集合中。只有在確認這個精確前綴用於計劃和研究時是唯讀的，才應核准。自動/YOLO 核准不能回答這個信任提示。",
+  "approval.planModeBashTrustReason": "這條 bash 命令不在 Northwing 內建唯讀集合中。只有在確認這個精確前綴用於計劃和研究時是唯讀的，才應核准。自動/YOLO 核准不能回答這個信任提示。",
   "approval.dynamicBashReason": "此命令包含巢狀或間接執行，Auto 和寬泛 allow 規則無法確認內部命令。請只批准這條精確命令；只有在明確接受風險時才使用 YOLO。",
   "approval.matchedPermissionRule": "命中權限規則：{rule}。",
   "approval.sandboxEscapeSubjectFallback": "僅本次不進沙箱執行 shell 命令",

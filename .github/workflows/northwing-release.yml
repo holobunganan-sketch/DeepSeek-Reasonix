@@ -1,218 +1,322 @@
 name: Northwing Release
+# UNSIGNED-TEST-ONLY artifacts are deliberately confined to northwing-ci.yml.
 
 on:
   push:
-    tags:
-      - "northwing-v*"
+    tags: ["northwing-v*"]
 
 permissions:
-  contents: write
-
-concurrency:
-  group: northwing-release-${{ github.ref_name }}
-  cancel-in-progress: false
+  contents: read
 
 jobs:
   validate:
-    name: Validate release source
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: 1.26.5
-          cache-dependency-path: |
-            go.sum
-            desktop/go.sum
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: desktop/frontend/pnpm-lock.yaml
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Verify tag format
-        shell: bash
-        run: |
-          if [[ ! "${GITHUB_REF_NAME}" =~ ^northwing-v[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid Northwing release tag: ${GITHUB_REF_NAME}"
-            exit 1
-          fi
-
-      - name: Go tests
-        run: go test ./...
-
-      - name: Generate Office interoperability fixtures
-        env:
-          NORTHWING_OFFICE_FIXTURE_DIR: ${{ runner.temp }}/northwing-office
-        run: go test ./internal/office -run TestWriteExternalFixtures -count=1
-
-      - name: Verify Office interoperability
-        env:
-          NORTHWING_OFFICE_FIXTURE_DIR: ${{ runner.temp }}/northwing-office
-        run: |
-          python -m pip install --disable-pip-version-check --quiet \
-            python-docx==1.2.0 \
-            python-pptx==1.0.2 \
-            openpyxl==3.1.5 \
-            pypdf==5.9.0
-          python scripts/verify_northwing_office.py "$NORTHWING_OFFICE_FIXTURE_DIR"
-
-      - name: Install frontend
-        working-directory: desktop/frontend
-        run: pnpm install --frozen-lockfile
-
-      - name: Frontend validation
-        working-directory: desktop/frontend
-        run: |
-          pnpm typecheck
-          pnpm test
-          pnpm build
-
-  windows:
-    name: Build and publish Windows release
+    name: Validate Northwing release source
     runs-on: windows-latest
-    needs: validate
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          go-version: 1.26.5
-          cache-dependency-path: |
-            go.sum
-            desktop/go.sum
+          fetch-depth: 0
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: desktop/frontend/pnpm-lock.yaml
-
-      - name: Resolve release version
+      - name: Validate stable tag, product version, and ancestry
         id: version
         shell: pwsh
+        env:
+          NORTHWING_RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          $version = "${{ github.ref_name }}" -replace '^northwing-v', ''
-          if (-not $version) { throw "Unable to parse version from ${{ github.ref_name }}" }
+          $tag = $env:NORTHWING_RELEASE_TAG
+          $version = ./scripts/resolve-northwing-release-version.ps1 -Tag $tag -WailsConfig ./desktop/wails.json
+          git fetch origin main-v2
+          if ($LASTEXITCODE -ne 0) { throw "could not fetch origin/main-v2" }
+          git merge-base --is-ancestor $env:GITHUB_SHA origin/main-v2
+          if ($LASTEXITCODE -ne 0) { throw "tagged commit is not contained in origin/main-v2" }
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          "prerelease=$($version.Contains('-').ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: 1.26.5
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+
+      - name: Test root Go
+        run: go test ./...
       - name: Install frontend
         working-directory: desktop/frontend
         run: pnpm install --frozen-lockfile
-
-      - name: Desktop tests
+      - name: Typecheck frontend
+        working-directory: desktop/frontend
+        run: pnpm typecheck
+      - name: Test frontend
+        working-directory: desktop/frontend
+        run: pnpm test
+      - name: Build frontend
+        working-directory: desktop/frontend
+        run: pnpm build
+      - name: Install Playwright Chromium
+        working-directory: desktop/frontend
+        run: pnpm exec playwright install chromium
+      - name: Run Northwing browser E2E
+        working-directory: desktop/frontend
+        run: pnpm test:e2e
+      - name: Test desktop Go
         working-directory: desktop
         run: go test ./...
 
-      - name: Generate Northwing icons
-        run: go run ./cmd/northwing-icon -root .
+  key_metadata:
+    name: Extract Northwing release public key
+    needs: validate
+    runs-on: windows-latest
+    environment: northwing-release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Extract signing public key
+        shell: pwsh
+        env:
+          NORTHWING_WINDOWS_RELEASE_CREDENTIAL: ${{ secrets.NORTHWING_WINDOWS_RELEASE_CREDENTIAL }}
+        run: |
+          try {
+            ./scripts/sign-northwing-release.ps1 -PrepareCredential -RunnerTemp $env:RUNNER_TEMP
+            if ([string]::IsNullOrWhiteSpace($env:NORTHWING_MANIFEST_SPKI_BASE64)) { throw "release public key extraction failed" }
+            $metadataDir = Join-Path $env:RUNNER_TEMP 'northwing-key-metadata'
+            New-Item -ItemType Directory -Force -Path $metadataDir | Out-Null
+            [IO.File]::WriteAllText((Join-Path $metadataDir 'manifest-spki.txt'), $env:NORTHWING_MANIFEST_SPKI_BASE64, [Text.UTF8Encoding]::new($false))
+          } finally {
+            ./scripts/sign-northwing-release.ps1 -CleanupCredential -RunnerTemp $env:RUNNER_TEMP
+          }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: northwing-release-key-metadata
+          path: ${{ runner.temp }}\northwing-key-metadata\manifest-spki.txt
+          if-no-files-found: error
+          retention-days: 1
 
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
-
+  build:
+    name: Build unsigned Northwing release payload
+    needs: [validate, key_metadata]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: northwing-release-key-metadata
+          path: ${{ runner.temp }}\northwing-key-metadata
+      - name: Read signing public key
+        id: key
+        shell: pwsh
+        run: |
+          $spki = (Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'northwing-key-metadata\manifest-spki.txt') -Raw).Trim()
+          try { $bytes = [Convert]::FromBase64String($spki) } catch { throw "release public key metadata is invalid" }
+          if ($bytes.Length -eq 0) { throw "release public key metadata is empty" }
+          "spki=$spki" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: 1.26.5
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Install frontend for release build
+        working-directory: desktop/frontend
+        run: pnpm install --frozen-lockfile
+      - name: Build frontend for release build
+        working-directory: desktop/frontend
+        run: pnpm build
+      - name: Install Wails and NSIS
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+          ./scripts/install-nsis.ps1
+      - name: Verify clean build checkout
+        shell: pwsh
+        run: ./scripts/assert-northwing-release-checkout-clean.ps1 -RepositoryRoot .
       - name: Build Northwing Windows x64
         working-directory: desktop
         shell: pwsh
+        env:
+          NORTHWING_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          NORTHWING_MANIFEST_SPKI_BASE64: ${{ steps.key.outputs.spki }}
         run: |
-          $version = "${{ steps.version.outputs.version }}"
-          $channel = if ($version.Contains("-")) { "preview" } else { "stable" }
-          wails build -platform windows/amd64 -clean -ldflags "-X main.version=$version -X main.channel=$channel"
-
-      - name: Verify unified Northwing CLI
+          wails build -platform windows/amd64 -clean -ldflags "-X main.version=$env:NORTHWING_RELEASE_VERSION -X main.channel=stable -X main.northwingManifestPublicKeySPKIBase64=$env:NORTHWING_MANIFEST_SPKI_BASE64"
+      - name: Verify build output did not modify source checkout
         shell: pwsh
-        timeout-minutes: 1
-        run: |
-          $expected = [regex]::Escape("northwing ${{ steps.version.outputs.version }}")
-          $stdout = Join-Path $env:RUNNER_TEMP "northwing-version.out"
-          $stderr = Join-Path $env:RUNNER_TEMP "northwing-version.err"
-          $process = Start-Process -FilePath .\desktop\build\bin\northwing.exe -ArgumentList version -PassThru `
-            -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-          try {
-            if (-not $process.WaitForExit(15000)) {
-              Stop-Process -Id $process.Id -Force
-              throw "northwing.exe version did not exit; the CLI path may have started the GUI"
-            }
-            $process.WaitForExit()
-            $output = @((Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue), (Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue))
-            if ($process.ExitCode -ne 0) { throw "northwing.exe version exited $($process.ExitCode)`n$($output -join "`n")" }
-            $text = $output -join "`n"
-            if ($text -notmatch $expected) { throw "unexpected CLI output: $text" }
-          } finally {
-            Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
-          }
-
-      - name: Install pinned NSIS
+        run: ./scripts/assert-northwing-release-checkout-clean.ps1 -RepositoryRoot .
+      - name: Build Northwing update helper
         shell: pwsh
-        run: pwsh -NoProfile -File scripts/install-nsis.ps1
-
-      - name: Package Northwing
-        shell: pwsh
-        run: ./scripts/package-northwing-windows.ps1 -Version "${{ steps.version.outputs.version }}"
-
-      - name: Verify Windows installer and portable build
-        shell: pwsh
-        run: ./scripts/verify-northwing-windows.ps1 -Version "${{ steps.version.outputs.version }}"
-
-      - name: Create Northwing update manifest
-        shell: pwsh
-        run: |
-          $version = "${{ steps.version.outputs.version }}"
-          $tag = "${{ github.ref_name }}"
-          $installerName = "Northwing-$version-windows-x64-setup.exe"
-          $checksumFile = "dist/Northwing-$version-SHA256SUMS.txt"
-          $checksumLine = Get-Content -LiteralPath $checksumFile | Where-Object { $_ -match [regex]::Escape($installerName) } | Select-Object -First 1
-          if (-not $checksumLine -or $checksumLine -notmatch '^(?<hash>[0-9a-f]{64})  ') { throw "Installer checksum is missing" }
-          $installerHash = $Matches.hash
-          $manifest = [ordered]@{
-            version = $version
-            channel = "stable"
-            publishedAt = [DateTime]::UtcNow.ToString("o")
-            releaseNotes = "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/tag/$tag"
-            assets = [ordered]@{
-              "windows-x64" = [ordered]@{
-                url = "https://github.com/holobunganan-sketch/DeepSeek-Reasonix/releases/download/$tag/$installerName"
-                sha256 = $installerHash
-                signature = ""
-              }
-            }
-          }
-          $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath dist/northwing-update.json -Encoding utf8NoBOM
-
-      - uses: actions/upload-artifact@v4
+        run: go build -trimpath -ldflags "-s -w" -o desktop/build/bin/northwing-update-helper.exe ./cmd/northwing-update-helper
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: Northwing-${{ steps.version.outputs.version }}-windows-x64
+          name: northwing-unsigned-release-payload
           path: |
-            dist/Northwing-${{ steps.version.outputs.version }}-windows-x64-setup.exe
-            dist/Northwing-${{ steps.version.outputs.version }}-windows-x64-portable.zip
-            dist/Northwing-${{ steps.version.outputs.version }}-SHA256SUMS.txt
-            dist/northwing-update.json
+            desktop/build/bin/northwing.exe
+            desktop/build/bin/northwing-update-helper.exe
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
 
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+  sign:
+    name: Sign and package Northwing release
+    needs: [validate, key_metadata, build]
+    runs-on: windows-latest
+    environment: northwing-release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          name: Northwing ${{ steps.version.outputs.version }}
-          prerelease: ${{ fromJSON(steps.version.outputs.prerelease) }}
-          generate_release_notes: true
-          body_path: docs/NORTHWING_RELEASE_NOTES.md
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: northwing-release-key-metadata
+          path: ${{ runner.temp }}\northwing-key-metadata
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: northwing-unsigned-release-payload
+          path: ${{ runner.temp }}\northwing-payload
+      - name: Install NSIS for signed packaging
+        shell: pwsh
+        run: ./scripts/install-nsis.ps1
+      - name: Verify clean signing checkout
+        shell: pwsh
+        run: ./scripts/assert-northwing-release-checkout-clean.ps1 -RepositoryRoot .
+      - name: Sign release payload
+        shell: pwsh
+        env:
+          NORTHWING_WINDOWS_RELEASE_CREDENTIAL: ${{ secrets.NORTHWING_WINDOWS_RELEASE_CREDENTIAL }}
+          NORTHWING_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          $payloadDir = Join-Path $env:RUNNER_TEMP 'northwing-payload'
+          $expectedSPKI = (Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'northwing-key-metadata\manifest-spki.txt') -Raw).Trim()
+          try {
+            ./scripts/sign-northwing-release.ps1 -PrepareCredential -RunnerTemp $env:RUNNER_TEMP
+            $expectedBytes = [Convert]::FromBase64String($expectedSPKI)
+            $credentialBytes = [Convert]::FromBase64String($env:NORTHWING_MANIFEST_SPKI_BASE64)
+            if ($credentialBytes.Length -ne $expectedBytes.Length -or -not [Security.Cryptography.CryptographicOperations]::FixedTimeEquals($credentialBytes, $expectedBytes)) {
+              throw "signing credential changed after public-key extraction"
+            }
+            $signtool = ./scripts/sign-northwing-release.ps1 -ResolveSignTool -RequireWindowsKits
+            ./scripts/sign-northwing-release.ps1 -SignPayload -Version $env:NORTHWING_RELEASE_VERSION -ArtifactDir $payloadDir -SignToolPath $signtool -ExpectedSignerSPKIBase64 $expectedSPKI
+          } finally {
+            ./scripts/sign-northwing-release.ps1 -CleanupCredential -RunnerTemp $env:RUNNER_TEMP
+          }
+      - name: Package signed release payload
+        shell: pwsh
+        env:
+          NORTHWING_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          $payloadDir = Join-Path $env:RUNNER_TEMP 'northwing-payload'
+          $releaseDir = Join-Path $env:RUNNER_TEMP 'northwing-signed-release'
+          $expectedSPKI = (Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'northwing-key-metadata\manifest-spki.txt') -Raw).Trim()
+          $signtool = ./scripts/sign-northwing-release.ps1 -ResolveSignTool -RequireWindowsKits
+          ./scripts/package-northwing-windows.ps1 -Version $env:NORTHWING_RELEASE_VERSION -OutputDir $releaseDir -PayloadDir $payloadDir -SignToolPath $signtool -ExpectedSignerSPKIBase64 $expectedSPKI
+      - name: Sign setup and update manifest
+        shell: pwsh
+        env:
+          NORTHWING_WINDOWS_RELEASE_CREDENTIAL: ${{ secrets.NORTHWING_WINDOWS_RELEASE_CREDENTIAL }}
+          NORTHWING_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          NORTHWING_RELEASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          $releaseDir = Join-Path $env:RUNNER_TEMP 'northwing-signed-release'
+          $expectedSPKI = (Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'northwing-key-metadata\manifest-spki.txt') -Raw).Trim()
+          try {
+            ./scripts/sign-northwing-release.ps1 -PrepareCredential -RunnerTemp $env:RUNNER_TEMP
+            $expectedBytes = [Convert]::FromBase64String($expectedSPKI)
+            $credentialBytes = [Convert]::FromBase64String($env:NORTHWING_MANIFEST_SPKI_BASE64)
+            if ($credentialBytes.Length -ne $expectedBytes.Length -or -not [Security.Cryptography.CryptographicOperations]::FixedTimeEquals($credentialBytes, $expectedBytes)) {
+              throw "signing credential changed after public-key extraction"
+            }
+            $signtool = ./scripts/sign-northwing-release.ps1 -ResolveSignTool -RequireWindowsKits
+            ./scripts/sign-northwing-release.ps1 -SignSetup -Version $env:NORTHWING_RELEASE_VERSION -ArtifactDir $releaseDir -SignToolPath $signtool -ExpectedSignerSPKIBase64 $expectedSPKI
+            ./scripts/package-northwing-windows.ps1 -Version $env:NORTHWING_RELEASE_VERSION -OutputDir $releaseDir -FinalizeChecksums
+            ./scripts/sign-northwing-manifest.ps1 -Version $env:NORTHWING_RELEASE_VERSION -ArtifactDir $releaseDir -Repository $env:NORTHWING_RELEASE_REPOSITORY
+            ./scripts/verify-northwing-release-signatures.ps1 -Version $env:NORTHWING_RELEASE_VERSION -ArtifactDir $releaseDir -Repository $env:NORTHWING_RELEASE_REPOSITORY -ExpectedSPKIBase64 $expectedSPKI
+          } finally {
+            ./scripts/sign-northwing-release.ps1 -CleanupCredential -RunnerTemp $env:RUNNER_TEMP
+          }
+      - name: Independently verify signed manifest
+        shell: pwsh
+        env:
+          NORTHWING_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          NORTHWING_RELEASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          $releaseDir = Join-Path $env:RUNNER_TEMP 'northwing-signed-release'
+          $expectedSPKI = (Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'northwing-key-metadata\manifest-spki.txt') -Raw).Trim()
+          ./scripts/verify-northwing-release-signatures.ps1 -Version $env:NORTHWING_RELEASE_VERSION -ArtifactDir $releaseDir -Repository $env:NORTHWING_RELEASE_REPOSITORY -ExpectedSPKIBase64 $expectedSPKI
+      - name: Upload signed release candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: northwing-signed-release-candidate
+          path: ${{ runner.temp }}\northwing-signed-release
+          if-no-files-found: error
+          retention-days: 3
+
+  acceptance:
+    name: Verify signed Northwing release candidate
+    needs: [validate, key_metadata, sign]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: northwing-release-key-metadata
+          path: ${{ runner.temp }}\northwing-key-metadata
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: northwing-signed-release-candidate
+          path: ${{ runner.temp }}\northwing-signed-release
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: 1.26.5
+      - name: Read acceptance public key
+        id: acceptance_key
+        shell: pwsh
+        run: |
+          $spki = (Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'northwing-key-metadata\manifest-spki.txt') -Raw).Trim()
+          try { $bytes = [Convert]::FromBase64String($spki) } catch { throw "release public key metadata is invalid" }
+          if ($bytes.Length -eq 0) { throw "release public key metadata is empty" }
+          "spki=$spki" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - name: Verify formal manifest with Northwing runtime
+        working-directory: desktop
+        env:
+          NORTHWING_RELEASE_ARTIFACT_DIR: ${{ runner.temp }}\northwing-signed-release
+          NORTHWING_MANIFEST_SPKI_BASE64: ${{ steps.acceptance_key.outputs.spki }}
+        run: go test . -run '^TestNorthwingReleaseManifestFormalArtifacts$' -count=1
+      - name: Verify signed Windows release
+        shell: pwsh
+        env:
+          NORTHWING_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          NORTHWING_RELEASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          $expectedSPKI = (Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'northwing-key-metadata\manifest-spki.txt') -Raw).Trim()
+          ./scripts/verify-northwing-windows.ps1 -Version $env:NORTHWING_RELEASE_VERSION -OutputDir (Join-Path $env:RUNNER_TEMP 'northwing-signed-release') -Repository $env:NORTHWING_RELEASE_REPOSITORY -ExpectedSignerSPKIBase64 $expectedSPKI
+
+  publish:
+    name: Publish verified Northwing release
+    needs: [validate, acceptance]
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: northwing-signed-release-candidate
+          path: dist
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
           files: |
-            dist/Northwing-${{ steps.version.outputs.version }}-windows-x64-setup.exe
-            dist/Northwing-${{ steps.version.outputs.version }}-windows-x64-portable.zip
-            dist/Northwing-${{ steps.version.outputs.version }}-SHA256SUMS.txt
+            dist/Northwing-${{ needs.validate.outputs.version }}-windows-x64-setup.exe
+            dist/Northwing-${{ needs.validate.outputs.version }}-windows-x64-portable.zip
+            dist/Northwing-${{ needs.validate.outputs.version }}-SHA256SUMS.txt
             dist/northwing-update.json
+            dist/northwing-update.json.sig

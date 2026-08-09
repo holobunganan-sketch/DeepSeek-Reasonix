@@ -1057,7 +1057,7 @@ export const zh: Record<DictKey, string> = {
   "approval.memoryBodyLabel": "正文",
   "approval.memoryArchivePrefix": "归档记忆 ",
   "approval.planModeBashTrustSubject": "在计划模式中信任 {prefix} 为只读命令前缀\n命令：{command}",
-  "approval.planModeBashTrustReason": "这条 bash 命令不在 Reasonix 内置只读集合中。只有在确认这个精确前缀用于计划和研究时是只读的，才应批准。自动/YOLO 审批不能回答这个信任提示。",
+  "approval.planModeBashTrustReason": "这条 bash 命令不在 Northwing 内置只读集合中。只有在确认这个精确前缀用于计划和研究时是只读的，才应批准。自动/YOLO 审批不能回答这个信任提示。",
   "approval.dynamicBashReason": "此命令包含嵌套或间接执行，Auto 和宽泛 allow 规则无法确认内部命令。请仅批准这条精确命令；只有在明确接受风险时才使用 YOLO。",
   "approval.matchedPermissionRule": "命中权限规则：{rule}。",
   "approval.sandboxEscapeSubjectFallback": "仅本次不进沙箱运行 shell 命令",

@@ -2249,13 +2249,18 @@ func (a *App) NewSessionForTab(tabID string) error {
 	if ctrl == nil {
 		return a.workspaceNotReadyErr(tab)
 	}
-	// Tab is already blank — just persist and skip the new-session dance.
-	if !controllerHasActiveRuntimeWork(ctrl) && !messagesHaveConversationContent(ctrl.History()) {
+	// Ordinary blank chats are already fresh. A blank Work tab still rotates:
+	// explicit new-session actions always leave Work and start a chat.
+	kind, _ := nativeSessionIdentityForTab(tab)
+	if kind == agent.SessionKindChat && !controllerHasActiveRuntimeWork(ctrl) && !messagesHaveConversationContent(ctrl.History()) {
 		a.persistTabSessionPath(tab, ctrl.SessionPath())
 		return nil
 	}
 
 	if err := ctrl.NewSession(); err != nil {
+		return err
+	}
+	if err := a.setTabNativeSessionIdentity(tab, ctrl.SessionPath(), agent.SessionKindChat, ""); err != nil {
 		return err
 	}
 	// The rotated session starts with zero spend: without this reset the tab
@@ -2376,6 +2381,9 @@ func (a *App) ClearSessionForTab(tabID string) error {
 		return a.clearActiveSessionRuntime(tab, ctrl)
 	}
 	if err := ctrl.ClearSession(); err != nil {
+		return err
+	}
+	if err := a.setTabNativeSessionIdentity(tab, ctrl.SessionPath(), agent.SessionKindChat, ""); err != nil {
 		return err
 	}
 	if err := a.ensureTabSessionLeaseForRebuild(tab, ctrl.SessionPath(), ""); err != nil {
@@ -2508,6 +2516,10 @@ func (a *App) clearActiveSessionRuntime(tab *WorkspaceTab, oldCtrl control.Sessi
 		return userFacingSessionLeaseError("", err)
 	}
 	newCtrl.SetFreshSessionPath(path)
+	if err := a.setTabNativeSessionIdentity(tab, path, agent.SessionKindChat, ""); err != nil {
+		newCtrl.Close()
+		return err
+	}
 
 	a.mu.Lock()
 	if current := a.tabs[tab.ID]; current != tab {
@@ -2917,30 +2929,32 @@ func (a *App) SummarizeUpToForTab(tabID string, turn int) error {
 
 // SessionMeta summarises one saved session for the history panel.
 type SessionMeta struct {
-	Path           string `json:"path"`
-	Preview        string `json:"preview"`         // first user message
-	Title          string `json:"title,omitempty"` // user-chosen name, when set (overrides preview)
-	Turns          int    `json:"turns"`
-	CreatedAt      int64  `json:"createdAt"`      // unix milliseconds
-	LastActivityAt int64  `json:"lastActivityAt"` // unix milliseconds
-	ModTime        int64  `json:"modTime"`        // compatibility alias for lastActivityAt
-	DeletedAt      int64  `json:"deletedAt,omitempty"`
-	Current        bool   `json:"current"`
-	Open           bool   `json:"open"`
-	Scope          string `json:"scope,omitempty"`
-	WorkspaceRoot  string `json:"workspaceRoot,omitempty"`
-	TopicID        string `json:"topicId,omitempty"`
-	TopicTitle     string `json:"topicTitle,omitempty"`
-	Kind           string `json:"kind,omitempty"` // "channel" for external IM transcripts
-	Channel        string `json:"channel,omitempty"`
-	ChannelLabel   string `json:"channelLabel,omitempty"`
-	RemoteID       string `json:"remoteId,omitempty"`
-	ChatType       string `json:"chatType,omitempty"`
-	UserID         string `json:"userId,omitempty"`
-	ThreadID       string `json:"threadId,omitempty"`
-	SessionSource  string `json:"sessionSource,omitempty"`
-	Recovered      bool   `json:"recovered,omitempty"`    // created by conflict recovery, including an adopted/continued branch
-	RecoveryCopy   bool   `json:"recoveryCopy,omitempty"` // actual branch content is unchanged and covered by its parent
+	Path           string            `json:"path"`
+	Preview        string            `json:"preview"`         // first user message
+	Title          string            `json:"title,omitempty"` // user-chosen name, when set (overrides preview)
+	Turns          int               `json:"turns"`
+	CreatedAt      int64             `json:"createdAt"`      // unix milliseconds
+	LastActivityAt int64             `json:"lastActivityAt"` // unix milliseconds
+	ModTime        int64             `json:"modTime"`        // compatibility alias for lastActivityAt
+	DeletedAt      int64             `json:"deletedAt,omitempty"`
+	Current        bool              `json:"current"`
+	Open           bool              `json:"open"`
+	Scope          string            `json:"scope,omitempty"`
+	WorkspaceRoot  string            `json:"workspaceRoot,omitempty"`
+	TopicID        string            `json:"topicId,omitempty"`
+	TopicTitle     string            `json:"topicTitle,omitempty"`
+	SessionKind    agent.SessionKind `json:"sessionKind"`
+	WorkID         string            `json:"workId,omitempty"`
+	Kind           string            `json:"kind,omitempty"` // "channel" for external IM transcripts
+	Channel        string            `json:"channel,omitempty"`
+	ChannelLabel   string            `json:"channelLabel,omitempty"`
+	RemoteID       string            `json:"remoteId,omitempty"`
+	ChatType       string            `json:"chatType,omitempty"`
+	UserID         string            `json:"userId,omitempty"`
+	ThreadID       string            `json:"threadId,omitempty"`
+	SessionSource  string            `json:"sessionSource,omitempty"`
+	Recovered      bool              `json:"recovered,omitempty"`    // created by conflict recovery, including an adopted/continued branch
+	RecoveryCopy   bool              `json:"recoveryCopy,omitempty"` // actual branch content is unchanged and covered by its parent
 }
 
 type channelSessionRoute struct {
@@ -3118,6 +3132,8 @@ func sessionMetaFromInfo(s agent.SessionInfo, title string, current, open bool, 
 		WorkspaceRoot:  s.WorkspaceRoot,
 		TopicID:        s.TopicID,
 		TopicTitle:     s.TopicTitle,
+		SessionKind:    s.SessionKind,
+		WorkID:         s.WorkID,
 		Recovered:      sessionInfoIsAutomaticRecovery(s),
 		RecoveryCopy:   sessionInfoIsUnmodifiedRecoveryCopy(s, parentDir),
 	}

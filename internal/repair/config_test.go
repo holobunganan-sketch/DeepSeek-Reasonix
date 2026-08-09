@@ -928,9 +928,7 @@ func TestRestoreConfigSnapshotPreservesSymlinkThroughUndo(t *testing.T) {
 	if err := os.WriteFile(dotfiles, []byte("default_model = \"good\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(dotfiles, dest); err != nil {
-		t.Fatal(err)
-	}
+	requireSymlink(t, dotfiles, dest)
 	if err := RecordHealthyConfig("v1"); err != nil {
 		t.Fatal(err)
 	}
@@ -1032,9 +1030,7 @@ func TestRestoreConfigSnapshotCrossDeviceCleanupRestoresSymlink(t *testing.T) {
 	if err := os.WriteFile(dotfiles, []byte("default_model = \"linked\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(dotfiles, dest); err != nil {
-		t.Fatal(err)
-	}
+	requireSymlink(t, dotfiles, dest)
 	if err := RecordHealthyConfig("v1"); err != nil {
 		t.Fatal(err)
 	}

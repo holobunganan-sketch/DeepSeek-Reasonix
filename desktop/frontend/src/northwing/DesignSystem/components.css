@@ -1,0 +1,108 @@
+.nw-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--nw-space-2);
+  padding: var(--nw-space-2) var(--nw-space-4);
+  border-radius: var(--nw-radius-md);
+  border: var(--nw-border);
+  background: var(--nw-surface-panel);
+  color: var(--nw-text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.nw-btn:hover {
+  background: var(--nw-surface-hover);
+}
+
+.nw-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--nw-focus-ring);
+}
+
+.nw-btn--primary {
+  background: var(--nw-accent);
+  border-color: var(--nw-accent);
+  color: var(--nw-accent-text);
+}
+
+.nw-btn--primary:hover {
+  background: var(--nw-accent-hover);
+  border-color: var(--nw-accent-hover);
+}
+
+.nw-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+.nw-btn--ghost:hover {
+  background: var(--nw-surface-hover);
+}
+
+.nw-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nw-space-2);
+  padding: var(--nw-space-2) var(--nw-space-3);
+  border-radius: var(--nw-radius-md);
+  color: var(--nw-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.nw-link:hover {
+  background: var(--nw-surface-hover);
+  color: var(--nw-text-primary);
+}
+
+.nw-link:focus-visible {
+  outline: none;
+  box-shadow: var(--nw-focus-ring);
+}
+
+.nw-link--active {
+  background: var(--nw-surface-active);
+  color: var(--nw-accent);
+}
+
+.nw-card {
+  background: var(--nw-surface-panel);
+  border: var(--nw-border);
+  border-radius: var(--nw-radius-lg);
+  box-shadow: var(--nw-shadow-sm);
+  padding: var(--nw-space-4);
+}
+
+.nw-surface {
+  background: var(--nw-surface-page);
+  color: var(--nw-text-primary);
+}
+
+.nw-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--nw-space-6);
+  gap: var(--nw-space-6);
+}
+
+.nw-page__title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 2rem;
+  color: var(--nw-text-primary);
+  margin: 0;
+}
+
+.nw-page__subtitle {
+  font-size: 0.875rem;
+  color: var(--nw-text-secondary);
+  margin: 0;
+}

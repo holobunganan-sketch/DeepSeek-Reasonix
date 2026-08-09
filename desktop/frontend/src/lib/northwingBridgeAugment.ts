@@ -4,6 +4,7 @@ import type {
   CoworkProjectSummary,
   CoworkWorkRef,
 } from "./northwingCowork";
+import type { NorthwingCatalog } from "../northwing/domain/catalog";
 
 export type NorthwingOfficeReport = {
   path: string;
@@ -49,6 +50,7 @@ declare module "./bridge" {
     RegisterCoworkArtifact?(workspaceRoot: string, path: string, kind: string, workID: string): Promise<CoworkProject>;
     InspectCoworkArtifact?(workspaceRoot: string, artifactPath: string): Promise<NorthwingOfficeReport>;
     PendingNorthwingLaunches?(): Promise<NorthwingLaunch[]>;
+    NorthwingCatalog?(workspaceRoots: string[]): Promise<NorthwingCatalog>;
   }
 }
 

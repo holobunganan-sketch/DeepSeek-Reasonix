@@ -1,0 +1,109 @@
+.nw-quick-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--nw-surface);
+}
+
+.nw-quick-chat__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--nw-border);
+  background: var(--nw-surface-raised);
+  flex-shrink: 0;
+}
+
+.nw-quick-chat__label {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--nw-text);
+}
+
+.nw-quick-chat__hint {
+  font-size: 0.75rem;
+  color: var(--nw-text-secondary);
+  flex: 1;
+}
+
+.nw-quick-chat__convert {
+  margin-left: auto;
+  font-size: 0.8125rem;
+}
+
+.nw-quick-chat__session {
+  flex: 1;
+  overflow: hidden;
+}
+
+.nw-quick-chat__placeholder {
+  padding: 32px;
+  text-align: center;
+  color: var(--nw-text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Convert dialog */
+.nw-convert-dialog__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.nw-convert-dialog {
+  background: var(--nw-surface-raised);
+  border: 1px solid var(--nw-border);
+  border-radius: var(--nw-radius-lg);
+  padding: 24px;
+  max-width: 480px;
+  width: 100%;
+  margin: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nw-convert-dialog__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--nw-text);
+  margin: 0;
+}
+
+.nw-convert-dialog__desc {
+  font-size: 0.8125rem;
+  color: var(--nw-text-secondary);
+  margin: 0;
+}
+
+.nw-convert-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nw-convert-dialog__label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--nw-text-secondary);
+}
+
+.nw-convert-dialog__error {
+  font-size: 0.8125rem;
+  color: var(--nw-status-error);
+  margin: 0;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--nw-status-error) 10%, transparent);
+  border-radius: var(--nw-radius);
+}
+
+.nw-convert-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}

@@ -18,26 +18,28 @@ import (
 // navigable conversation tree. The conversation itself remains in the .jsonl
 // file; metadata lives beside it at <session>.meta.
 type BranchMeta struct {
-	ID               string    `json:"id"`
-	Name             string    `json:"name,omitempty"`
-	ParentID         string    `json:"parent_id,omitempty"`
-	ForkTurn         int       `json:"fork_turn,omitempty"`
-	ForkMessageIndex int       `json:"fork_message_index,omitempty"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
-	Scope            string    `json:"scope,omitempty"`
-	WorkspaceRoot    string    `json:"workspace_root,omitempty"`
-	TopicID          string    `json:"topic_id,omitempty"`
-	TopicTitle       string    `json:"topic_title,omitempty"`
-	CustomTitle      string    `json:"custom_title,omitempty"`
-	Model            string    `json:"model,omitempty"`
-	TokenMode        string    `json:"token_mode,omitempty"`
-	Mode             string    `json:"mode,omitempty"`
-	ToolApprovalMode string    `json:"tool_approval_mode,omitempty"`
-	Goal             string    `json:"goal,omitempty"`
-	Recovered        bool      `json:"recovered,omitempty"`
-	RecoveryReason   string    `json:"recovery_reason,omitempty"`
-	RecoveryDigest   string    `json:"recovery_digest,omitempty"`
+	ID               string      `json:"id"`
+	Name             string      `json:"name,omitempty"`
+	ParentID         string      `json:"parent_id,omitempty"`
+	ForkTurn         int         `json:"fork_turn,omitempty"`
+	ForkMessageIndex int         `json:"fork_message_index,omitempty"`
+	CreatedAt        time.Time   `json:"created_at"`
+	UpdatedAt        time.Time   `json:"updated_at"`
+	Scope            string      `json:"scope,omitempty"`
+	WorkspaceRoot    string      `json:"workspace_root,omitempty"`
+	TopicID          string      `json:"topic_id,omitempty"`
+	TopicTitle       string      `json:"topic_title,omitempty"`
+	CustomTitle      string      `json:"custom_title,omitempty"`
+	Model            string      `json:"model,omitempty"`
+	TokenMode        string      `json:"token_mode,omitempty"`
+	Mode             string      `json:"mode,omitempty"`
+	ToolApprovalMode string      `json:"tool_approval_mode,omitempty"`
+	Goal             string      `json:"goal,omitempty"`
+	SessionKind      SessionKind `json:"session_kind,omitempty"`
+	WorkID           string      `json:"work_id,omitempty"`
+	Recovered        bool        `json:"recovered,omitempty"`
+	RecoveryReason   string      `json:"recovery_reason,omitempty"`
+	RecoveryDigest   string      `json:"recovery_digest,omitempty"`
 	// RecoveryDepth counts how many recovery forks separate this branch from a
 	// normal session (1 = forked from a normal session). SaveRecoveryBranch
 	// refuses to fork past SessionRecoveryMaxDepth so a conflict loop cannot
@@ -135,6 +137,16 @@ func LoadBranchMeta(sessionPath string) (BranchMeta, bool, error) {
 	if m.ID == "" {
 		m.ID = BranchID(sessionPath)
 	}
+	if m.SessionKind == "" {
+		m.SessionKind = SessionKindChat
+		m.WorkID = ""
+	} else {
+		m.SessionKind = NormalizeSessionKind(m.SessionKind)
+		m.WorkID = strings.TrimSpace(m.WorkID)
+		if err := ValidateSessionIdentity(m.SessionKind, m.WorkID); err != nil {
+			return BranchMeta{}, false, fmt.Errorf("decode branch meta identity %s: %w", metaPath, err)
+		}
+	}
 	return m, true, nil
 }
 
@@ -187,8 +199,15 @@ func saveBranchMeta(sessionPath string, m BranchMeta, touchUpdated bool) error {
 	if touchUpdated || m.UpdatedAt.IsZero() {
 		m.UpdatedAt = now
 	}
-	if existing, ok, err := LoadBranchMeta(sessionPath); err == nil && ok {
+	existing, hasExisting, loadErr := loadBranchMetaRetry(sessionPath)
+	if loadErr != nil {
+		return loadErr
+	}
+	if hasExisting {
 		preserveBranchMetaPersistence(&m, existing)
+	}
+	if err := prepareBranchMetaSessionIdentity(sessionPath, &m, existing, hasExisting); err != nil {
+		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(metaPath), 0o755); err != nil {
 		return err
@@ -217,6 +236,41 @@ func saveBranchMeta(sessionPath string, m BranchMeta, touchUpdated bool) error {
 		return err
 	}
 	return nil
+}
+
+func prepareBranchMetaSessionIdentity(sessionPath string, next *BranchMeta, existing BranchMeta, hasExisting bool) error {
+	if next == nil {
+		return fmt.Errorf("nil branch meta")
+	}
+	identityOmitted := next.SessionKind == "" && strings.TrimSpace(next.WorkID) == ""
+	if identityOmitted && strings.TrimSpace(next.ParentID) != "" {
+		parentPath := filepath.Join(filepath.Dir(sessionPath), strings.TrimSpace(next.ParentID)+".jsonl")
+		kind, workID, err := LoadSessionIdentity(parentPath)
+		if err != nil {
+			return fmt.Errorf("load parent session identity: %w", err)
+		}
+		next.SessionKind = kind
+		next.WorkID = workID
+		identityOmitted = false
+	}
+	if hasExisting {
+		existingKind := NormalizeSessionKind(existing.SessionKind)
+		existingWorkID := ""
+		if existing.SessionKind != "" {
+			existingWorkID = strings.TrimSpace(existing.WorkID)
+		}
+		if identityOmitted {
+			next.SessionKind = existingKind
+			next.WorkID = existingWorkID
+		}
+		if existingKind == SessionKindWork &&
+			(NormalizeSessionKind(next.SessionKind) != SessionKindWork || strings.TrimSpace(next.WorkID) != existingWorkID) {
+			return fmt.Errorf("session Work ID is already bound to %q", existingWorkID)
+		}
+	}
+	next.SessionKind = NormalizeSessionKind(next.SessionKind)
+	next.WorkID = strings.TrimSpace(next.WorkID)
+	return ValidateSessionIdentity(next.SessionKind, next.WorkID)
 }
 
 func preserveBranchMetaPersistence(next *BranchMeta, existing BranchMeta) {

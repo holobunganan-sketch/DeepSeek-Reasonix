@@ -23,6 +23,122 @@ func TestSummariesKeepOrdinaryReasonixWorkspacesOptional(t *testing.T) {
 	}
 }
 
+func TestCatalogIsEmptyForOrdinaryWorkspaces(t *testing.T) {
+	store := NewStore()
+	root := t.TempDir()
+
+	catalog, err := store.Catalog([]string{root, "", root})
+	if err != nil {
+		t.Fatalf("Catalog returned error for optional workspace: %v", err)
+	}
+	if len(catalog.Projects) != 1 || catalog.Projects[0].Exists {
+		t.Fatalf("ordinary workspace should appear as non-existent project: %#v", catalog.Projects)
+	}
+	if len(catalog.ActiveWorks) != 0 || len(catalog.WaitingForUser) != 0 || len(catalog.RecentArtifacts) != 0 {
+		t.Fatalf("ordinary workspace should produce no works or artifacts: %#v", catalog)
+	}
+}
+
+func TestCatalogSurfacesActiveWorksWaitingAndRecentArtifacts(t *testing.T) {
+	store := NewStore()
+	clock := time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)
+	store.now = func() time.Time { return clock }
+	root := t.TempDir()
+
+	if _, err := store.Create(root, "Medical strategy"); err != nil {
+		t.Fatal(err)
+	}
+
+	clock = clock.Add(time.Minute)
+	first, err := store.LinkWork(root, WorkRef{
+		Title:       "Draft report",
+		SessionPath: "session-a",
+		Profile:     "delivery",
+		Stage:       WorkStagePlanning,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clock = clock.Add(time.Minute)
+	second, err := store.LinkWork(root, WorkRef{
+		Title:       "Build slides",
+		SessionPath: "session-b",
+		Profile:     "delivery",
+		Stage:       WorkStageWaitingUser,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clock = clock.Add(time.Minute)
+	completed, err := store.LinkWork(root, WorkRef{
+		Title:       "Archive old data",
+		SessionPath: "session-c",
+		Profile:     "delivery",
+		Stage:       WorkStageCompleted,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	artifactPath := filepath.Join(root, "deliverables", "brief.pdf")
+	if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(artifactPath, []byte("brief"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	clock = clock.Add(time.Minute)
+	withArtifact, err := store.RegisterArtifact(root, Artifact{Path: artifactPath, Kind: "pdf", WorkID: second.Works[1].ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SetFinalArtifact(root, withArtifact.Artifacts[len(withArtifact.Artifacts)-1].ID); err != nil {
+		t.Fatal(err)
+	}
+
+	catalog, err := store.Catalog([]string{root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(catalog.Projects) != 1 || !catalog.Projects[0].Exists {
+		t.Fatalf("expected one existing project: %#v", catalog.Projects)
+	}
+
+	if len(catalog.ActiveWorks) != 2 {
+		t.Fatalf("expected 2 active works, got %d: %#v", len(catalog.ActiveWorks), catalog.ActiveWorks)
+	}
+	if catalog.ActiveWorks[0].WorkID != second.Works[1].ID {
+		t.Fatalf("latest active work should be first: %#v", catalog.ActiveWorks)
+	}
+	if catalog.ActiveWorks[0].SessionKind != "work" {
+		t.Fatalf("active work should expose sessionKind=work: %#v", catalog.ActiveWorks[0])
+	}
+	if catalog.ActiveWorks[0].Stage != WorkStageWaitingUser {
+		t.Fatalf("active work stage mismatch: %#v", catalog.ActiveWorks[0])
+	}
+
+	if len(catalog.WaitingForUser) != 1 || catalog.WaitingForUser[0].WorkID != second.Works[1].ID {
+		t.Fatalf("expected one waiting work: %#v", catalog.WaitingForUser)
+	}
+
+	if len(catalog.RecentArtifacts) != 1 {
+		t.Fatalf("expected 1 recent artifact, got %d: %#v", len(catalog.RecentArtifacts), catalog.RecentArtifacts)
+	}
+	artifact := catalog.RecentArtifacts[0]
+	if !artifact.Final {
+		t.Fatalf("artifact should be marked final: %#v", artifact)
+	}
+	if artifact.WorkID != second.Works[1].ID {
+		t.Fatalf("artifact work id mismatch: %#v", artifact)
+	}
+
+	_ = first
+	_ = completed
+}
+
 func TestSummariesReturnCompactLatestActivity(t *testing.T) {
 	store := NewStore()
 	clock := time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)

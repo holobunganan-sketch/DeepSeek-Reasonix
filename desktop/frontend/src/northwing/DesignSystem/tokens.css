@@ -1,0 +1,67 @@
+:root {
+  /* Northwing spacing scale */
+  --nw-space-1: 0.25rem;
+  --nw-space-2: 0.5rem;
+  --nw-space-3: 0.75rem;
+  --nw-space-4: 1rem;
+  --nw-space-5: 1.25rem;
+  --nw-space-6: 1.5rem;
+  --nw-space-8: 2rem;
+  --nw-space-10: 2.5rem;
+  --nw-space-12: 3rem;
+  --nw-space-16: 4rem;
+
+  /* Northwing radius scale */
+  --nw-radius-sm: 0.375rem;
+  --nw-radius-md: 0.5rem;
+  --nw-radius-lg: 0.75rem;
+  --nw-radius-xl: 1rem;
+
+  /* Northwing surfaces */
+  --nw-surface-page: var(--color-background);
+  --nw-surface-panel: var(--color-surface);
+  --nw-surface-elevated: var(--color-surface-elevated);
+  --nw-surface-hover: var(--color-surface-hover);
+  --nw-surface-active: var(--color-surface-active);
+
+  /* Northwing borders */
+  --nw-border-color: var(--color-border);
+  --nw-border-width: 1px;
+  --nw-border: var(--nw-border-width) solid var(--nw-border-color);
+
+  /* Northwing text */
+  --nw-text-primary: var(--color-text);
+  --nw-text-secondary: var(--color-text-secondary);
+  --nw-text-muted: var(--color-text-tertiary);
+  --nw-text-inverse: var(--color-text-inverse);
+
+  /* Northwing accent */
+  --nw-accent: var(--color-primary);
+  --nw-accent-hover: var(--color-primary-hover);
+  --nw-accent-active: var(--color-primary-active);
+  --nw-accent-text: var(--color-on-primary);
+
+  /* Northwing status */
+  --nw-status-intake: #8b5cf6;
+  --nw-status-planning: #3b82f6;
+  --nw-status-producing: #10b981;
+  --nw-status-reviewing: #f59e0b;
+  --nw-status-repairing: #ef4444;
+  --nw-status-validating: #06b6d4;
+  --nw-status-waiting: #f97316;
+  --nw-status-completed: #22c55e;
+  --nw-status-failed: #dc2626;
+
+  /* Northwing elevation */
+  --nw-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --nw-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+  --nw-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.08);
+
+  /* Northwing focus */
+  --nw-focus-ring: 0 0 0 2px var(--color-primary-alpha);
+
+  /* Northwing layout */
+  --nw-nav-width: 15rem;
+  --nw-nav-collapsed-width: 3.5rem;
+  --nw-topbar-height: 3.5rem;
+}

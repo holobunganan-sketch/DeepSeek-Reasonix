@@ -1,5 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
+
+// App is the Reasonix-derived session workspace. In Northwing 0.3 it is
+// mounted by the NorthwingShell when the user enters a Quick Chat or Work
+// session. The product shell owns Home, Projects, Work list, Artifacts, and
+// navigation; App continues to own the transcript, composer, approvals, tools,
+// and runtime state for the active session.
+
 import { ShellExpandProvider, useShellExpand } from "./lib/shellExpand";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";

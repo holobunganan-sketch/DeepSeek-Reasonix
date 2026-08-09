@@ -1814,7 +1814,11 @@ function settingSwitchNoticeText(
     if (jobs > 0) return t(keys.busyJobs, { n: jobs });
     return t(keys.busy);
   }
-  if (lower.includes("already open in another reasonix window") || lower.includes("session lease held")) {
+  if (
+    lower.includes("already open in another northwing window") ||
+    lower.includes("already open in another reasonix window") ||
+    lower.includes("session lease held")
+  ) {
     return t(keys.leaseHeld);
   }
   if (lower.includes("workspace is still starting")) {

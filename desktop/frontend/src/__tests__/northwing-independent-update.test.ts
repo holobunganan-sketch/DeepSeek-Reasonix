@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 const dir = dirname(fileURLToPath(import.meta.url));
 const source = (path: string) => readFileSync(resolve(dir, path), "utf8");
 const updater = source("../../../northwing_updater.go");
+const updateManifest = source("../../../northwing_update_manifest.go");
+const releaseIdentity = source("../../../../internal/northwing/release_identity.go");
 const hook = source("../lib/useUpdater.ts");
 const bridge = source("../lib/northwingBridgeAugment.ts");
 const installer = source("../../../../scripts/windows/northwing-installer.nsi");
@@ -23,14 +25,30 @@ function ok(value: unknown, label: string) {
 }
 
 console.log("\nNorthwing independent update boundary");
-ok(/holobunganan-sketch\/DeepSeek-Reasonix\/releases/.test(updater), "runtime checks only the independent Northwing repository");
+ok(
+  /ReleaseRepository = "holobunganan-sketch\/DeepSeek-Reasonix"/.test(releaseIdentity) &&
+    /ReleasePageURL = "https:\/\/github\.com\/holobunganan-sketch\/DeepSeek-Reasonix\/releases"/.test(releaseIdentity) &&
+    /northwing\.ReleaseRepository/.test(updater) &&
+    /northwing\.ReleasePageURL/.test(updater) &&
+    /northwing\.LatestReleaseDownloadURL/.test(updateManifest) &&
+    /northwing\.UpdateManifestName\(\)/.test(updateManifest) &&
+    /northwing\.UpdateManifestSigName\(\)/.test(updateManifest) &&
+    !/holobunganan-sketch\/DeepSeek-Reasonix/.test(updater) &&
+    !/holobunganan-sketch\/DeepSeek-Reasonix/.test(updateManifest),
+  "runtime uses the centralized independent Northwing release identity",
+);
 ok(!/esengine\/DeepSeek-Reasonix/.test(updater), "Northwing updater has no upstream Reasonix release endpoint");
 ok(/ApplyNorthwingUpdateRequest/.test(updater), "Northwing has a dedicated verified apply binding");
 ok(/ApplyNorthwingUpdateRequest/.test(hook) && !/app\.(?:CheckUpdate|ApplyUpdateRequest|OpenDownloadPage)\(/.test(hook), "frontend never hands a Northwing release to the inherited updater");
 ok(/ApplyNorthwingUpdateRequest/.test(bridge), "Wails augmentation exposes the Northwing apply binding");
 ok(/northwing-update-helper\.exe/.test(packager) && /northwing-update-helper\.exe/.test(installer), "helper is packaged and installed with Northwing");
 ok(/SetOverwrite try/.test(installer) && /MB_RETRYCANCEL/.test(installer), "installer retries or aborts locked executable replacement without Ignore");
-ok(/northwing-update\.json/.test(workflow) && /Northwing-\$\{\{ steps\.version\.outputs\.version \}\}/.test(workflow), "release publishes Northwing update metadata and Northwing-only artifacts");
+ok(
+  /northwing-update\.json/.test(workflow) &&
+    /Northwing-\$\{\{ needs\.validate\.outputs\.version \}\}/.test(workflow) &&
+    /name: Publish GitHub Release/.test(workflow),
+  "release publishes Northwing update metadata and Northwing-only artifacts after signed acceptance",
+);
 ok(/not synchronized, rebased, merged, packaged, or distributed automatically/.test(baseline), "frozen-kernel policy is explicit");
 
 if (failed) process.exit(1);

@@ -25,4 +25,7 @@ func TestNorthwingInstallerPreventsIgnoringLockedExecutable(t *testing.T) {
 	if strings.Contains(source, "[Ignore]") {
 		t.Fatal("installer documents an Ignore path for the main executable")
 	}
+	if strings.Contains(strings.ToLower(source), "taskkill") {
+		t.Fatal("Northwing installer or uninstaller retains a taskkill path")
+	}
 }

@@ -215,6 +215,13 @@ export interface WireFinalReadiness {
 }
 
 // Tab management types (desktop/tabs.go).
+export type SessionKind = "chat" | "work";
+
+export type NativeSessionIdentity = {
+  sessionKind: SessionKind;
+  workId?: string;
+};
+
 export interface TabMeta {
   id: string;
   tabType?: "session" | "file";
@@ -227,6 +234,8 @@ export interface TabMeta {
   topicId: string;
   topicTitle: string;
   sessionPath?: string;
+  sessionKind?: SessionKind;
+  workId?: string;
   readOnly?: boolean;
   filePath?: string;
   projectColor?: string;
@@ -284,6 +293,8 @@ export interface ProjectNode {
   root?: string;
   topicId?: string;
   sessionPath?: string;
+  sessionKind?: SessionKind;
+  workId?: string;
   projectColor?: string;
   turns?: number;
   createdAt?: number;
@@ -492,6 +503,8 @@ export interface SessionMeta {
   workspaceRoot?: string;
   topicId?: string;
   topicTitle?: string;
+  sessionKind?: SessionKind;
+  workId?: string;
   kind?: "session" | "channel" | string;
   channel?: string;
   channelLabel?: string;

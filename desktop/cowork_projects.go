@@ -21,6 +21,7 @@ func (a *App) LoadCoworkProject(workspaceRoot string) (cowork.Project, error) {
 // true, files under deliverables/<work-id> are hash-scanned and registered in a
 // single manifest update before the state is returned.
 func (a *App) CoworkProjectState(workspaceRoot string, syncArtifacts bool) cowork.ProjectState {
+	_, _ = a.NormalizeWorkBindings(workspaceRoot)
 	return desktopCoworkStore.State(workspaceRoot, syncArtifacts)
 }
 
@@ -28,7 +29,20 @@ func (a *App) CoworkProjectState(workspaceRoot string, syncArtifacts bool) cowor
 // call. The result contains counts and latest references only; it never loads
 // session transcripts, artifact bodies, or Reasonix execution state.
 func (a *App) CoworkProjectSummaries(workspaceRoots []string) []cowork.ProjectSummary {
+	for _, root := range workspaceRoots {
+		_, _ = a.NormalizeWorkBindings(root)
+	}
 	return desktopCoworkStore.Summaries(workspaceRoots)
+}
+
+// NorthwingCatalog returns a cheap cross-project projection for the Northwing
+// product shell. It loads manifests and final selections without scanning
+// deliverable directories or decoding transcripts.
+func (a *App) NorthwingCatalog(workspaceRoots []string) (cowork.Catalog, error) {
+	for _, root := range workspaceRoots {
+		_, _ = a.NormalizeWorkBindings(root)
+	}
+	return desktopCoworkStore.Catalog(workspaceRoots)
 }
 
 // UpsertCoworkWork links a Northwing Work to the existing Reasonix session and
@@ -42,6 +56,13 @@ func (a *App) UpsertCoworkWork(workspaceRoot string, work cowork.WorkRef) (cowor
 // counters while Reasonix remains authoritative for execution and todo state.
 func (a *App) UpdateCoworkWorkProgress(workspaceRoot, workID, stage string, completedCriteria, totalCriteria int) (cowork.Project, error) {
 	return desktopCoworkStore.UpdateWorkProgress(workspaceRoot, workID, stage, completedCriteria, totalCriteria)
+}
+
+// UpdateCoworkWorkProjection persists the full Northwing Work projection derived
+// from Reasonix runtime evidence. The projection includes stage, current Harness
+// step, acceptance state, and unresolved findings without submitting work.
+func (a *App) UpdateCoworkWorkProjection(workspaceRoot string, workID string, projection cowork.WorkProjectionUpdate) (cowork.Project, error) {
+	return desktopCoworkStore.UpdateWorkProjection(workspaceRoot, workID, projection)
 }
 
 // LinkCoworkWork is the primitive compatibility surface used by the first

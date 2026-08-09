@@ -1373,6 +1373,8 @@ type SessionInfo struct {
 	RecoveryReason string
 	RecoveryDigest string
 	ParentID       string
+	SessionKind    SessionKind
+	WorkID         string
 }
 
 // SessionOrderInfo is the lightweight sidecar/mtime ordering record shared by
@@ -1392,6 +1394,8 @@ type SessionOrderInfo struct {
 	RecoveryReason string
 	RecoveryDigest string
 	ParentID       string
+	SessionKind    SessionKind
+	WorkID         string
 	// Turns and Preview are the cached listing fields from the sidecar; SchemaVersion
 	// >= agent.BranchMetaCountsVersion means they were recorded from content and can
 	// be trusted (even Turns == 0). ListSessions uses them to skip the whole-file decode.
@@ -1913,6 +1917,8 @@ func ListSessionOrder(dir string) ([]SessionOrderInfo, error) {
 		turns := 0
 		preview := ""
 		schemaVersion := 0
+		sessionKind := SessionKindChat
+		workID := ""
 		if meta, ok, err := LoadBranchMeta(full); err == nil && ok {
 			if !meta.CreatedAt.IsZero() {
 				createdAt = meta.CreatedAt
@@ -1932,6 +1938,8 @@ func ListSessionOrder(dir string) ([]SessionOrderInfo, error) {
 			turns = meta.Turns
 			preview = meta.Preview
 			schemaVersion = meta.SchemaVersion
+			sessionKind = meta.SessionKind
+			workID = meta.WorkID
 		}
 		out = append(out, SessionOrderInfo{
 			Path:           full,
@@ -1950,6 +1958,8 @@ func ListSessionOrder(dir string) ([]SessionOrderInfo, error) {
 			Turns:          turns,
 			Preview:        preview,
 			SchemaVersion:  schemaVersion,
+			SessionKind:    sessionKind,
+			WorkID:         workID,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -2003,6 +2013,8 @@ func ListSessions(dir string) ([]SessionInfo, error) {
 			RecoveryReason: session.RecoveryReason,
 			RecoveryDigest: session.RecoveryDigest,
 			ParentID:       session.ParentID,
+			SessionKind:    session.SessionKind,
+			WorkID:         session.WorkID,
 		})
 	}
 	return out, nil

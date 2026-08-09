@@ -33,6 +33,18 @@ func readTestFile(t *testing.T, path string) string {
 	return string(data)
 }
 
+func requireUsableBash(t *testing.T) string {
+	t.Helper()
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skipf("bash is unavailable: %v", err)
+	}
+	if output, err := exec.Command(bash, "--version").CombinedOutput(); err != nil {
+		t.Skipf("bash is not usable for packaging tests: %v\n%s", err, output)
+	}
+	return bash
+}
+
 func parseSignPathConfiguration(t *testing.T, name string) signPathArtifactConfiguration {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("..", ".signpath", "artifact-configurations", name))
@@ -180,6 +192,7 @@ func TestWindowsReleaseSignsPayloadBeforeRepackaging(t *testing.T) {
 }
 
 func TestWindowsPackagerRejectsMissingOrPartialRequiredPayloadManifest(t *testing.T) {
+	bash := requireUsableBash(t)
 	for _, tc := range []struct {
 		name      string
 		manifest  bool
@@ -214,7 +227,7 @@ func TestWindowsPackagerRejectsMissingOrPartialRequiredPayloadManifest(t *testin
 					t.Fatal(err)
 				}
 			}
-			cmd := exec.Command("bash", "../scripts/package-windows-desktop.sh", "amd64", payload)
+			cmd := exec.Command(bash, "../scripts/package-windows-desktop.sh", "amd64", payload)
 			cmd.Env = append(os.Environ(), "REASONIX_REQUIRE_PAYLOAD_MANIFEST=1")
 			output, err := cmd.CombinedOutput()
 			if err == nil || !strings.Contains(string(output), tc.want) {
@@ -272,12 +285,8 @@ func TestProductionSigningRunsOnlyFromProtectedControlPlane(t *testing.T) {
 
 func TestSignPathConfigurationsCoverExactWindowsPayload(t *testing.T) {
 	expected := map[string]bool{
-		"reasonix-desktop.exe":       true,
-		"reasonix-guard.exe":         true,
-		"reasonix-launcher.exe":      true,
-		"reasonix-update-helper.exe": true,
-		"reasonix-cli.exe":           true,
-		"reasonix-uninstall.exe":     true,
+		"northwing.exe":               true,
+		"northwing-update-helper.exe": true,
 	}
 
 	payload := parseSignPathConfiguration(t, "windows-payload.xml")

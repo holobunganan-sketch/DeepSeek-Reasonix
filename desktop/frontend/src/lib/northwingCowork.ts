@@ -1,12 +1,19 @@
 import { app } from "./bridge";
 import { workbenchTargetToken } from "./goalSubmit";
 import type { FilePreview, TabMeta } from "./types";
+import type { NorthwingCatalog } from "../northwing/domain/catalog";
+import { normalizeNorthwingCatalog } from "../northwing/domain/catalog";
 import {
   compileWorkBrief,
+  harnessStepsForQuality,
+  initialWorkStageForQuality,
+  NORTHWING_HARNESS_VERSION,
   normalizeWorkSpec,
   workOutputDir,
   type WorkSpecDraft,
 } from "./northwingWorkSpec";
+
+export { compileWorkBrief } from "./northwingWorkSpec";
 
 export type CoworkWorkRef = {
   id: string;
@@ -21,6 +28,15 @@ export type CoworkWorkRef = {
   reasoningEffort?: string;
   harnessVersion?: number;
   stage?: string;
+  harnessSteps?: string[];
+  currentHarnessStep?: string;
+  materials?: string[];
+  expectedArtifact?: string;
+  audience?: string;
+  constraints?: string[];
+  pausePolicy?: string;
+  acceptance?: { id: string; text: string; status: string; evidence?: string }[];
+  unresolvedFindings?: string[];
   completedCriteria?: number;
   totalCriteria?: number;
   createdAt?: string;
@@ -71,13 +87,24 @@ export type CoworkProjectState = {
 
 export type CoworkWorkDraft = WorkSpecDraft;
 
+export type CoworkWorkProjectionUpdate = {
+  stage: string;
+  currentHarnessStep?: string;
+  acceptance?: { id: string; text: string; status: string; evidence?: string }[];
+  unresolvedFindings?: string[];
+  completedCriteria: number;
+  totalCriteria: number;
+};
+
 type CoworkBindings = {
   CreateCoworkProject?: (workspaceRoot: string, name: string) => Promise<CoworkProject>;
   CoworkProjectState?: (workspaceRoot: string, syncArtifacts: boolean) => Promise<CoworkProjectState>;
   CoworkProjectSummaries?: (workspaceRoots: string[]) => Promise<CoworkProjectSummary[]>;
+  NorthwingCatalog?: (workspaceRoots: string[]) => Promise<NorthwingCatalog>;
   UpsertCoworkWork?: (workspaceRoot: string, work: CoworkWorkRef) => Promise<CoworkProject>;
-  UpdateCoworkWorkProgress?: (workspaceRoot: string, workID: string, stage: string, completedCriteria: number, totalCriteria: number) => Promise<CoworkProject>;
-  SyncCoworkArtifacts?: (workspaceRoot: string) => Promise<CoworkProject>;
+ UpdateCoworkWorkProgress?: (workspaceRoot: string, workID: string, stage: string, completedCriteria: number, totalCriteria: number) => Promise<CoworkProject>;
+  UpdateCoworkWorkProjection?: (workspaceRoot: string, workID: string, projection: CoworkWorkProjectionUpdate) => Promise<CoworkProject>;
+ SyncCoworkArtifacts?: (workspaceRoot: string) => Promise<CoworkProject>;
   SetCoworkArtifactFinal?: (workspaceRoot: string, artifactID: string) => Promise<CoworkProjectState>;
 };
 
@@ -94,6 +121,10 @@ function requiredBinding<K extends keyof CoworkBindings>(name: K): NonNullable<C
 function basename(path: string): string {
   const parts = path.replace(/\\/g, "/").split("/").filter(Boolean);
   return parts[parts.length - 1] ?? path;
+}
+
+export async function upsertCoworkWork(workspaceRoot: string, work: CoworkWorkRef): Promise<CoworkProject> {
+  return requiredBinding("UpsertCoworkWork")(workspaceRoot, work);
 }
 
 export function createCoworkWorkID(): string {
@@ -188,6 +219,10 @@ export async function readCoworkProjectSummaries(workspaceRoots: string[]): Prom
   return method(workspaceRoots);
 }
 
+export async function readNorthwingCatalog(workspaceRoots: string[]): Promise<NorthwingCatalog> {
+  return normalizeNorthwingCatalog(await requiredBinding("NorthwingCatalog")(workspaceRoots));
+}
+
 export async function createCoworkProject(workspaceRoot: string, name: string): Promise<CoworkProject> {
   return requiredBinding("CreateCoworkProject")(workspaceRoot, name);
 }
@@ -202,7 +237,7 @@ export async function launchCoworkWork(
 
   await localTargetToken();
   await ensureCoworkProject(workspaceRoot);
-  const tab = await app.EnsureBlankTab("project", workspaceRoot);
+  const tab = await app.EnsureWorkTab(workspaceRoot, workID);
   if (tab.topicId) await app.RenameTopic(tab.topicId, spec.title).catch(() => undefined);
   if (spec.modelRef) await app.SetModelForTab(tab.id, spec.modelRef);
   if (spec.reasoningEffort) await app.SetEffortForTab(tab.id, spec.reasoningEffort);
@@ -220,8 +255,20 @@ export async function launchCoworkWork(
     sourcePolicy: spec.sourcePolicy,
     modelRef: spec.modelRef,
     reasoningEffort: spec.reasoningEffort,
-    harnessVersion: spec.harnessVersion,
-    stage: "planning",
+    harnessVersion: NORTHWING_HARNESS_VERSION,
+    stage: initialWorkStageForQuality(spec.quality),
+    harnessSteps: harnessStepsForQuality(spec.quality),
+    currentHarnessStep: harnessStepsForQuality(spec.quality)[0],
+    materials: spec.materials,
+    expectedArtifact: spec.deliverable,
+    audience: spec.audience,
+    constraints: spec.constraints,
+    pausePolicy: spec.pausePolicy,
+    acceptance: spec.acceptanceCriteria.map((text, index) => ({
+      id: `acc-${index + 1}`,
+      text,
+      status: "pending",
+    })),
     completedCriteria: 0,
     totalCriteria: spec.acceptanceCriteria.length,
   };
@@ -290,6 +337,14 @@ export async function updateCoworkWorkProgress(
   totalCriteria: number,
 ): Promise<CoworkProject> {
   return requiredBinding("UpdateCoworkWorkProgress")(workspaceRoot, workID, stage, completedCriteria, totalCriteria);
+}
+
+export async function updateCoworkWorkProjection(
+  workspaceRoot: string,
+  workID: string,
+  projection: CoworkWorkProjectionUpdate,
+): Promise<CoworkProject> {
+  return requiredBinding("UpdateCoworkWorkProjection")(workspaceRoot, workID, projection);
 }
 
 export async function syncCoworkArtifacts(workspaceRoot: string): Promise<CoworkProject> {

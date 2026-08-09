@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -18,10 +19,11 @@ import (
 )
 
 const (
-	ManifestVersion              = 2
+	ManifestVersion              = 3
 	MetadataDirName              = ".northwing"
 	ManifestFileName             = "project.json"
 	LegacyManifestBackupFileName = "project.v1.backup.json"
+	V2ManifestBackupFileName     = "project.v2.backup.json"
 )
 
 var (
@@ -54,37 +56,86 @@ type Project struct {
 // WorkRef links one Northwing work item to the Reasonix session and Goal that
 // remain the authoritative execution state. No second task state machine lives
 // in the project manifest.
+// WorkBindingStatus records whether a 0.2 WorkRef has been safely bound to a
+// native session identity.
+type WorkBindingStatus string
+
+const (
+	BindingStatusNative      WorkBindingStatus = "native"
+	BindingStatusNeedsRebind WorkBindingStatus = "needs_rebind"
+)
+
+// NormalizeBindingStatus coerces legacy empty binding to needs_rebind for v3.
+func NormalizeBindingStatus(status WorkBindingStatus) WorkBindingStatus {
+	switch status {
+	case BindingStatusNative, BindingStatusNeedsRebind:
+		return status
+	}
+	return BindingStatusNeedsRebind
+}
+
 type WorkRef struct {
-	ID                string    `json:"id"`
-	Title             string    `json:"title"`
-	SessionPath       string    `json:"sessionPath,omitempty"`
-	GoalID            string    `json:"goalId,omitempty"`
-	Profile           string    `json:"profile"`
-	Kind              string    `json:"kind,omitempty"`
-	Quality           string    `json:"quality,omitempty"`
-	SourcePolicy      string    `json:"sourcePolicy,omitempty"`
-	ModelRef          string    `json:"modelRef,omitempty"`
-	ReasoningEffort   string    `json:"reasoningEffort,omitempty"`
-	HarnessVersion    int       `json:"harnessVersion,omitempty"`
-	Stage             string    `json:"stage,omitempty"`
-	CompletedCriteria int       `json:"completedCriteria,omitempty"`
-	TotalCriteria     int       `json:"totalCriteria,omitempty"`
-	CreatedAt         time.Time `json:"createdAt"`
-	UpdatedAt         time.Time `json:"updatedAt"`
+	ID                 string            `json:"id"`
+	Title              string            `json:"title"`
+	SessionPath        string            `json:"sessionPath,omitempty"`
+	BindingStatus      WorkBindingStatus `json:"bindingStatus,omitempty"`
+	GoalID             string            `json:"goalId,omitempty"`
+	Profile            string            `json:"profile"`
+	Kind               string            `json:"kind,omitempty"`
+	Quality            string            `json:"quality,omitempty"`
+	SourcePolicy       string            `json:"sourcePolicy,omitempty"`
+	ModelRef           string            `json:"modelRef,omitempty"`
+	ReasoningEffort    string            `json:"reasoningEffort,omitempty"`
+	HarnessVersion     int               `json:"harnessVersion,omitempty"`
+	Stage              WorkStage         `json:"stage,omitempty"`
+	HarnessSteps       []HarnessStep     `json:"harnessSteps,omitempty"`
+	CurrentHarnessStep HarnessStep       `json:"currentHarnessStep,omitempty"`
+	Materials          []string          `json:"materials,omitempty"`
+	ExpectedArtifact   string            `json:"expectedArtifact,omitempty"`
+	Audience           string            `json:"audience,omitempty"`
+	Constraints        []string          `json:"constraints,omitempty"`
+	PausePolicy        string            `json:"pausePolicy,omitempty"`
+	Acceptance         []AcceptanceItem  `json:"acceptance,omitempty"`
+	UnresolvedFindings []string          `json:"unresolvedFindings,omitempty"`
+	CompletedCriteria  int               `json:"completedCriteria,omitempty"`
+	TotalCriteria      int               `json:"totalCriteria,omitempty"`
+	CreatedAt          time.Time         `json:"createdAt"`
+	UpdatedAt          time.Time         `json:"updatedAt"`
+}
+
+// AcceptanceItem records one acceptance criterion for a Work.
+type AcceptanceItem struct {
+	ID       string `json:"id"`
+	Text     string `json:"text"`
+	Status   string `json:"status"`
+	Evidence string `json:"evidence,omitempty"`
+}
+
+// WorkProjectionUpdate persists the user-visible Work projection derived from
+// runtime evidence. It does not duplicate execution state or control the agent loop.
+type WorkProjectionUpdate struct {
+	Stage              WorkStage        `json:"stage"`
+	CurrentHarnessStep HarnessStep      `json:"currentHarnessStep,omitempty"`
+	Acceptance         []AcceptanceItem `json:"acceptance,omitempty"`
+	UnresolvedFindings []string         `json:"unresolvedFindings,omitempty"`
+	CompletedCriteria  int              `json:"completedCriteria"`
+	TotalCriteria      int              `json:"totalCriteria"`
 }
 
 // Artifact records a versioned file produced by a work item. The path is always
 // workspace-relative and slash-normalized so moving the whole project keeps the
 // manifest valid.
 type Artifact struct {
-	ID        string    `json:"id"`
-	Path      string    `json:"path"`
-	Kind      string    `json:"kind"`
-	WorkID    string    `json:"workId,omitempty"`
-	Version   int       `json:"version"`
-	SHA256    string    `json:"sha256"`
-	Size      int64     `json:"size"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID          string    `json:"id"`
+	Path        string    `json:"path"`
+	Kind        string    `json:"kind"`
+	WorkID      string    `json:"workId,omitempty"`
+	Version     int       `json:"version"`
+	SHA256      string    `json:"sha256"`
+	Size        int64     `json:"size"`
+	CreatedAt   time.Time `json:"createdAt"`
+	Validated   bool      `json:"validated"`
+	ValidatedAt time.Time `json:"validatedAt,omitempty"`
 }
 
 // Store serializes manifest changes inside one process and publishes each
@@ -257,11 +308,38 @@ func mergeWorkRefresh(current, incoming WorkRef) WorkRef {
 	if strings.TrimSpace(incoming.ReasoningEffort) == "" {
 		incoming.ReasoningEffort = current.ReasoningEffort
 	}
-	if incoming.HarnessVersion == 0 {
+	if incoming.HarnessVersion == 0 && current.HarnessVersion != 0 {
 		incoming.HarnessVersion = current.HarnessVersion
 	}
-	if strings.TrimSpace(incoming.Stage) == "" {
+	if strings.TrimSpace(string(incoming.Stage)) == "" {
 		incoming.Stage = current.Stage
+	}
+	if len(incoming.HarnessSteps) == 0 && len(current.HarnessSteps) > 0 {
+		incoming.HarnessSteps = append([]HarnessStep(nil), current.HarnessSteps...)
+	}
+	if incoming.CurrentHarnessStep == "" && current.CurrentHarnessStep != "" {
+		incoming.CurrentHarnessStep = current.CurrentHarnessStep
+	}
+	if len(incoming.Materials) == 0 && len(current.Materials) > 0 {
+		incoming.Materials = append([]string(nil), current.Materials...)
+	}
+	if incoming.ExpectedArtifact == "" {
+		incoming.ExpectedArtifact = current.ExpectedArtifact
+	}
+	if incoming.Audience == "" {
+		incoming.Audience = current.Audience
+	}
+	if len(incoming.Constraints) == 0 && len(current.Constraints) > 0 {
+		incoming.Constraints = append([]string(nil), current.Constraints...)
+	}
+	if incoming.PausePolicy == "" {
+		incoming.PausePolicy = current.PausePolicy
+	}
+	if len(incoming.Acceptance) == 0 && len(current.Acceptance) > 0 {
+		incoming.Acceptance = append([]AcceptanceItem(nil), current.Acceptance...)
+	}
+	if len(incoming.UnresolvedFindings) == 0 && len(current.UnresolvedFindings) > 0 {
+		incoming.UnresolvedFindings = append([]string(nil), current.UnresolvedFindings...)
 	}
 	if incoming.CompletedCriteria == 0 && incoming.TotalCriteria == 0 && current.TotalCriteria > 0 {
 		incoming.CompletedCriteria = current.CompletedCriteria
@@ -299,7 +377,7 @@ func (s *Store) UpdateWorkProgress(workspaceRoot, workID, stage string, complete
 	}
 	updated := project.Works[index]
 	if strings.TrimSpace(stage) != "" {
-		updated.Stage = strings.TrimSpace(stage)
+		updated.Stage = WorkStage(strings.TrimSpace(stage))
 	}
 	updated.CompletedCriteria = completedCriteria
 	updated.TotalCriteria = totalCriteria
@@ -309,6 +387,66 @@ func (s *Store) UpdateWorkProgress(workspaceRoot, workID, stage string, complete
 	if updated.Stage == project.Works[index].Stage &&
 		updated.CompletedCriteria == project.Works[index].CompletedCriteria &&
 		updated.TotalCriteria == project.Works[index].TotalCriteria {
+		return project, nil
+	}
+	now := s.now()
+	updated.UpdatedAt = now
+	project.Works[index] = updated
+	project.UpdatedAt = now
+	if err := writeProject(project); err != nil {
+		return Project{}, err
+	}
+	return project, nil
+}
+
+// UpdateWorkProjection persists a richer Work projection including the current
+// Harness step, acceptance list state, and unresolved findings. It keeps
+// UpdateWorkProgress as a compatibility surface for callers that only update
+// stage and counters.
+func (s *Store) UpdateWorkProjection(workspaceRoot, workID string, update WorkProjectionUpdate) (Project, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	project, err := s.loadUnlocked(workspaceRoot)
+	if err != nil {
+		return Project{}, err
+	}
+	if project.LegacyReadOnly {
+		return Project{}, ErrProjectReadOnly
+	}
+	workID = strings.TrimSpace(workID)
+	if err := validateWorkID(workID); err != nil {
+		return Project{}, err
+	}
+	index := -1
+	for i := range project.Works {
+		if project.Works[i].ID == workID {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		return Project{}, fmt.Errorf("%w: %s", ErrWorkNotFound, workID)
+	}
+	updated := project.Works[index]
+	if strings.TrimSpace(string(update.Stage)) != "" {
+		updated.Stage = update.Stage
+	}
+	if strings.TrimSpace(string(update.CurrentHarnessStep)) != "" {
+		updated.CurrentHarnessStep = update.CurrentHarnessStep
+	}
+	if len(update.Acceptance) > 0 {
+		updated.Acceptance = append([]AcceptanceItem(nil), update.Acceptance...)
+	}
+	if update.UnresolvedFindings != nil {
+		updated.UnresolvedFindings = append([]string(nil), update.UnresolvedFindings...)
+	}
+	updated.CompletedCriteria = update.CompletedCriteria
+	updated.TotalCriteria = update.TotalCriteria
+	if err := ValidateWorkPolicy(updated); err != nil {
+		return Project{}, err
+	}
+	if reflect.DeepEqual(updated, project.Works[index]) {
 		return project, nil
 	}
 	now := s.now()
@@ -406,24 +544,30 @@ func (s *Store) loadUnlocked(workspaceRoot string) (Project, error) {
 		return Project{}, fmt.Errorf("decode project manifest: %w", err)
 	}
 	legacy := project.Version == 1
-	if !legacy && project.Version != ManifestVersion {
+	v2 := project.Version == 2
+	if !legacy && !v2 && project.Version != ManifestVersion {
 		return Project{}, fmt.Errorf("%w: got %d, want %d", ErrUnsupportedManifest, project.Version, ManifestVersion)
 	}
 	if strings.TrimSpace(project.ID) == "" || strings.TrimSpace(project.Name) == "" {
 		return Project{}, errors.New("invalid cowork project manifest: id and name are required")
 	}
+	if v2 {
+		// Apply v2→v3 work field migration before policy validation.
+		project = migrateV2Works(project)
+	}
 	for i := range project.Works {
 		if err := NormalizeWorkPolicy(&project.Works[i]); err != nil {
 			return Project{}, fmt.Errorf("invalid cowork project manifest work %d policy: %w", i, err)
 		}
+		project.Works[i].BindingStatus = NormalizeBindingStatus(project.Works[i].BindingStatus)
 	}
 	project.Version = ManifestVersion
 	project.Workspace = root
 	if err := validateProjectReferences(project); err != nil {
 		return Project{}, err
 	}
-	if legacy {
-		if err := migrateLegacyManifest(path, data, project); err != nil {
+	if legacy || v2 {
+		if err := migrateManifest(path, data, project, legacy); err != nil {
 			// Preserve a usable read-only projection when disk permissions prevent a
 			// safe backup or atomic migration. No legacy bytes are modified.
 			project.LegacyReadOnly = true
@@ -432,8 +576,12 @@ func (s *Store) loadUnlocked(workspaceRoot string) (Project, error) {
 	return project, nil
 }
 
-func migrateLegacyManifest(path string, legacy []byte, project Project) error {
-	backupPath := filepath.Join(filepath.Dir(path), LegacyManifestBackupFileName)
+func migrateManifest(path string, legacy []byte, project Project, isV1 bool) error {
+	backupName := V2ManifestBackupFileName
+	if isV1 {
+		backupName = LegacyManifestBackupFileName
+	}
+	backupPath := filepath.Join(filepath.Dir(path), backupName)
 	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
 		if err := fileutil.AtomicCreateFile(backupPath, legacy, 0o600); err != nil {
 			return fmt.Errorf("back up legacy project manifest: %w", err)
@@ -441,14 +589,32 @@ func migrateLegacyManifest(path string, legacy []byte, project Project) error {
 	} else if err != nil {
 		return fmt.Errorf("inspect legacy project backup: %w", err)
 	}
+	if !isV1 {
+		project = migrateV2Works(project)
+	}
 	data, err := marshalProject(project)
 	if err != nil {
 		return err
 	}
 	if err := fileutil.AtomicWriteFileStrict(path, data, 0o600); err != nil {
-		return fmt.Errorf("migrate legacy project manifest: %w", err)
+		return fmt.Errorf("migrate project manifest: %w", err)
 	}
 	return nil
+}
+
+func migrateV2Works(project Project) Project {
+	for i := range project.Works {
+		work := &project.Works[i]
+		work.HarnessVersion = CurrentHarnessVersion
+		work.Stage = InitialWorkStageForQuality(work.Quality)
+		work.HarnessSteps = HarnessStepsForQuality(work.Quality)
+		work.CurrentHarnessStep = ""
+		if len(work.HarnessSteps) > 0 {
+			work.CurrentHarnessStep = work.HarnessSteps[0]
+		}
+		work.BindingStatus = BindingStatusNeedsRebind
+	}
+	return project
 }
 
 func writeProject(project Project) error {

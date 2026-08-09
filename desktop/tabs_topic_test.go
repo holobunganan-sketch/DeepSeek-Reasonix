@@ -233,6 +233,43 @@ func TestProjectTreeMetadataChangePreservesSessionListings(t *testing.T) {
 	}
 }
 
+func TestProjectTreeProjectsSessionIdentity(t *testing.T) {
+	isolateDesktopUserDirs(t)
+
+	projectRoot := t.TempDir()
+	if err := addProject(projectRoot, "Identity project"); err != nil {
+		t.Fatalf("addProject: %v", err)
+	}
+	topicID := "topic_identity"
+	if err := setTopicTitle(projectRoot, topicID, "Identity topic"); err != nil {
+		t.Fatalf("setTopicTitle: %v", err)
+	}
+	if err := prependTopicInProjectsFile(projectRoot, topicID, false); err != nil {
+		t.Fatalf("prependTopicInProjectsFile: %v", err)
+	}
+	sessionDir := desktopSessionDir(projectRoot)
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		t.Fatalf("mkdir session dir: %v", err)
+	}
+	path := writeTopicSession(t, sessionDir, "identity.jsonl", topicID, "Identity topic", projectRoot)
+	if err := agent.SetSessionIdentity(path, agent.SessionKindWork, "work-123"); err != nil {
+		t.Fatalf("SetSessionIdentity: %v", err)
+	}
+
+	nodes := NewApp().ListProjectTree()
+	for _, project := range nodes {
+		for _, topic := range project.Children {
+			if topic.TopicID == topicID {
+				if topic.SessionKind != agent.SessionKindWork || topic.WorkID != "work-123" {
+					t.Fatalf("topic identity = %q/%q", topic.SessionKind, topic.WorkID)
+				}
+				return
+			}
+		}
+	}
+	t.Fatalf("project tree = %#v, want topic %q", nodes, topicID)
+}
+
 func TestSessionListCacheForgetRejectsInFlightFillAndReadd(t *testing.T) {
 	cache := &sessionListCache{byDir: map[string]sessionListCacheEntry{}}
 	dir := t.TempDir()

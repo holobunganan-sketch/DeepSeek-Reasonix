@@ -1,7 +1,7 @@
 import "./lib/compat";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App";
+import { lazy } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { installGlobalCrashHandlers, installPerformancePressureMonitor } from "./lib/crash";
 import { installWailsNonFileDragErrorSuppression } from "./lib/bridge";
@@ -15,6 +15,13 @@ import { initTypographyPreferences } from "./lib/typographyPreferences";
 import { initTheme } from "./lib/theme";
 import { initConversationWidth } from "./lib/conversationWidth";
 import "./styles.css";
+import { NorthwingShell } from "./northwing/Shell/NorthwingShell";
+import "./northwing/Shell/NorthwingShell.css";
+import "./northwing/Home/NorthwingHome.css";
+import "./northwing/Projects/NorthwingProjects.css";
+import { readNorthwingCatalogForDesktop } from "./northwing/entryGateway";
+
+const SessionWorkspace = lazy(() => import("./SessionWorkspace"));
 
 // Install first so startup/runtime failures paint a useful error instead of a
 // featureless webview background, with the recent console trail attached.
@@ -94,7 +101,18 @@ async function mountApp() {
       <ErrorBoundary>
         <LocaleProvider>
           <ToastProvider>
-            <App />
+            <NorthwingShell
+              gateway={{
+                SessionWorkspace,
+                readCatalog: readNorthwingCatalogForDesktop,
+                onNewWork: () => {
+                  console.log("northwing:new-work");
+                },
+                onOpenQuickChat: () => {
+                  console.log("northwing:quick-chat");
+                },
+              }}
+            />
           </ToastProvider>
         </LocaleProvider>
       </ErrorBoundary>
