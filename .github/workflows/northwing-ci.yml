@@ -250,6 +250,10 @@ jobs:
         working-directory: desktop
         run: wails build -platform windows/amd64 -clean -ldflags "-X main.version=${{ steps.product_version.outputs.version }} -X main.channel=stable"
 
+      - name: Build Northwing update helper
+        shell: pwsh
+        run: go build -trimpath -ldflags "-s -w" -o desktop/build/bin/northwing-update-helper.exe ./cmd/northwing-update-helper
+
       - name: Verify unified Northwing CLI
         shell: pwsh
         timeout-minutes: 1

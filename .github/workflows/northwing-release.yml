@@ -47,9 +47,36 @@ jobs:
           NORTHWING_WINDOWS_RELEASE_CREDENTIAL: ${{ secrets.NORTHWING_WINDOWS_RELEASE_CREDENTIAL }}
         run: ./scripts/sign-northwing-release.ps1 -PrepareCredential -RunnerTemp $env:RUNNER_TEMP
 
+      - name: Test root Go
+        run: go test ./...
       - name: Install frontend
         working-directory: desktop/frontend
         run: pnpm install --frozen-lockfile
+      - name: Typecheck frontend
+        working-directory: desktop/frontend
+        run: pnpm typecheck
+      - name: Test frontend
+        working-directory: desktop/frontend
+        run: pnpm test
+      - name: Build frontend
+        working-directory: desktop/frontend
+        run: pnpm build
+      - name: Install Playwright Chromium
+        working-directory: desktop/frontend
+        run: pnpm exec playwright install chromium
+      - name: Run Northwing browser E2E
+        working-directory: desktop/frontend
+        run: pnpm test:e2e
+      - name: Test desktop Go
+        working-directory: desktop
+        run: go test ./...
+      - name: Verify release checkout integrity
+        shell: pwsh
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { throw "release checkout contains invalid whitespace" }
+          $changes = @(git status --porcelain --untracked-files=no)
+          if ($changes.Count -ne 0) { throw "release checkout has tracked changes: $($changes -join '; ')" }
       - name: Install Wails and NSIS
         shell: pwsh
         run: |
@@ -60,6 +87,10 @@ jobs:
         shell: pwsh
         run: |
           wails build -platform windows/amd64 -clean -ldflags "-X main.version=${{ steps.version.outputs.version }} -X main.channel=stable -X main.northwingManifestPublicKeySPKIBase64=$env:NORTHWING_MANIFEST_SPKI_BASE64"
+
+      - name: Build Northwing update helper
+        shell: pwsh
+        run: go build -trimpath -ldflags "-s -w" -o desktop/build/bin/northwing-update-helper.exe ./cmd/northwing-update-helper
 
       - name: Sign and verify payload binaries
         shell: pwsh
@@ -76,9 +107,17 @@ jobs:
       - name: Sign and verify Northwing update manifest
         shell: pwsh
         run: ./scripts/sign-northwing-manifest.ps1 -Version '${{ steps.version.outputs.version }}' -ArtifactDir dist -Repository '${{ github.repository }}'
+      - name: Independently verify signed manifest
+        shell: pwsh
+        run: ./scripts/verify-northwing-release-signatures.ps1 -Version '${{ steps.version.outputs.version }}' -ArtifactDir dist -Repository '${{ github.repository }}'
+      - name: Verify formal manifest with Northwing runtime
+        working-directory: desktop
+        env:
+          NORTHWING_RELEASE_ARTIFACT_DIR: ${{ github.workspace }}\dist
+        run: go test . -run '^TestNorthwingReleaseManifestFormalArtifacts$' -count=1
       - name: Verify signed Windows release
         shell: pwsh
-        run: ./scripts/verify-northwing-windows.ps1 -Version '${{ steps.version.outputs.version }}'
+        run: ./scripts/verify-northwing-windows.ps1 -Version '${{ steps.version.outputs.version }}' -Repository '${{ github.repository }}'
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:

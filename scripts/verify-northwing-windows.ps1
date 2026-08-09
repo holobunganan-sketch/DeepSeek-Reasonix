@@ -3,6 +3,7 @@ param(
   [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$')]
   [string]$Version,
   [string]$OutputDir = "dist",
+  [string]$Repository,
   [switch]$AllowUnsignedTestArtifact
 )
 
@@ -12,6 +13,8 @@ $out = Join-Path $root $OutputDir
 $installer = Join-Path $out "Northwing-$Version-windows-x64-setup.exe"
 $portableZip = Join-Path $out "Northwing-$Version-windows-x64-portable.zip"
 $checksumPath = Join-Path $out "Northwing-$Version-SHA256SUMS.txt"
+$manifestPath = Join-Path $out "northwing-update.json"
+$manifestSignaturePath = Join-Path $out "northwing-update.json.sig"
 $expectedArtifacts = @(
   [IO.Path]::GetFileName($installer),
   [IO.Path]::GetFileName($portableZip)
@@ -87,11 +90,30 @@ function Assert-GuiStarts([string]$ExePath) {
   }
 }
 
-if (-not $AllowUnsignedTestArtifact) {
-  foreach ($path in @($installer, (Join-Path $root "desktop\build\bin\northwing.exe"), (Join-Path $root "desktop\build\bin\northwing-update-helper.exe"))) {
-    $signature = Get-AuthenticodeSignature -LiteralPath $path
-    if ($signature.Status -ne "Valid") { throw "Formal Northwing verification requires a valid Authenticode signature: $path" }
+function Assert-NorthwingAuthenticodeFile([string]$Path, [string]$SignTool) {
+  $signature = Get-AuthenticodeSignature -LiteralPath $Path
+  if ($signature.Status -ne "Valid") { throw "Formal Northwing verification requires a valid Authenticode signature: $Path" }
+  if ($null -eq $signature.SignerCertificate) { throw "Formal Northwing verification requires a signer certificate: $Path" }
+  $codeSigning = @($signature.SignerCertificate.EnhancedKeyUsageList | Where-Object { $_.ObjectId.Value -eq '1.3.6.1.5.5.7.3.3' })
+  if ($codeSigning.Count -eq 0) { throw "Formal Northwing verification requires a Code Signing signer certificate: $Path" }
+  if ($null -eq $signature.TimeStamperCertificate) { throw "Formal Northwing verification requires an RFC3161 timestamp: $Path" }
+  & $SignTool verify /pa /all $Path
+  if ($LASTEXITCODE -ne 0) { throw "signtool verify failed: $Path" }
+}
+
+$signtool = $null
+if ($AllowUnsignedTestArtifact) {
+  Write-Warning "UNSIGNED-TEST-ONLY: Authenticode, timestamp, and manifest signature validation are intentionally skipped."
+} else {
+  if ([string]::IsNullOrWhiteSpace($Repository)) { throw 'Repository is required for formal Northwing verification' }
+  foreach ($path in @($manifestPath, $manifestSignaturePath)) {
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Required signed update artifact is missing: $path" }
   }
+  $signtool = & (Join-Path $PSScriptRoot 'sign-northwing-release.ps1') -ResolveSignTool
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($signtool)) { throw 'signtool.exe is required for formal Northwing verification' }
+  Assert-NorthwingAuthenticodeFile $installer $signtool
+  & (Join-Path $PSScriptRoot 'verify-northwing-release-signatures.ps1') -Version $Version -ArtifactDir $out -Repository $Repository
+  if ($LASTEXITCODE -ne 0) { throw 'independent Northwing manifest verification failed' }
 }
 
 function Wait-NorthwingRestart([string]$ExePath) {
@@ -151,6 +173,10 @@ try {
   $portableHelper = Join-Path $portableDir "northwing-update-helper.exe"
   if (-not (Test-Path -LiteralPath $portableHelper -PathType Leaf)) {
     throw "Portable Northwing update helper is missing: $portableHelper"
+  }
+  if (-not $AllowUnsignedTestArtifact) {
+    Assert-NorthwingAuthenticodeFile $portableExe $signtool
+    Assert-NorthwingAuthenticodeFile $portableHelper $signtool
   }
   Assert-NorthwingVersion $portableExe
   Assert-GuiStarts $portableExe

@@ -3,16 +3,19 @@ param(
   [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$')]
   [string]$Version,
   [string]$OutputDir = "dist",
+  [string]$PayloadDir,
   [switch]$UnsignedTestArtifact,
-  [switch]$FinalizeChecksums
+  [switch]$FinalizeChecksums,
+  [switch]$ValidatePayloadOnly
 )
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $desktop = Join-Path $root "desktop"
-$exe = Join-Path $desktop "build\bin\northwing.exe"
-$helper = Join-Path $desktop "build\bin\northwing-update-helper.exe"
-$out = Join-Path $root $OutputDir
+$payloadRoot = if ([string]::IsNullOrWhiteSpace($PayloadDir)) { Join-Path $desktop "build\bin" } elseif ([IO.Path]::IsPathRooted($PayloadDir)) { [IO.Path]::GetFullPath($PayloadDir) } else { Join-Path $root $PayloadDir }
+$exe = Join-Path $payloadRoot "northwing.exe"
+$helper = Join-Path $payloadRoot "northwing-update-helper.exe"
+$out = if ([IO.Path]::IsPathRooted($OutputDir)) { [IO.Path]::GetFullPath($OutputDir) } else { Join-Path $root $OutputDir }
 $portableZipFinal = Join-Path $out "Northwing-$Version-windows-x64-portable.zip"
 $installerFinal = Join-Path $out "Northwing-$Version-windows-x64-setup.exe"
 $checksumPath = Join-Path $out "Northwing-$Version-SHA256SUMS.txt"
@@ -32,22 +35,34 @@ if ($FinalizeChecksums) {
 if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
   throw "Northwing executable not found: $exe. Run the Wails Windows build first."
 }
+if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
+  throw "Northwing update helper not found: $helper. Build it before packaging."
+}
 
 if ($UnsignedTestArtifact) {
-  Push-Location $root
-  try {
-    go build -trimpath -ldflags "-s -w" -o $helper ./cmd/northwing-update-helper
-    if ($LASTEXITCODE -ne 0) { throw "Northwing update helper build exited with code $LASTEXITCODE" }
-  } finally { Pop-Location }
-} elseif (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
-  throw "Formal packaging requires the already signed helper: $helper"
+  Write-Warning "UNSIGNED-TEST-ONLY: Authenticode and timestamp validation are intentionally skipped."
 } else {
+  function Assert-NorthwingAuthenticodePayload([string]$Path) {
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path
+    if ($signature.Status -ne "Valid") { throw "Formal packaging requires a valid Authenticode signature: $Path" }
+    if ($null -eq $signature.SignerCertificate) { throw "Formal packaging requires a signer certificate: $Path" }
+    $codeSigning = @($signature.SignerCertificate.EnhancedKeyUsageList | Where-Object { $_.ObjectId.Value -eq '1.3.6.1.5.5.7.3.3' })
+    if ($codeSigning.Count -eq 0) { throw "Formal packaging requires a Code Signing signer certificate: $Path" }
+    if ($null -eq $signature.TimeStamperCertificate) { throw "Formal packaging requires an RFC3161 timestamp: $Path" }
+  }
   foreach ($payload in @($exe, $helper)) {
-    if ((Get-AuthenticodeSignature -LiteralPath $payload).Status -ne "Valid") { throw "Formal packaging requires signed payload: $payload" }
+    Assert-NorthwingAuthenticodePayload $payload
+  }
+  $signtool = & (Join-Path $PSScriptRoot 'sign-northwing-release.ps1') -ResolveSignTool
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($signtool)) { throw 'signtool.exe is required for formal packaging verification' }
+  foreach ($payload in @($exe, $helper)) {
+    & $signtool verify /pa /all $payload
+    if ($LASTEXITCODE -ne 0) { throw "signtool verify failed for formal payload: $payload" }
   }
 }
-if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
-  throw "Northwing update helper was not produced: $helper"
+if ($ValidatePayloadOnly) {
+  Write-Host "Northwing payload validation completed."
+  exit 0
 }
 
 New-Item -ItemType Directory -Force -Path $out | Out-Null
