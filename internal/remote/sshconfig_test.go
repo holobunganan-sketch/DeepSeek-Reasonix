@@ -160,7 +160,7 @@ func TestSSHConfigAliasesIncludeImportedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	main := filepath.Join(dir, "config")
-	if err := os.WriteFile(main, []byte("Include "+included+"\nHost direct-box\n  HostName 192.0.2.9\n"), 0o600); err != nil {
+	if err := os.WriteFile(main, []byte("Include \""+filepath.ToSlash(included)+"\"\nHost direct-box\n  HostName 192.0.2.9\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	src, err := LoadSSHConfig(main)
@@ -170,6 +170,9 @@ func TestSSHConfigAliasesIncludeImportedFiles(t *testing.T) {
 	aliases := src.Aliases()
 	if len(aliases) != 2 || aliases[0].Alias != "included-box" || aliases[1].Alias != "direct-box" {
 		t.Fatalf("included aliases = %+v", aliases)
+	}
+	src.resolveOpenSSH = func(context.Context, string, string) ([]byte, error) {
+		return []byte("hostname 192.0.2.10\n"), nil
 	}
 	got, err := src.EffectiveWithError("included-box")
 	if err != nil {

@@ -39,7 +39,7 @@ func TestResolveRelRejectsSymlinkLeaf(t *testing.T) {
 	}
 	link := filepath.Join(ws, "leak")
 	if err := os.Symlink(secret, link); err != nil {
-		t.Fatal(err)
+		t.Skipf("symlinks unavailable: %v", err)
 	}
 	if _, err := ResolveRel(ws, "leak"); err == nil {
 		t.Fatal("expected symlink rejection")

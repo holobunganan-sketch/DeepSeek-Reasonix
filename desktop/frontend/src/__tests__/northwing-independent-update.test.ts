@@ -43,7 +43,12 @@ ok(/ApplyNorthwingUpdateRequest/.test(hook) && !/app\.(?:CheckUpdate|ApplyUpdate
 ok(/ApplyNorthwingUpdateRequest/.test(bridge), "Wails augmentation exposes the Northwing apply binding");
 ok(/northwing-update-helper\.exe/.test(packager) && /northwing-update-helper\.exe/.test(installer), "helper is packaged and installed with Northwing");
 ok(/SetOverwrite try/.test(installer) && /MB_RETRYCANCEL/.test(installer), "installer retries or aborts locked executable replacement without Ignore");
-ok(/northwing-update\.json/.test(workflow) && /Northwing-\$\{\{ steps\.version\.outputs\.version \}\}/.test(workflow), "release publishes Northwing update metadata and Northwing-only artifacts");
+ok(
+  /northwing-update\.json/.test(workflow) &&
+    /Northwing-\$\{\{ needs\.validate\.outputs\.version \}\}/.test(workflow) &&
+    /name: Publish GitHub Release/.test(workflow),
+  "release publishes Northwing update metadata and Northwing-only artifacts after signed acceptance",
+);
 ok(/not synchronized, rebased, merged, packaged, or distributed automatically/.test(baseline), "frozen-kernel policy is explicit");
 
 if (failed) process.exit(1);

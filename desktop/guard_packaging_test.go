@@ -16,6 +16,7 @@ func writePortableFixture(t *testing.T, dir, name, content string) {
 }
 
 func TestVerifyWindowsPortableVersionedLayout(t *testing.T) {
+	bash := requireUsableBash(t)
 	verify := filepath.Join("..", "scripts", "verify-windows-portable.sh")
 	good := t.TempDir()
 	// versioned-v1 root entries
@@ -37,7 +38,7 @@ func TestVerifyWindowsPortableVersionedLayout(t *testing.T) {
 `), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if out, err := exec.Command("bash", verify, good).CombinedOutput(); err != nil {
+	if out, err := exec.Command(bash, verify, good).CombinedOutput(); err != nil {
 		t.Fatalf("valid versioned portable failed: %v\n%s", err, out)
 	}
 
@@ -53,7 +54,7 @@ func TestVerifyWindowsPortableVersionedLayout(t *testing.T) {
 	} {
 		writePortableFixture(t, flat, name, name)
 	}
-	if out, err := exec.Command("bash", verify, flat).CombinedOutput(); err == nil {
+	if out, err := exec.Command(bash, verify, flat).CombinedOutput(); err == nil {
 		t.Fatalf("flat portable with guard should fail, output=%s", out)
 	}
 }

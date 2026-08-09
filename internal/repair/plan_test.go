@@ -1409,9 +1409,7 @@ func TestRepairMutationLockConvergesSymlinkAliases(t *testing.T) {
 		t.Fatal(err)
 	}
 	linkDir := filepath.Join(linkParent, "project")
-	if err := os.Symlink(realDir, linkDir); err != nil {
-		t.Fatal(err)
-	}
+	requireSymlink(t, realDir, linkDir)
 	realFile := filepath.Join(realDir, "reasonix.toml")
 	aliasFile := filepath.Join(linkDir, "reasonix.toml")
 	if err := os.WriteFile(realFile, []byte("[broken\n"), 0o600); err != nil {
@@ -1587,9 +1585,7 @@ func TestRepairPlanPreviewIDDistinguishesLeafSymlinkTargets(t *testing.T) {
 		if err := os.MkdirAll(root, 0o700); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.Symlink(shared, filepath.Join(root, "reasonix.toml")); err != nil {
-			t.Fatal(err)
-		}
+		requireSymlink(t, shared, filepath.Join(root, "reasonix.toml"))
 	}
 	plan := RepairPlan{SchemaVersion: 1, Summary: "project", Actions: []RepairPlanAction{{Type: "repair_config", Scope: "project", Reason: "bad toml"}}}
 	previewA, err := PreviewRepairPlan(plan, ApplyPlanOptions{Root: rootA, AllowProject: true})
