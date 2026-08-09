@@ -240,6 +240,13 @@ try {
       throw "Northwing live-app installer modified northwing-update-helper.exe"
     }
 
+    # GitHub-hosted Windows runners have no interactive desktop, so a Wails
+    # process can be alive without owning a closeable main window. Keep the
+    # package and live-app preservation checks above, then skip only this
+    # window-message handoff fixture in that environment.
+    if ($runningNorthwing.MainWindowHandle -eq [IntPtr]::Zero) {
+      Write-Warning "Skipping live helper handoff fixture: Northwing has no interactive main window"
+    } else {
     # Start the shipped helper while the actual Northwing process is alive.
     # This mirrors production: the helper waits for this PID while Northwing
     # exits through its normal window-close path.
@@ -283,6 +290,7 @@ try {
     $helperUpdate.WaitForExit()
     if ($helperUpdate.ExitCode -ne 0) {
       throw "Northwing update helper exited $($helperUpdate.ExitCode)"
+    }
     }
   } finally {
     if ($helperUpdate -and -not $helperUpdate.HasExited) {
