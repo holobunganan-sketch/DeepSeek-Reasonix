@@ -11,7 +11,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$out = Join-Path $root $OutputDir
+$out = if ([IO.Path]::IsPathRooted($OutputDir)) { [IO.Path]::GetFullPath($OutputDir) } else { Join-Path $root $OutputDir }
 $installer = Join-Path $out "Northwing-$Version-windows-x64-setup.exe"
 $portableZip = Join-Path $out "Northwing-$Version-windows-x64-portable.zip"
 $checksumPath = Join-Path $out "Northwing-$Version-SHA256SUMS.txt"

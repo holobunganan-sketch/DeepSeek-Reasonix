@@ -124,6 +124,21 @@ func TestNorthwingReleaseWorkflowFailsClosedWithOneCredentialAndOrderedGates(t *
 	if strings.Count(source, "assert-northwing-release-checkout-clean.ps1") < 3 {
 		t.Fatal("release build must recheck its checkout after Wails and before signing")
 	}
+	acceptanceStart := strings.Index(source, "  acceptance:")
+	publishStart := strings.Index(source, "  publish:")
+	if acceptanceStart < 0 || publishStart <= acceptanceStart {
+		t.Fatal("release workflow acceptance job is missing")
+	}
+	acceptance := source[acceptanceStart:publishStart]
+	for _, want := range []string{
+		"Read acceptance public key",
+		"id: acceptance_key",
+		"NORTHWING_MANIFEST_SPKI_BASE64: ${{ steps.acceptance_key.outputs.spki }}",
+	} {
+		if !strings.Contains(acceptance, want) {
+			t.Fatalf("formal manifest acceptance gate missing %q", want)
+		}
+	}
 	if strings.Index(source, "Sign release payload") >= strings.Index(source, "Extract signing public key") && strings.Index(source, "Extract signing public key") >= 0 {
 		// Text order is intentionally key metadata -> secret-free build -> signing.
 	} else {
@@ -240,6 +255,39 @@ func TestNorthwingReleaseCheckoutGuardRejectsUntrackedCompileInput(t *testing.T)
 	}
 	if !strings.Contains(string(output), injected) {
 		t.Fatalf("checkout guard did not identify injected compile input: %v\n%s", err, output)
+	}
+}
+
+func TestNorthwingReleaseWindowsVerifierPreservesAbsoluteArtifactDirectory(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Northwing Windows verification requires Windows")
+	}
+	pwsh, err := exec.LookPath("pwsh")
+	if err != nil {
+		t.Skip("pwsh is unavailable")
+	}
+	outputDir := t.TempDir()
+	verifier, err := filepath.Abs("../scripts/verify-northwing-windows.ps1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(pwsh, "-NoProfile", "-File", verifier,
+		"-Version", "0.3.0", "-OutputDir", outputDir, "-AllowUnsignedTestArtifact")
+	output, err := command.CombinedOutput()
+	if err == nil {
+		t.Fatalf("empty release artifact directory unexpectedly verified: %s", output)
+	}
+	expectedMissingPath := filepath.Join(outputDir, "Northwing-0.3.0-windows-x64-setup.exe")
+	if !strings.Contains(string(output), expectedMissingPath) {
+		t.Fatalf("absolute artifact directory was prefixed with the repository root: %v\n%s", err, output)
+	}
+	repositoryRoot, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	malformedPrefix := repositoryRoot + string(os.PathSeparator) + outputDir
+	if strings.Contains(string(output), malformedPrefix) {
+		t.Fatalf("absolute artifact directory was prefixed with the repository root: %v\n%s", err, output)
 	}
 }
 
