@@ -6,6 +6,7 @@ RequestExecutionLevel user
 !include "LogicLib.nsh"
 !include "StrFunc.nsh"
 ${StrStr}
+${UnStrStr}
 
 !define APP_NAME "Northwing"
 !ifndef APP_VERSION
@@ -133,9 +134,31 @@ NorthwingInteractiveRunningApp:
 NorthwingNoRunningApp:
 FunctionEnd
 
+Function un.NorthwingAbortForRunningApp
+  ; Uninstaller functions live in a separate NSIS namespace. Keep the same
+  ; fail-closed process check so uninstall never removes a running executable.
+  nsExec::ExecToStack '"$SYSDIR\tasklist.exe" /FI "IMAGENAME eq ${APP_EXE}" /NH /FO CSV'
+  Pop $R8
+  Pop $R9
+  ${UnStrStr} $R7 $R9 "${APP_EXE}"
+  StrCmp $R7 "" UnNorthwingNoRunningApp UnNorthwingAppIsRunning
+
+UnNorthwingAppIsRunning:
+  IfSilent UnNorthwingSilentRunningApp UnNorthwingInteractiveRunningApp
+
+UnNorthwingSilentRunningApp:
+  Abort "Northwing uninstall: application is still running."
+
+UnNorthwingInteractiveRunningApp:
+  MessageBox MB_OK|MB_ICONSTOP "Northwing is still running. Close Northwing manually, then run the uninstaller again. The current installation has not been modified."
+  Abort "Northwing uninstall: application is still running."
+
+UnNorthwingNoRunningApp:
+FunctionEnd
+
 Section "Uninstall"
   SetShellVarContext current
-  Call NorthwingAbortForRunningApp
+  Call un.NorthwingAbortForRunningApp
   Delete "$SMPROGRAMS\Northwing\Northwing.lnk"
   Delete "$SMPROGRAMS\Northwing\Uninstall Northwing.lnk"
   RMDir "$SMPROGRAMS\Northwing"
