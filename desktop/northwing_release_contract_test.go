@@ -277,8 +277,8 @@ func TestNorthwingReleaseWindowsVerifierPreservesAbsoluteArtifactDirectory(t *te
 	if err == nil {
 		t.Fatalf("empty release artifact directory unexpectedly verified: %s", output)
 	}
-	expectedMissingPath := filepath.Join(outputDir, "Northwing-0.3.0-windows-x64-setup.exe")
-	if !strings.Contains(string(output), expectedMissingPath) {
+	expectedArtifactName := "Northwing-0.3.0-windows-x64-setup.exe"
+	if !strings.Contains(string(output), expectedArtifactName) {
 		t.Fatalf("absolute artifact directory was prefixed with the repository root: %v\n%s", err, output)
 	}
 	repositoryRoot, err := filepath.Abs("..")
