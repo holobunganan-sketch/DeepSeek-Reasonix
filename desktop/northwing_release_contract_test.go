@@ -1,3 +1,6 @@
+Exit code: 0
+Wall time: 0.4 seconds
+Output:
 package main
 
 import (
@@ -139,7 +142,7 @@ func TestNorthwingReleaseWorkflowFailsClosedWithOneCredentialAndOrderedGates(t *
 			t.Fatalf("formal manifest acceptance gate missing %q", want)
 		}
 	}
-	if strings.Index(source, "Sign release payload") >= strings.Index(source, "Extract signing public key") && strings.Index(source, "Extract signing public key") >= 0 {
+	if strings.Index(source, "Sign release payload") >= strings.Index(source, "Extract signing public key") && strings.Contains(source, "Extract signing public key") {
 		// Text order is intentionally key metadata -> secret-free build -> signing.
 	} else {
 		t.Fatal("public-key extraction, secret-free build, and signing jobs are out of order")
