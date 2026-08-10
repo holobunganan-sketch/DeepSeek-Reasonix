@@ -17,6 +17,12 @@ import type { ChatWorkDraft } from "../QuickChat/convertChatToWork";
 import { launchNewWork } from "../NewWork/newWorkController";
 import { NorthwingArtifacts } from "../Artifacts/NorthwingArtifacts";
 import {
+  openCoworkArtifact,
+  previewCoworkArtifact,
+  revealCoworkArtifact,
+  setCoworkArtifactFinal,
+} from "../../lib/northwingCowork";
+import {
   DesktopWindowControls,
   useDesktopWindowChrome,
   type DesktopWindowBridge,
@@ -238,7 +244,7 @@ function NorthwingProjectDetailPage({ workspaceRoot }: { workspaceRoot: string }
 }
 
 function NorthwingArtifactsPage() {
-  const { catalog, loading, error } = useShellCatalog();
+  const { catalog, loading, error, reload } = useShellCatalog();
   if (loading || error) {
     return (
       <main role="main" data-northwing-page="artifacts" className="nw-page">
@@ -255,6 +261,7 @@ function NorthwingArtifactsPage() {
     version: a.version,
     final: a.final,
     projectId: a.projectId,
+    projectName: a.projectName,
     workspace: a.workspace,
     createdAt: a.createdAt,
   }));
@@ -262,10 +269,13 @@ function NorthwingArtifactsPage() {
     <NorthwingArtifacts
       artifacts={artifacts}
       loading={false}
-      onPreview={undefined}
-      onOpen={undefined}
-      onReveal={undefined}
-      onMarkFinal={undefined}
+      onPreview={(artifact) => previewCoworkArtifact(artifact.workspace, artifact.path)}
+      onOpen={(artifact) => openCoworkArtifact(artifact.workspace, artifact.path)}
+      onReveal={(artifact) => revealCoworkArtifact(artifact.workspace, artifact.path)}
+      onMarkFinal={async (artifact) => {
+        await setCoworkArtifactFinal(artifact.workspace, artifact.id);
+        await reload();
+      }}
     />
   );
 }

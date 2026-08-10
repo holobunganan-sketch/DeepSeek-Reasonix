@@ -31,8 +31,9 @@ export function NorthwingWorkView({
   const resolvedWork = initialWork ?? projection.work;
   const resolvedArtifacts = useMemo(() => {
     if (artifacts.length > 0) return artifacts;
-    return (project?.artifacts ?? []).filter((a) => a.workId === workId);
-  }, [artifacts, project, workId]);
+    if (project) return (project.artifacts ?? []).filter((a) => a.workId === workId);
+    return projection.artifacts;
+  }, [artifacts, project, projection.artifacts, workId]);
 
   if (projection.loading) {
     return (

@@ -166,7 +166,7 @@ export function NorthwingMaterialsPanel({
               <p className="nw-materials-panel__empty">No version history.</p>
             ) : (
               <ul className="nw-materials-panel__list" role="list">
-                {artifacts
+                {[...artifacts]
                   .sort((a, b) => b.version - a.version)
                   .map((artifact) => {
                     const fileName = artifact.path.split("/").pop() ?? artifact.path;

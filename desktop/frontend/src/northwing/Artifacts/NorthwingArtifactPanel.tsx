@@ -9,6 +9,7 @@ export type NorthwingArtifactPanelProps = {
   onOpen?: (artifact: FilterableArtifact) => void;
   onReveal?: (artifact: FilterableArtifact) => void;
   onMarkFinal?: (artifact: FilterableArtifact) => void;
+  onOpenWork?: (artifact: FilterableArtifact) => void;
 };
 
 export function NorthwingArtifactPanel({
@@ -19,6 +20,7 @@ export function NorthwingArtifactPanel({
   onOpen,
   onReveal,
   onMarkFinal,
+  onOpenWork,
 }: NorthwingArtifactPanelProps) {
   const name = (artifact.path ?? "").replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? artifact.path;
   const time = artifact.createdAt ? new Date(artifact.createdAt).toLocaleString() : "";
@@ -29,6 +31,9 @@ export function NorthwingArtifactPanel({
         <strong title={artifact.path}>{name}</strong>
         <span>
           {artifact.kind} · Version {artifact.version}{time ? ` · ${time}` : ""}
+        </span>
+        <span>
+          Project: {artifact.projectName || artifact.projectId} · Work: {artifact.workId}
         </span>
       </div>
       <div className="nw-artifact-panel__badges">
@@ -58,6 +63,11 @@ export function NorthwingArtifactPanel({
         {onMarkFinal && !isFinal && (
           <button type="button" onClick={() => onMarkFinal(artifact)}>
             <Star size={12} /> Set final
+          </button>
+        )}
+        {onOpenWork && (
+          <button type="button" onClick={() => onOpenWork(artifact)}>
+            Open Work
           </button>
         )}
       </div>
