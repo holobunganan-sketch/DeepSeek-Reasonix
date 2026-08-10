@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-const TEST_APP_URL = "/e2e/test-app/index.html";
+const TEST_APP_URL = "/e2e/production-entry/index.html?platform=windows";
 
 test.describe("Northwing Work-first path", () => {
   test("1-3: startup shows Home with New Work CTA", async ({ page }) => {

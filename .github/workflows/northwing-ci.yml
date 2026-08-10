@@ -167,7 +167,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          npx playwright test --project=chromium 2>&1 | tee "$RUNNER_TEMP/e2e-test.log"
+          pnpm test:e2e 2>&1 | tee "$RUNNER_TEMP/e2e-test.log"
 
       - name: Upload E2E report
         if: failure() && steps.e2e_tests.outcome == 'failure'

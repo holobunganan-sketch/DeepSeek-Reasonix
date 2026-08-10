@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test:northwing-release": "node --import tsx src/__tests__/northwing-version-consistency.test.ts && node --import tsx src/__tests__/northwing-release-gates.test.ts && node --import tsx src/__tests__/northwing-update-helper-security.test.ts",
+    "test:northwing-release": "node --import tsx src/__tests__/northwing-version-consistency.test.ts && node --import tsx src/__tests__/northwing-release-gates.test.ts && node --import tsx src/__tests__/northwing-update-helper-security.test.ts && node --import tsx src/__tests__/northwing-production-entry-e2e.test.ts",
     "build": "pnpm lint:hooks && node scripts/check-css-syntax.mjs src/styles.css && node scripts/check-z-index-tokens.mjs src/styles.css && tsc --noEmit && vite build && node scripts/check-bundle-budget.mjs",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "preview": "vite preview",

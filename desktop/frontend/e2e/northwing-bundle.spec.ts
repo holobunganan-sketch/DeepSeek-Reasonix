@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-const TEST_APP_URL = "/e2e/test-app/index.html";
+const TEST_APP_URL = "/e2e/production-entry/index.html?platform=windows";
 
 /**
  * Bundle / chunk boundary checks.
