@@ -2,11 +2,23 @@ package cowork
 
 import (
 	"errors"
+	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
 )
+
+func canonicalWorkspaceKey(root, goos string) string {
+	trimmed := strings.TrimSpace(root)
+	if goos == "windows" {
+		// Tests for Windows behavior also run on non-Windows hosts, so normalize
+		// slash semantics before applying path.Clean.
+		return strings.ToLower(path.Clean(strings.ReplaceAll(trimmed, `\`, "/")))
+	}
+	return filepath.Clean(trimmed)
+}
 
 // ProjectSummary is the compact desktop projection of a Northwing manifest.
 // It intentionally excludes session content, Goal state, tool history, and file
@@ -98,7 +110,7 @@ func (s *Store) Summaries(workspaceRoots []string) []ProjectSummary {
 		if requestedRoot == "" {
 			continue
 		}
-		key := filepath.Clean(requestedRoot)
+		key := canonicalWorkspaceKey(requestedRoot, runtime.GOOS)
 		if _, ok := seen[key]; ok {
 			continue
 		}
@@ -165,7 +177,7 @@ func (s *Store) Catalog(workspaceRoots []string) (Catalog, error) {
 		if requestedRoot == "" {
 			continue
 		}
-		key := filepath.Clean(requestedRoot)
+		key := canonicalWorkspaceKey(requestedRoot, runtime.GOOS)
 		if _, ok := seen[key]; ok {
 			continue
 		}

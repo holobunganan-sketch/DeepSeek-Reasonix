@@ -1,5 +1,6 @@
 import { Home, FolderKanban, Briefcase, Package, Settings, Plus } from "lucide-react";
 import type { NorthwingDestination } from "./routes";
+import { sameNorthwingWorkspace } from "../../lib/northwingWorkspaceIdentity";
 
 export type NorthwingNavigationProps = {
   current: NorthwingDestination;
@@ -28,10 +29,10 @@ export function NorthwingNavigation({ current, onNavigate, onNewWork }: Northwin
   const isActive = (destination: NorthwingDestination) => {
     if (destination.kind !== current.kind) return false;
     if (destination.kind === "project" && current.kind === "project") {
-      return destination.workspaceRoot === current.workspaceRoot;
+      return sameNorthwingWorkspace(destination.workspaceRoot, current.workspaceRoot);
     }
     if (destination.kind === "work" && current.kind === "work") {
-      return destination.workspaceRoot === current.workspaceRoot && destination.workId === current.workId;
+      return sameNorthwingWorkspace(destination.workspaceRoot, current.workspaceRoot) && destination.workId === current.workId;
     }
     return true;
   };

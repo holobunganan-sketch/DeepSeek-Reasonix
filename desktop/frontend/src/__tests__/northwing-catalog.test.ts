@@ -167,5 +167,18 @@ ok(Array.isArray(empty.waitingForUser), "undefined input yields empty waitingFor
 ok(Array.isArray((empty as typeof empty & { works?: unknown[] }).works), "undefined input yields empty works");
 ok(Array.isArray(empty.recentArtifacts), "undefined input yields empty recentArtifacts");
 
+const windowsCaseCatalog = normalizeNorthwingCatalog({
+  projects: [
+    { id: "project-a", name: "CJK project", workspace: "C:/Northwing Work/项目 A", exists: true },
+    { id: "project-a-duplicate", name: "Duplicate", workspace: "c:\\northwing work\\项目 A", exists: true },
+  ],
+  works: [],
+  activeWorks: [],
+  waitingForUser: [],
+  recentArtifacts: [],
+});
+equal(windowsCaseCatalog.projects.length, 1, "Windows case/separator variants produce one Project row");
+equal(windowsCaseCatalog.projects[0]?.workspace, "C:/Northwing Work/项目 A", "Project deduplication preserves the first display path");
+
 if (failed) process.exit(1);
 console.log("Northwing product catalog normalization tests passed");

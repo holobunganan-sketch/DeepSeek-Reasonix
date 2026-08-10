@@ -3,6 +3,7 @@ import { readNorthwingCatalog } from "../lib/northwingCowork";
 import type { ProjectNode } from "../lib/types";
 import type { NorthwingDestination } from "./Navigation/routes";
 import type { NorthwingCatalog } from "./domain/catalog";
+import { northwingWorkspaceIdentity } from "../lib/northwingWorkspaceIdentity";
 
 export type NorthwingCatalogGateway = {
   listProjectTree: () => Promise<ProjectNode[]>;
@@ -30,16 +31,19 @@ type NorthwingSessionCoordinator = {
 };
 
 export function northwingProjectWorkspaceRoots(nodes: readonly ProjectNode[]): string[] {
-  const roots = new Set<string>();
+  const roots = new Map<string, string>();
   const visit = (items: readonly ProjectNode[]) => {
     for (const node of items) {
       const root = node.kind === "project" ? node.root?.trim() : "";
-      if (root) roots.add(root);
+      if (root) {
+        const identity = northwingWorkspaceIdentity(root);
+        if (!roots.has(identity)) roots.set(identity, root);
+      }
       if (node.children) visit(node.children);
     }
   };
   visit(nodes);
-  return [...roots];
+  return [...roots.values()];
 }
 
 export function createNorthwingCatalogLoader(gateway: NorthwingCatalogGateway): () => Promise<NorthwingCatalog> {

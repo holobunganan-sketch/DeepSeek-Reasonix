@@ -1,5 +1,6 @@
 import type { CoworkProjectSummary } from "../../lib/northwingCowork";
 import type { WorkStage } from "../../lib/northwingWorkSpec";
+import { northwingWorkspaceIdentity } from "../../lib/northwingWorkspaceIdentity";
 
 export type NorthwingWorkSummary = {
   workId: string;
@@ -79,6 +80,15 @@ function normalizeProjectSummary(raw: unknown): NorthwingProjectSummary {
   return (raw ?? {}) as NorthwingProjectSummary;
 }
 
+function deduplicateProjects(projects: NorthwingProjectSummary[]): NorthwingProjectSummary[] {
+  const unique = new Map<string, NorthwingProjectSummary>();
+  for (const project of projects) {
+    const key = northwingWorkspaceIdentity(project.workspace ?? "") || project.id || "";
+    if (!unique.has(key)) unique.set(key, project);
+  }
+  return [...unique.values()];
+}
+
 function workIdentity(work: NorthwingWorkSummary): string {
   return work.workId || `${work.workspace}\u0000${work.title}\u0000${work.updatedAt}`;
 }
@@ -117,7 +127,7 @@ export function normalizeNorthwingCatalog(raw: unknown): NorthwingCatalog {
   );
   return {
     projects: Array.isArray(catalog.projects)
-      ? catalog.projects.map(normalizeProjectSummary)
+      ? deduplicateProjects(catalog.projects.map(normalizeProjectSummary))
       : [],
     works,
     activeWorks: works.filter(isActiveWork),

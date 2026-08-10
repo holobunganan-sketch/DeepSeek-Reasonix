@@ -28,6 +28,7 @@ import {
   useDesktopWindowChrome,
   type DesktopWindowBridge,
 } from "../../components/DesktopWindowChrome";
+import { sameNorthwingWorkspace } from "../../lib/northwingWorkspaceIdentity";
 
 const SettingsPanel = lazy(() => import("../../components/SettingsPanel").then((module) => ({ default: module.SettingsPanel })));
 
@@ -221,7 +222,7 @@ function NorthwingProjectDetailPage({ workspaceRoot }: { workspaceRoot: string }
       </main>
     );
   }
-  const project = catalog.projects.find((p) => p.workspace === workspaceRoot);
+  const project = catalog.projects.find((p) => sameNorthwingWorkspace(p.workspace, workspaceRoot));
   if (!project) {
     return (
       <main role="main" data-northwing-page="project" className="nw-page">
@@ -230,8 +231,8 @@ function NorthwingProjectDetailPage({ workspaceRoot }: { workspaceRoot: string }
       </main>
     );
   }
-  const works = catalog.works.filter((w) => w.workspace === workspaceRoot);
-  const artifacts = catalog.recentArtifacts.filter((a) => a.workspace === workspaceRoot);
+  const works = catalog.works.filter((w) => sameNorthwingWorkspace(w.workspace, workspaceRoot));
+  const artifacts = catalog.recentArtifacts.filter((a) => sameNorthwingWorkspace(a.workspace, workspaceRoot));
   return (
     <NorthwingProjectView
       project={project}

@@ -39,6 +39,17 @@ func TestCatalogIsEmptyForOrdinaryWorkspaces(t *testing.T) {
 	}
 }
 
+func TestCanonicalWorkspaceKeyFoldsWindowsCaseAndSeparators(t *testing.T) {
+	left := canonicalWorkspaceKey(`C:\Northwing Work\项目 A`, "windows")
+	right := canonicalWorkspaceKey(`c:/northwing work/项目 A`, "windows")
+	if left != right {
+		t.Fatalf("Windows keys differ: %q != %q", left, right)
+	}
+	if canonicalWorkspaceKey(`/workspace/Project A`, "linux") == canonicalWorkspaceKey(`/workspace/project A`, "linux") {
+		t.Fatal("POSIX workspace keys must remain case-sensitive")
+	}
+}
+
 func TestCatalogSurfacesActiveWorksWaitingAndRecentArtifacts(t *testing.T) {
 	store := NewStore()
 	clock := time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)

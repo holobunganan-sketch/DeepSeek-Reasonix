@@ -3,6 +3,7 @@ import { workbenchTargetToken } from "./goalSubmit";
 import type { FilePreview, TabMeta } from "./types";
 import type { NorthwingCatalog } from "../northwing/domain/catalog";
 import { normalizeNorthwingCatalog } from "../northwing/domain/catalog";
+import { sameNorthwingWorkspace } from "./northwingWorkspaceIdentity";
 import {
   compileWorkBrief,
   harnessStepsForQuality,
@@ -155,7 +156,7 @@ async function localTargetToken() {
 
 async function projectTab(workspaceRoot: string): Promise<TabMeta> {
   const tabs = await app.ListTabs();
-  const existing = tabs.find((tab) => tab.scope === "project" && tab.workspaceRoot === workspaceRoot && !tab.readOnly);
+  const existing = tabs.find((tab) => tab.scope === "project" && sameNorthwingWorkspace(tab.workspaceRoot ?? "", workspaceRoot) && !tab.readOnly);
   if (existing) return existing;
   return app.EnsureBlankTab("project", workspaceRoot);
 }
