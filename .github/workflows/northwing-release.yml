@@ -138,7 +138,7 @@ jobs:
 
       - name: Upload native Windows smoke evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Northwing-${{ steps.version.outputs.version }}-native-smoke
           path: |
@@ -152,7 +152,7 @@ jobs:
         run: ./scripts/scan-northwing-windows-defender.ps1 -Version ${{ steps.version.outputs.version }} -RequireScanner
 
       - name: Upload Defender evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Northwing-${{ steps.version.outputs.version }}-defender-scan
           path: dist/Northwing-${{ steps.version.outputs.version }}-defender-scan.json
