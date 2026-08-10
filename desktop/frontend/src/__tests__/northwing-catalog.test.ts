@@ -179,6 +179,8 @@ const windowsCaseCatalog = normalizeNorthwingCatalog({
 });
 equal(windowsCaseCatalog.projects.length, 1, "Windows case/separator variants produce one Project row");
 equal(windowsCaseCatalog.projects[0]?.workspace, "C:/Northwing Work/项目 A", "Project deduplication preserves the first display path");
+equal(windowsCaseCatalog.projects[0]?.workCount, 0, "missing Project work count normalizes to zero");
+equal(windowsCaseCatalog.projects[0]?.artifactCount, 0, "missing Project artifact count normalizes to zero");
 
 if (failed) process.exit(1);
 console.log("Northwing product catalog normalization tests passed");

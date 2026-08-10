@@ -77,7 +77,16 @@ function normalizeArtifactSummary(raw: unknown): NorthwingArtifactSummary {
 }
 
 function normalizeProjectSummary(raw: unknown): NorthwingProjectSummary {
-  return (raw ?? {}) as NorthwingProjectSummary;
+  const item = (raw ?? {}) as NorthwingProjectSummary;
+  const workCount = Number(item.workCount ?? 0);
+  const artifactCount = Number(item.artifactCount ?? 0);
+  return {
+    ...item,
+    workspace: String(item.workspace ?? ""),
+    exists: Boolean(item.exists ?? false),
+    workCount: Number.isFinite(workCount) ? workCount : 0,
+    artifactCount: Number.isFinite(artifactCount) ? artifactCount : 0,
+  };
 }
 
 function deduplicateProjects(projects: NorthwingProjectSummary[]): NorthwingProjectSummary[] {
