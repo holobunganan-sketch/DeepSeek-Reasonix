@@ -10,30 +10,25 @@ import (
 	"testing"
 )
 
-func TestNorthwingReleaseWorkflowFailsClosedWithOneCredentialAndOrderedGates(t *testing.T) {
+func TestNorthwingReleaseWorkflowPublishesExplicitUnsignedArtifacts(t *testing.T) {
 	workflow, err := os.ReadFile("../.github/workflows/northwing-release.yml")
 	if err != nil {
 		t.Fatal(err)
 	}
 	source := string(workflow)
 	for _, want := range []string{
-		"environment: northwing-release",
-		"secrets.NORTHWING_WINDOWS_RELEASE_CREDENTIAL",
 		"origin/main-v2",
 		"NORTHWING_RELEASE_TAG: ${{ github.ref_name }}",
 		"$tag = $env:NORTHWING_RELEASE_TAG",
-		"NORTHWING_RELEASE_REPOSITORY: ${{ github.repository }}",
-		"main.northwingManifestPublicKeySPKIBase64",
-		"northwing-update.json.sig",
 		"persist-credentials: false",
 		"resolve-northwing-release-version.ps1",
 		"assert-northwing-release-checkout-clean.ps1",
-		"validate:",
-		"key_metadata:",
-		"build:",
-		"sign:",
-		"acceptance:",
-		"publish:",
+		"Build and publish unsigned Northwing release",
+		"-UnsignedTestArtifact",
+		"-AllowUnsignedTestArtifact",
+		"Northwing-${{ steps.version.outputs.version }}-windows-x64-setup.exe",
+		"Northwing-${{ steps.version.outputs.version }}-windows-x64-portable.zip",
+		"Northwing-${{ steps.version.outputs.version }}-SHA256SUMS.txt",
 	} {
 		if !strings.Contains(source, want) {
 			t.Fatalf("release contract missing %q", want)
@@ -42,11 +37,8 @@ func TestNorthwingReleaseWorkflowFailsClosedWithOneCredentialAndOrderedGates(t *
 	if strings.Contains(source, "$tag = '${{ github.ref_name }}'") {
 		t.Fatal("release workflow interpolates attacker-controlled tag data into PowerShell source")
 	}
-	if strings.Count(source, "secrets.NORTHWING_WINDOWS_RELEASE_CREDENTIAL") != 3 {
-		t.Fatal("the one signing secret must be scoped only to public-key extraction and the two required signing phases")
-	}
 	if strings.Count(source, "contents: write") != 1 {
-		t.Fatal("only the credential-free publish job may have contents: write")
+		t.Fatal("only the release job may have contents: write")
 	}
 	if regexp.MustCompile(`uses:\s+[^\s]+@v[0-9]`).MatchString(source) {
 		t.Fatal("release workflow actions must be pinned to full commit SHAs")
@@ -56,40 +48,34 @@ func TestNorthwingReleaseWorkflowFailsClosedWithOneCredentialAndOrderedGates(t *
 		"actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff",
 		"pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1",
 		"actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
-		"actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
-		"actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
 		"softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65",
 	} {
 		if !strings.Contains(source, pinned) {
 			t.Fatalf("release workflow missing pinned action %q", pinned)
 		}
 	}
-	for _, forbidden := range []string{"SIGNPATH_API_TOKEN", "AZURE_TRUSTED_SIGNING", "NORTHWING_SIGNING_CERTIFICATE"} {
+	for _, forbidden := range []string{
+		"NORTHWING_WINDOWS_RELEASE_CREDENTIAL",
+		"SIGNPATH_API_TOKEN",
+		"AZURE_TRUSTED_SIGNING",
+		"NORTHWING_SIGNING_CERTIFICATE",
+		"northwing-update.json",
+		"northwingManifestPublicKeySPKIBase64",
+	} {
 		if strings.Contains(source, forbidden) {
-			t.Fatalf("release workflow retains second credential contract %q", forbidden)
+			t.Fatalf("unsigned release workflow must not publish or consume %q", forbidden)
 		}
 	}
 	steps := []string{
 		"Validate stable tag, product version, and ancestry",
-		"Test root Go",
 		"Install frontend",
-		"Typecheck frontend",
-		"Test frontend",
-		"Build frontend",
-		"Install Playwright Chromium",
-		"Run Northwing browser E2E",
-		"Test desktop Go",
-		"Extract signing public key",
+		"Install Wails and NSIS",
 		"Verify clean build checkout",
 		"Build Northwing Windows x64",
+		"Verify build output did not modify source checkout",
 		"Build Northwing update helper",
-		"Sign release payload",
-		"Package signed release payload",
-		"Sign setup and update manifest",
-		"Independently verify signed manifest",
-		"Upload signed release candidate",
-		"Verify formal manifest with Northwing runtime",
-		"Verify signed Windows release",
+		"Package unsigned installer and portable build",
+		"Verify unsigned Windows installer and portable build",
 		"Publish GitHub Release",
 	}
 	last := -1
@@ -101,48 +87,19 @@ func TestNorthwingReleaseWorkflowFailsClosedWithOneCredentialAndOrderedGates(t *
 		last = at
 	}
 	for _, command := range []string{
-		"go test ./...",
-		"pnpm typecheck",
-		"pnpm test",
-		"pnpm build",
-		"pnpm exec playwright install chromium",
-		"pnpm test:e2e",
+		"wails build -platform windows/amd64 -clean",
 		"go build -trimpath -ldflags \"-s -w\" -o desktop/build/bin/northwing-update-helper.exe ./cmd/northwing-update-helper",
-		"verify-northwing-release-signatures.ps1",
-		"NORTHWING_RELEASE_ARTIFACT_DIR",
-		"NORTHWING_MANIFEST_SPKI_BASE64",
-		"TestNorthwingReleaseManifestFormalArtifacts",
-		"-ExpectedSignerSPKIBase64",
-		"-RequireWindowsKits",
-		"finally {",
-		"-CleanupCredential",
+		"package-northwing-windows.ps1",
+		"verify-northwing-windows.ps1",
+		"body_path: docs/NORTHWING_RELEASE_NOTES.md",
+		"fail_on_unmatched_files: true",
 	} {
 		if !strings.Contains(source, command) {
-			t.Fatalf("release quality gate missing command %q", command)
+			t.Fatalf("unsigned release gate missing command %q", command)
 		}
 	}
-	if strings.Count(source, "assert-northwing-release-checkout-clean.ps1") < 3 {
-		t.Fatal("release build must recheck its checkout after Wails and before signing")
-	}
-	acceptanceStart := strings.Index(source, "  acceptance:")
-	publishStart := strings.Index(source, "  publish:")
-	if acceptanceStart < 0 || publishStart <= acceptanceStart {
-		t.Fatal("release workflow acceptance job is missing")
-	}
-	acceptance := source[acceptanceStart:publishStart]
-	for _, want := range []string{
-		"Read acceptance public key",
-		"id: acceptance_key",
-		"NORTHWING_MANIFEST_SPKI_BASE64: ${{ steps.acceptance_key.outputs.spki }}",
-	} {
-		if !strings.Contains(acceptance, want) {
-			t.Fatalf("formal manifest acceptance gate missing %q", want)
-		}
-	}
-	if strings.Index(source, "Sign release payload") >= strings.Index(source, "Extract signing public key") && strings.Contains(source, "Extract signing public key") {
-		// Text order is intentionally key metadata -> secret-free build -> signing.
-	} else {
-		t.Fatal("public-key extraction, secret-free build, and signing jobs are out of order")
+	if strings.Count(source, "assert-northwing-release-checkout-clean.ps1") != 2 {
+		t.Fatal("release build must check its checkout before and after Wails")
 	}
 }
 

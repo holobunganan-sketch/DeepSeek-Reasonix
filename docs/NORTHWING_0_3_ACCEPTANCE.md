@@ -43,15 +43,16 @@ Generated: 2026-08-08 | Branch: agent/northwing-0.3-work-first-shell
 - [x] migration: v2 fixture → bindingStatus=native; idempotent; artifact integrity
 - [x] bundle: all budgets PASS
 
-## Windows security
+## Windows security and release exception
 
-- [x] northwing.exe signature path: Authenticode SHA-256 + RFC3161 in release workflow
-- [x] update-helper signature path: same signing pipeline
-- [x] setup signature path: same signing pipeline
-- [x] manifest signature: detached RSA SHA-256; verified before URL trust
+- [x] northwing.exe signing implementation: Authenticode SHA-256 + RFC3161 is available for future signed releases
+- [x] update-helper signing implementation: same optional signing pipeline
+- [x] setup signing implementation: same optional signing pipeline
+- [x] signed manifest implementation: detached RSA SHA-256; verified before URL trust when a signed feed is published
 - [x] forced-kill removed: normal update uses graceful exit + PID wait
-- [x] signtool verify: required in release workflow; CREDENTIAL gate
-- [x] release gate: blocks publication without NORTHWING_WINDOWS_RELEASE_CREDENTIAL
+- [x] signtool verify: retained in the credential-backed signing path
+- [x] signed release path remains available for a future credential-backed release
+- [x] 0.3.0 unsigned release explicitly omits the trusted update manifest and publishes SHA-256 checksums
 
 ## Git
 
@@ -61,12 +62,9 @@ Generated: 2026-08-08 | Branch: agent/northwing-0.3-work-first-shell
 - [x] northwing-v0.1.0 and northwing-v0.2.0: zero diff from main-v2
 - [x] diff --check: clean (CRLF normalization only)
 
-## Known external requirement
+## Authorized 0.3.0 release exception
 
-NORTHWING_WINDOWS_RELEASE_CREDENTIAL (PFX base64 + password)
-Must be configured in GitHub Environment before creating northwing-v0.3.0 tag.
-
-Without this credential, CI produces unsigned test artifacts; formal release is blocked.
+The product owner explicitly authorized publishing Northwing 0.3.0 without an Authenticode credential. The setup and portable binaries are therefore unsigned and may trigger Windows Unknown Publisher or SmartScreen warnings. The release publishes SHA-256 checksums and does not publish an unsigned update manifest. Automatic updates remain disabled until a trusted signing service is configured.
 
 ## Release checklist (post-merge)
 
@@ -76,8 +74,7 @@ Without this credential, CI produces unsigned test artifacts; formal release is 
 - [ ] UI E2E green
 - [ ] Migration green
 - [ ] Brand audit green
-- [ ] NORTHWING_WINDOWS_RELEASE_CREDENTIAL configured
-- [ ] signtool verify /pa /all passes on northwing.exe, update-helper.exe, setup.exe
-- [ ] manifest .sig verification passes
+- [x] Product owner accepted the unsigned 0.3.0 Windows release warning
+- [ ] Future signed release: configure a trusted signing service and restore Authenticode verification
 - [ ] Create tag northwing-v0.3.0
-- [ ] Publish GitHub Release with setup.exe, portable.zip, SHA256SUMS, update.json, update.json.sig
+- [ ] Publish GitHub Release with setup.exe, portable.zip, and SHA256SUMS
