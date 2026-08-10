@@ -68,6 +68,10 @@ jobs:
           NORTHWING_RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: wails build -platform windows/amd64 -clean -ldflags "-X main.version=$env:NORTHWING_RELEASE_VERSION -X main.channel=stable"
 
+      - name: Restore tracked frontend dist placeholder
+        shell: pwsh
+        run: git restore --source=HEAD --worktree -- desktop/frontend/dist/.gitkeep
+
       - name: Verify build output did not modify source checkout
         shell: pwsh
         run: ./scripts/assert-northwing-release-checkout-clean.ps1 -RepositoryRoot .
