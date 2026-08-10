@@ -83,7 +83,7 @@ func TestNorthwingReleaseWorkflowEnforcesSignedValidatedStableArtifacts(t *testi
 		"Build production frontend",
 		"Test production entry in browser",
 		"Install Wails and pinned NSIS",
-		"Verify clean build checkout",
+		"Verify clean release checkout",
 		"Build Northwing Windows x64",
 		"Restore tracked frontend dist placeholder",
 		"Verify build output did not modify source checkout",
