@@ -221,6 +221,10 @@ jobs:
         shell: pwsh
         run: ./scripts/test-resolve-northwing-product-version.ps1
 
+      - name: Test Defender scan result classification
+        shell: pwsh
+        run: ./scripts/test-northwing-defender-scan-result.ps1
+
       - name: Resolve Northwing product version
         id: product_version
         shell: pwsh

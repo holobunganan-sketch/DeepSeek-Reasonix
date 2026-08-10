@@ -10,6 +10,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "northwing-defender-scan-result.ps1")
 $root = Split-Path -Parent $PSScriptRoot
 $artifacts = if ([IO.Path]::IsPathRooted($ArtifactDir)) { [IO.Path]::GetFullPath($ArtifactDir) } else { Join-Path $root $ArtifactDir }
 $payloads = if ([IO.Path]::IsPathRooted($PayloadDir)) { [IO.Path]::GetFullPath($PayloadDir) } else { Join-Path $root $PayloadDir }
@@ -103,18 +104,21 @@ if (-not $scanner) {
 }
 
 $scanFailed = $false
+$scanUnavailable = $false
 foreach ($target in $targets) {
   $output = & $scanner -Scan -ScanType 3 -File $target.path 2>&1
   $exitCode = $LASTEXITCODE
-  $result = if ($exitCode -eq 0) { "clean" } else { "threat_or_scan_error" }
-  if ($exitCode -ne 0) { $scanFailed = $true }
+  $outputText = ($output -join "`n").Trim()
+  $result = Get-NorthwingDefenderScanResult -ExitCode $exitCode -Output $outputText
+  if ($result -eq "threat_or_scan_error") { $scanFailed = $true }
+  if ($result -eq "not_scanned") { $scanUnavailable = $true }
   $scanRecords.Add([ordered]@{
     name = $target.name
     path = $target.path
     sha256 = $target.sha256
     result = $result
     exitCode = $exitCode
-    output = ($output -join "`n").Trim()
+    output = $outputText
   })
 }
 Write-DefenderReport $reportValue
@@ -124,5 +128,12 @@ if ($RequireScanner -and ($null -eq $status -or [string]::IsNullOrWhiteSpace([st
 }
 if ($scanFailed) {
   throw "Microsoft Defender reported a threat or scan error for one or more Northwing files; see $report"
+}
+if ($scanUnavailable) {
+  if ($RequireScanner) {
+    throw "Microsoft Defender skipped one or more Northwing files; a completed file scan is required for stable release"
+  }
+  Write-Warning "Microsoft Defender skipped one or more Northwing files; scans are recorded as not_scanned, not clean."
+  return
 }
 Write-Host "Microsoft Defender scans completed cleanly for all three Northwing files."

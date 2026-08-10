@@ -9,7 +9,10 @@ const read = (relative: string) => {
   return existsSync(path) ? readFileSync(path, "utf8") : "";
 };
 const workflow = read(".github/workflows/northwing-release.yml");
+const ciWorkflow = read(".github/workflows/northwing-ci.yml");
 const defender = read("scripts/scan-northwing-windows-defender.ps1");
+const defenderResult = read("scripts/northwing-defender-scan-result.ps1");
+const defenderResultTest = read("scripts/test-northwing-defender-scan-result.ps1");
 const nativeSmoke = read("scripts/smoke-northwing-native-window.ps1");
 
 let failed = 0;
@@ -46,6 +49,9 @@ ok(/secondLaunch/.test(nativeSmoke) && /WM_CLOSE/.test(nativeSmoke), "native smo
 ok(/scan-northwing-windows-defender\.ps1[^\n]*-RequireScanner/.test(workflow), "Defender availability and clean scans gate release");
 ok(/northwing\.exe/.test(defender) && /northwing-update-helper\.exe/.test(defender) && /windows-x64-setup\.exe/.test(defender), "Defender scans setup, app, and update helper separately");
 ok(/Get-MpComputerStatus/.test(defender) && /Get-FileHash/.test(defender), "Defender report records engine/signature metadata and SHA-256");
+ok(/was\\s\+skipped/i.test(defenderResult) && /not_scanned/.test(defenderResult), "Defender exit 0 with a skipped scan is never classified clean");
+ok(/clean/.test(defenderResultTest) && /not_scanned/.test(defenderResultTest) && /threat_or_scan_error/.test(defenderResultTest), "Defender result classification has clean, skipped, and error behavior fixtures");
+ok(workflow.includes("test-northwing-defender-scan-result.ps1") && ciWorkflow.includes("test-northwing-defender-scan-result.ps1"), "Defender result classification is tested in CI and stable release");
 ok(/northwing-update\.json/.test(workflow) && /northwing-update\.json\.sig/.test(workflow), "signed update manifest is published with stable packages");
 const defenderGate = workflow.indexOf("scan-northwing-windows-defender.ps1");
 ok(defenderGate >= 0 && workflow.indexOf("Publish GitHub Release") > defenderGate, "publication occurs only after Defender verification");
