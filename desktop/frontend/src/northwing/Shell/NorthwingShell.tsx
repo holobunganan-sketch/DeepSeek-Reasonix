@@ -15,6 +15,11 @@ import { NorthwingQuickChat } from "../QuickChat/NorthwingQuickChat";
 import type { ChatWorkDraft } from "../QuickChat/convertChatToWork";
 import { launchNewWork } from "../NewWork/newWorkController";
 import { NorthwingArtifacts } from "../Artifacts/NorthwingArtifacts";
+import {
+  DesktopWindowControls,
+  useDesktopWindowChrome,
+  type DesktopWindowBridge,
+} from "../../components/DesktopWindowChrome";
 
 export type { NorthwingDestination } from "../Navigation/routes";
 
@@ -25,6 +30,7 @@ export type NorthwingShellGateway = {
   onNewWork?: () => void;
   onOpenQuickChat?: () => void;
   onNavigate?: (destination: NorthwingDestination) => void;
+  windowBridge?: DesktopWindowBridge;
 };
 const NorthwingGatewayContext = createContext<NorthwingShellGateway | undefined>(undefined);
 export const NorthwingNavigateContext = createContext<(destination: NorthwingDestination) => void>(() => {});
@@ -33,6 +39,8 @@ export type NorthwingShellProps = {
   initialDestination?: NorthwingDestination;
   gateway?: NorthwingShellGateway;
 };
+
+const DEFAULT_NORTHWING_DESTINATION: NorthwingDestination = { kind: "home" };
 
 function PlaceholderPage({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
@@ -321,9 +329,12 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
   }
 }
 
-export function NorthwingShell({ initialDestination = { kind: "home" }, gateway }: NorthwingShellProps) {
+export function NorthwingShell({ initialDestination = DEFAULT_NORTHWING_DESTINATION, gateway }: NorthwingShellProps) {
   const [destination, setDestination] = useState<NorthwingDestination>(initialDestination);
   const [conversionDraft, setConversionDraft] = useState<ChatWorkDraft | null>(null);
+  const windowsFramelessChrome = typeof document !== "undefined"
+    && document.documentElement.getAttribute("data-platform") === "windows";
+  const mainWindowChrome = useDesktopWindowChrome(windowsFramelessChrome, gateway?.windowBridge);
 
   useEffect(() => {
     setDestination(initialDestination);
@@ -377,8 +388,20 @@ export function NorthwingShell({ initialDestination = { kind: "home" }, gateway 
     return <div className="northwing-shell__page">{renderProductPage(gateway, destination, handleNavigate, conversionDraft, handleBeginConversion, handleQuickChatTabReady, handleCancelNewWork, handleCompleteConversion)}</div>;
   }, [destination, gateway, handleNavigate, conversionDraft, handleBeginConversion, handleQuickChatTabReady, handleCancelNewWork, handleCompleteConversion]);
 
+  const handleWindowsTitlebarDoubleClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!windowsFramelessChrome) return;
+    const target = event.target as HTMLElement | null;
+    if (!target?.closest(".northwing-shell__topbar")) return;
+    if (target.closest("button, input, textarea, select, a, [role='button'], [role='tab'], .windows-window-controls")) return;
+    event.preventDefault();
+    mainWindowChrome.toggleMaximise();
+  }, [mainWindowChrome.toggleMaximise, windowsFramelessChrome]);
+
   return (
-    <div className="northwing-shell">
+    <div
+      className={`northwing-shell${windowsFramelessChrome ? " northwing-shell--windows-frameless" : ""}`}
+      onDoubleClickCapture={handleWindowsTitlebarDoubleClick}
+    >
       <NorthwingGatewayContext.Provider value={gateway}>
       <NorthwingNavigateContext.Provider value={handleAbandonConversionAndNavigate}>
         <div className="northwing-shell__navigation">
@@ -401,6 +424,7 @@ export function NorthwingShell({ initialDestination = { kind: "home" }, gateway 
         </div>
       </NorthwingNavigateContext.Provider>
       </NorthwingGatewayContext.Provider>
+      {windowsFramelessChrome && <DesktopWindowControls controller={mainWindowChrome} />}
     </div>
   );
 }

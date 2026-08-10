@@ -11,6 +11,26 @@
   font-family: var(--font-family-base, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
 }
 
+.northwing-shell--windows-frameless {
+  --windows-window-controls-width: 138px;
+  --windows-window-control-width: 46px;
+  --windows-window-controls-height: 48px;
+}
+
+.northwing-shell--windows-frameless .northwing-shell__topbar {
+  padding-right: calc(var(--windows-window-controls-width) + 12px);
+  --wails-draggable: drag;
+}
+
+.northwing-shell--windows-frameless .northwing-shell__topbar button,
+.northwing-shell--windows-frameless .northwing-shell__topbar input,
+.northwing-shell--windows-frameless .northwing-shell__topbar textarea,
+.northwing-shell--windows-frameless .northwing-shell__topbar select,
+.northwing-shell--windows-frameless .northwing-shell__topbar a,
+.northwing-shell--windows-frameless .northwing-navigation {
+  --wails-draggable: no-drag;
+}
+
 .northwing-shell__navigation {
   flex: 0 0 auto;
   width: var(--nw-nav-width);
