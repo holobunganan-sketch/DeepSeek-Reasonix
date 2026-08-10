@@ -317,9 +317,9 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
           requireProjectSelection={Boolean(conversionDraft)}
           initialForm={conversionDraft ? { title: conversionDraft.title, objective: conversionDraft.objective } : undefined}
           onLaunch={async (root, form) => {
-            const { work } = await launchNewWork(root, form);
+            const launched = await launchNewWork(root, form);
             if (conversionDraft) onCompleteConversion();
-            _navigate({ kind: "work", workspaceRoot: root, workId: work.id });
+            _navigate({ kind: "work", workspaceRoot: launched.workspaceRoot, workId: launched.work.id });
           }}
           onCancel={conversionDraft ? onCancelNewWork : () => _navigate({ kind: "home" })}
         />

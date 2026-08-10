@@ -45,12 +45,8 @@ ok(!/Reasonix/.test(componentSrc), "no Reasonix mention in New Work UI");
 // Controller checks
 const controllerSrc = readFileSync(controllerPath, "utf8");
 ok(/launchNewWork/.test(controllerSrc), "exports launchNewWork");
-ok(/EnsureWorkTab/.test(controllerSrc), "launchNewWork uses EnsureWorkTab for native Work identity");
-ok(/SetModelForTab/.test(controllerSrc) && /SetEffortForTab/.test(controllerSrc), "launchNewWork binds model and effort");
-ok(/SetTokenModeForTab.*delivery/.test(controllerSrc), "launchNewWork sets delivery token mode");
-ok(/UpsertCoworkWork/.test(controllerSrc), "launchNewWork persists Work to project");
-ok(/SubmitInitialGoalToTab/.test(controllerSrc), "launchNewWork submits initial goal to Reasonix");
-ok(/SetActiveTab/.test(controllerSrc), "launchNewWork activates the tab after launch");
+ok(/launchCoworkWork/.test(controllerSrc), "launchNewWork delegates to the shared durable Work lifecycle");
+ok(/kind: form\.outputType/.test(controllerSrc), "launchNewWork maps the form output type into the shared Work specification");
 
 // CSS checks
 const cssSrc = readFileSync(cssPath, "utf8");
@@ -63,6 +59,8 @@ ok(/nw-new-work__actions/.test(cssSrc), "CSS defines action bar");
 const coworkPath = resolve(dir, "../lib/northwingCowork.ts");
 const coworkSrc = readFileSync(coworkPath, "utf8");
 ok(/EnsureWorkTab/.test(coworkSrc), "launchCoworkWork uses EnsureWorkTab for native Work identity");
+ok(/prepareCoworkProject/.test(coworkSrc), "launchCoworkWork prepares the Project before native Work identity");
+ok(/ValidateCoworkProjectWritable/.test(coworkSrc), "launchCoworkWork preflights Project writability");
 
 if (failed) process.exit(1);
 console.log("Northwing New Work tests passed");

@@ -98,6 +98,7 @@ export type CoworkWorkProjectionUpdate = {
 
 type CoworkBindings = {
   CreateCoworkProject?: (workspaceRoot: string, name: string) => Promise<CoworkProject>;
+  ValidateCoworkProjectWritable?: (workspaceRoot: string) => Promise<void>;
   CoworkProjectState?: (workspaceRoot: string, syncArtifacts: boolean) => Promise<CoworkProjectState>;
   CoworkProjectSummaries?: (workspaceRoots: string[]) => Promise<CoworkProjectSummary[]>;
   NorthwingCatalog?: (workspaceRoots: string[]) => Promise<NorthwingCatalog>;
@@ -183,8 +184,51 @@ async function submitGoal(tab: TabMeta, goal: string, input: string, displayText
 
 async function ensureCoworkProject(workspaceRoot: string): Promise<CoworkProject> {
   const state = await readCoworkProjectState(workspaceRoot, false);
+  if (state.error) throw new Error(`Northwing could not read the Project manifest: ${state.error}`);
   if (state.exists && state.project) return state.project;
   return createCoworkProject(workspaceRoot, basename(workspaceRoot));
+}
+
+async function prepareCoworkProject(workspaceRoot: string): Promise<{ workspaceRoot: string; project: CoworkProject }> {
+  const requestedRoot = workspaceRoot.trim();
+  if (!requestedRoot) throw new Error("Select a project folder.");
+
+  let registeredRoot: string;
+  try {
+    registeredRoot = (await app.SwitchWorkspace(requestedRoot)).trim();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Northwing could not open the workspace: ${message}`);
+  }
+  if (!registeredRoot) throw new Error("Northwing could not open the workspace.");
+
+  const project = await ensureCoworkProject(registeredRoot);
+  await requiredBinding("ValidateCoworkProjectWritable")(registeredRoot);
+  return { workspaceRoot: registeredRoot, project };
+}
+
+async function resolveLaunchModel(requestedRef: string): Promise<string> {
+  const models = await app.Models();
+  if (models.length === 0) {
+    throw new Error("No usable model configured. Open Settings → Models and configure a provider before starting Work.");
+  }
+  const requested = requestedRef.trim();
+  if (requested) {
+    if (!models.some((model) => model.ref === requested)) {
+      throw new Error(`The selected model is unavailable: ${requested}. Open Settings → Models to choose a configured model.`);
+    }
+    return requested;
+  }
+  return models.find((model) => model.current)?.ref ?? models[0].ref;
+}
+
+async function validateLaunchEffort(reasoningEffort: string): Promise<void> {
+  const requested = reasoningEffort.trim();
+  if (!requested) return;
+  const effort = await app.Effort();
+  if (!effort.supported || (effort.levels.length > 0 && !effort.levels.includes(requested))) {
+    throw new Error(`The selected reasoning effort is unavailable: ${requested}.`);
+  }
 }
 
 async function applyWorkBinding(
@@ -230,18 +274,20 @@ export async function createCoworkProject(workspaceRoot: string, name: string): 
 export async function launchCoworkWork(
   workspaceRoot: string,
   draft: CoworkWorkDraft,
-): Promise<{ project: CoworkProject; work: CoworkWorkRef; tab: TabMeta }> {
-  const spec = normalizeWorkSpec(draft);
+): Promise<{ workspaceRoot: string; project: CoworkProject; work: CoworkWorkRef; tab: TabMeta }> {
+  if (!draft.objective.trim()) throw new Error("Describe what you want to finish.");
+  const prepared = await prepareCoworkProject(workspaceRoot);
+  workspaceRoot = prepared.workspaceRoot;
+  let project = prepared.project;
+
+  const normalized = normalizeWorkSpec(draft);
+  const spec = { ...normalized, modelRef: await resolveLaunchModel(normalized.modelRef) };
+  await validateLaunchEffort(spec.reasoningEffort);
   const workID = createCoworkWorkID();
   const brief = compileWorkBrief(workID, spec);
 
   await localTargetToken();
-  await ensureCoworkProject(workspaceRoot);
   const tab = await app.EnsureWorkTab(workspaceRoot, workID);
-  if (tab.topicId) await app.RenameTopic(tab.topicId, spec.title).catch(() => undefined);
-  if (spec.modelRef) await app.SetModelForTab(tab.id, spec.modelRef);
-  if (spec.reasoningEffort) await app.SetEffortForTab(tab.id, spec.reasoningEffort);
-  await app.SetTokenModeForTab(tab.id, "delivery");
 
   const work: CoworkWorkRef = {
     id: workID,
@@ -272,7 +318,14 @@ export async function launchCoworkWork(
     completedCriteria: 0,
     totalCriteria: spec.acceptanceCriteria.length,
   };
-  let project = await requiredBinding("UpsertCoworkWork")(workspaceRoot, work);
+  project = await requiredBinding("UpsertCoworkWork")(workspaceRoot, work);
+
+  // Once the native session exists, immediately make its source Work
+  // discoverable before any later binding or provider request can fail.
+  if (tab.topicId) await app.RenameTopic(tab.topicId, spec.title);
+  await app.SetModelForTab(tab.id, spec.modelRef);
+  if (spec.reasoningEffort) await app.SetEffortForTab(tab.id, spec.reasoningEffort);
+  await app.SetTokenModeForTab(tab.id, "delivery");
 
   // The native Work link, model binding, and Harness policy are durable before
   // the first provider request. Reasonix remains the sole execution runtime.
@@ -284,7 +337,7 @@ export async function launchCoworkWork(
     goalId: tab.topicId || work.goalId,
   };
   project = await requiredBinding("UpsertCoworkWork")(workspaceRoot, linked);
-  return { project, work: linked, tab };
+  return { workspaceRoot, project, work: linked, tab };
 }
 
 export async function openCoworkWork(workspaceRoot: string, work: CoworkWorkRef): Promise<TabMeta> {

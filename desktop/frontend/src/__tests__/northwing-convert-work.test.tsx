@@ -62,8 +62,14 @@ let historyCalls: string[] = [];
   ListTabs: async () => tabs,
   ListProjectTree: async () => [{ key: "project-team", kind: "project", label: "Team project", root: "C:/team-project" }],
   HistoryForTab: async (tabId: string) => { historyCalls.push(tabId); return tabId === newChatTab.id ? [{ role: "user", content: "Create the new chat work." }] : history; },
+  SwitchWorkspace: async (workspaceRoot: string) => workspaceRoot,
+  CoworkProjectState: async () => ({ exists: true, project: { version: 3, id: "project-team", name: "Team project", createdAt: "2026-08-10T00:00:00Z", updatedAt: "2026-08-10T00:00:00Z" } }),
+  ValidateCoworkProjectWritable: async () => {},
+  Models: async () => [{ ref: "deepseek/reasoner", provider: "deepseek", model: "reasoner", current: true }],
   EnsureWorkTab: async (_workspaceRoot: string, workId: string) => { creationCalls.push(`ensure:${workId}`); return { ...chatTab, id: `work-tab-${workId}`, topicId: `work-topic-${workId}`, sessionKind: "work", workId }; },
+  MetaForTab: async () => ({ sessionPath: "/sessions/work.jsonl" }),
   RenameTopic: async (topicId: string) => { if (topicId === chatTab.topicId) chatMutations.push("rename-chat-topic"); else creationCalls.push("rename-work-topic"); },
+  SetModelForTab: async () => { creationCalls.push("set-model"); },
   SetTokenModeForTab: async () => { creationCalls.push("token-mode"); },
   UpsertCoworkWork: async () => { creationCalls.push("upsert"); return {}; },
   WorkbenchActiveTarget: async () => ({ kind: "local", identityGen: 1, requestSeq: 1 }),
@@ -132,7 +138,7 @@ if (confirmWorkspace) {
 }
 ok(creationCalls.some((call) => call.startsWith("ensure:")), "confirmed conversion creates a fresh native Work tab");
 ok(creationCalls.includes("upsert") && creationCalls.includes("submit"), "confirmed conversion uses the New Work persistence and submission chain");
-count(creationCalls, "upsert", "one confirmation invokes the launch chain once");
+equal(String(creationCalls.filter((call) => call === "upsert").length), "2", "one confirmation persists before and refreshes after submission");
 count(creationCalls, "submit", "one confirmation submits one new Work goal");
 ok(navigations.some((destination) => destination.kind === "work"), "confirmed conversion navigates to the new Work workspace");
 equal(JSON.stringify(chatTab), originalTab, "confirmed conversion keeps the original chat tab unchanged");
