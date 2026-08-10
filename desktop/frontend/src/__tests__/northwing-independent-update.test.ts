@@ -44,10 +44,12 @@ ok(/ApplyNorthwingUpdateRequest/.test(bridge), "Wails augmentation exposes the N
 ok(/northwing-update-helper\.exe/.test(packager) && /northwing-update-helper\.exe/.test(installer), "helper is packaged and installed with Northwing");
 ok(/SetOverwrite try/.test(installer) && /MB_RETRYCANCEL/.test(installer), "installer retries or aborts locked executable replacement without Ignore");
 ok(
-  /northwing-update\.json/.test(workflow) &&
-    /Northwing-\$\{\{ needs\.validate\.outputs\.version \}\}/.test(workflow) &&
-    /name: Publish GitHub Release/.test(workflow),
-  "release publishes Northwing update metadata and Northwing-only artifacts after signed acceptance",
+  /Northwing-\$\{\{ steps\.version\.outputs\.version \}\}-windows-x64-setup\.exe/.test(workflow) &&
+    /Northwing-\$\{\{ steps\.version\.outputs\.version \}\}-windows-x64-portable\.zip/.test(workflow) &&
+    /Northwing-\$\{\{ steps\.version\.outputs\.version \}\}-SHA256SUMS\.txt/.test(workflow) &&
+    /name: Publish GitHub Release/.test(workflow) &&
+    !/northwing-update\.json/.test(workflow),
+  "unsigned release publishes Northwing packages and checksums without an untrusted update manifest",
 );
 ok(/not synchronized, rebased, merged, packaged, or distributed automatically/.test(baseline), "frozen-kernel policy is explicit");
 

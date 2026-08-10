@@ -77,13 +77,12 @@ Northwing 0.3.0 is a full product rebuild that makes Northwing a Work-first CoWo
 - Automated brand surface tests verify that "Reasonix" does not appear in the normal UI DOM.
 - Reasonix is acknowledged in About, Licenses, and third-party attribution as the kernel baseline.
 
-## Windows signing and graceful updates
+## Windows package and graceful updates
 
-- Authenticode SHA-256 signing with RFC3161 timestamping is required for northwing.exe, northwing-update-helper.exe, and setup.exe in formal releases.
-- The updater no longer uses forced process termination; it downloads, verifies, launches the helper, exits cleanly, and the helper waits for PID before applying the installer.
-- Update manifests are signed: `northwing-update.json` plus `northwing-update.json.sig`.
-- The updater verifies the manifest signature before trusting asset URLs, then verifies SHA-256 on download.
-- If a signing credential is not configured, the build produces unsigned test artifacts and the release gate blocks formal publication.
+- Northwing 0.3.0 is distributed as an unsigned Windows package. Windows may display an Unknown Publisher or SmartScreen warning during download and installation.
+- SHA-256 checksums are published so downloads can be checked for integrity before installation.
+- The updater no longer uses forced process termination; it launches the helper, exits cleanly, and the helper waits for the Northwing process before replacing files.
+- Signed update-manifest verification remains implemented, but the unsigned 0.3.0 release does not publish an update manifest or enable automatic updates. Install later versions manually from GitHub Releases until a trusted signing service is configured.
 
 ## UI acceptance testing
 
@@ -97,5 +96,5 @@ Northwing 0.3.0 is a full product rebuild that makes Northwing a Work-first CoWo
 - `Northwing-0.3.0-windows-x64-setup.exe`
 - `Northwing-0.3.0-windows-x64-portable.zip`
 - `Northwing-0.3.0-SHA256SUMS.txt`
-- `northwing-update.json`
-- `northwing-update.json.sig`
+
+> Windows signing notice: these 0.3.0 binaries do not carry an Authenticode publisher signature. Verify the SHA-256 checksum and download only from the official Northwing GitHub Release.
