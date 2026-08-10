@@ -152,6 +152,9 @@ export default defineConfig({
     host: "127.0.0.1",
     port: devPort,
     strictPort: true,
+    // Match the Wails asset middleware so Chromium's self-profiler can start
+    // without emitting a document-policy violation in production-entry E2E.
+    headers: { "Document-Policy": "js-profiling" },
     fs: {
       // Browser-dev theme mocks use the same embedded source assets as Wails.
       // Keep the allow-list narrow while retaining Vite's workspace root.

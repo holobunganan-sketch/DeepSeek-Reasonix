@@ -25,7 +25,7 @@ test.describe("Northwing production entry", () => {
 
   test("Home and navigation New Work use the production router", async ({ page }) => {
     await openProduction(page);
-    await page.locator('[data-northwing-page="home"] button').filter({ hasText: "New Work" }).first().click();
+    await page.locator('[data-northwing-page="home"]').getByRole("button", { name: "New Work" }).first().click();
     await expect(page.locator('[data-northwing-page="new-work"]')).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).click();
     await expect(page.locator('[data-northwing-page="home"]')).toBeVisible();
@@ -53,7 +53,7 @@ test.describe("Northwing production entry", () => {
     await page.getByRole("link", { name: "Projects" }).click();
     await page.getByText("E2E Test Project").click();
     await expect(page.locator('[data-northwing-page="project"]')).toBeVisible();
-    await page.getByRole("button", { name: "New Work" }).first().click();
+    await page.locator('[data-northwing-page="project"]').getByRole("button", { name: "New Work" }).click();
     const project = page.getByLabel("Project folder");
     await expect(project).toBeDisabled();
     await expect(project).toHaveValue("C:\\Northwing E2E\\项目 A");
@@ -89,6 +89,7 @@ test.describe("Northwing production entry", () => {
     await expect(page.getByText("Project: E2E Test Project · Work: work-active")).toBeVisible();
     await page.getByRole("button", { name: "Preview" }).click();
     await expect(page.getByText("Production bridge artifact preview")).toBeVisible();
+    await page.getByRole("button", { name: "Close preview" }).click();
     await page.getByRole("button", { name: "Open", exact: true }).click();
     await page.getByRole("button", { name: "Reveal" }).click();
     expect(await bridgeCalls(page, "OpenWorkspacePathForTab")).toHaveLength(1);
@@ -165,7 +166,7 @@ test.describe("Northwing production entry", () => {
 
   test("Quick Chat mounts the shared production session boundary", async ({ page }) => {
     await openProduction(page);
-    await page.getByRole("button", { name: "Quick Chat" }).click();
+    await page.locator('[data-northwing-page="home"]').getByRole("button", { name: "Quick Chat" }).click();
     await expect(page.locator('[data-northwing-page="quick-chat"]')).toBeVisible();
     await expect(page.getByText("Quick Chat", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Convert to Work" })).toBeVisible({ timeout: 20_000 });
