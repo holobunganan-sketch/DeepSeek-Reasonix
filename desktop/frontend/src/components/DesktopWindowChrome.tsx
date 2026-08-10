@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Copy as RestoreIcon, Minus, Square, X } from "lucide-react";
 import { app, type AppBindings } from "../lib/bridge";
+import { useT } from "../lib/i18n";
 
 export type DesktopWindowBridge = Pick<
   AppBindings,
@@ -68,13 +69,14 @@ export function useDesktopWindowChrome(
 }
 
 export function DesktopWindowControls({ controller }: { controller: DesktopWindowChromeController }) {
+  const t = useT();
   return (
-    <div className="windows-window-controls" aria-label="Window controls">
+    <div className="windows-window-controls" aria-label={t("northwing.window.controls")}>
       <button
         className="windows-window-control windows-window-control--minimize"
         type="button"
-        aria-label="Minimize window"
-        title="Minimize"
+        aria-label={t("northwing.window.minimize")}
+        title={t("northwing.window.minimizeTitle")}
         onClick={controller.minimise}
       >
         <Minus size={13} strokeWidth={1.9} />
@@ -82,9 +84,9 @@ export function DesktopWindowControls({ controller }: { controller: DesktopWindo
       <button
         className="windows-window-control windows-window-control--maximize"
         type="button"
-        aria-label="Maximize or restore window"
+        aria-label={t("northwing.window.maximizeRestore")}
         aria-pressed={controller.maximised}
-        title={controller.maximised ? "Restore" : "Maximize"}
+        title={controller.maximised ? t("northwing.window.restoreTitle") : t("northwing.window.maximizeTitle")}
         onClick={controller.toggleMaximise}
       >
         {controller.maximised ? <RestoreIcon size={12} strokeWidth={1.75} /> : <Square size={11} strokeWidth={1.8} />}
@@ -92,8 +94,8 @@ export function DesktopWindowControls({ controller }: { controller: DesktopWindo
       <button
         className="windows-window-control windows-window-control--close"
         type="button"
-        aria-label="Close window"
-        title="Close"
+        aria-label={t("northwing.window.close")}
+        title={t("common.close")}
         onClick={controller.close}
       >
         <X size={13} strokeWidth={1.9} />

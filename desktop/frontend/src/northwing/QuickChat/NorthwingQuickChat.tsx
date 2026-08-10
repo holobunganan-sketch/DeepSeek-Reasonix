@@ -2,6 +2,7 @@ import { Suspense, useState, useCallback, useEffect } from "react";
 import { ArrowRightLeft } from "lucide-react";
 import type { NorthwingDestination } from "../Navigation/routes";
 import type { ChatWorkDraft } from "./convertChatToWork";
+import { useT } from "../../lib/i18n";
 import "./NorthwingQuickChat.css";
 
 export type NorthwingQuickChatProps = {
@@ -17,6 +18,7 @@ export function NorthwingQuickChat({
   onBeginWork,
   onSessionTabReady,
 }: NorthwingQuickChatProps) {
+  const t = useT();
   const [converting, setConverting] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [sessionTabId, setSessionTabId] = useState(tabId);
@@ -40,7 +42,7 @@ export function NorthwingQuickChat({
       try {
         const { readChatWorkDraft } = await import("./convertChatToWork");
         const draft = await readChatWorkDraft(sessionTabId);
-        if (!onBeginWork) throw new Error("Quick Chat conversion is unavailable.");
+        if (!onBeginWork) throw new Error(t("northwing.quickChat.convertUnavailable"));
         onBeginWork(draft);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
@@ -48,15 +50,15 @@ export function NorthwingQuickChat({
         setConverting(false);
       }
     },
-    [sessionTabId, onBeginWork],
+    [sessionTabId, onBeginWork, t],
   );
 
   return (
     <main className="nw-quick-chat" data-northwing-page="quick-chat" data-session-kind="chat">
       <div className="nw-quick-chat__toolbar">
-        <span className="nw-quick-chat__label">Quick Chat</span>
+        <span className="nw-quick-chat__label">{t("northwing.nav.quickChat")}</span>
         <span className="nw-quick-chat__hint">
-          Fast answers and exploration. For structured delivery, use Work.
+          {t("northwing.quickChat.hint")}
         </span>
         <button
           type="button"
@@ -65,16 +67,16 @@ export function NorthwingQuickChat({
           disabled={converting || !sessionTabId}
         >
           <ArrowRightLeft size={14} aria-hidden="true" />
-          {converting ? "Preparing Work..." : sessionTabId ? "Convert to Work" : "Preparing Quick Chat..."}
+          {converting ? t("northwing.quickChat.preparingWork") : sessionTabId ? t("northwing.quickChat.convert") : t("northwing.quickChat.preparing")}
         </button>
       </div>
       <div className="nw-quick-chat__session">
         {SessionWorkspace ? (
-          <Suspense fallback={<p className="nw-quick-chat__placeholder" role="status">Preparing Quick Chat...</p>}>
+          <Suspense fallback={<p className="nw-quick-chat__placeholder" role="status">{t("northwing.quickChat.preparing")}</p>}>
             <SessionWorkspace destination={destination} onSessionTabReady={handleSessionTabReady} />
           </Suspense>
         ) : (
-          <p className="nw-quick-chat__placeholder">Start a quick chat to explore ideas or ask questions.</p>
+          <p className="nw-quick-chat__placeholder">{t("northwing.quickChat.empty")}</p>
         )}
       </div>
       {error && <p className="nw-quick-chat__error" role="alert">{error}</p>}

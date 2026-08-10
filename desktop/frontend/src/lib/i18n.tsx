@@ -13,6 +13,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { en, type DictKey } from "../locales/en";
+import { northwingZh, northwingZhTW } from "../locales/northwing";
 
 export type Locale = "en" | "zh" | "zh-TW";
 export type { DictKey };
@@ -113,8 +114,8 @@ export function preloadLocale(locale: Locale): Promise<void> {
   const pending = localeLoads.get(locale);
   if (pending) return pending;
   const load = locale === "zh"
-    ? import("../locales/zh").then(({ zh }) => { DICTS.zh = zh; })
-    : import("../locales/zh-TW").then(({ zhTW }) => { DICTS["zh-TW"] = zhTW; });
+    ? import("../locales/zh").then(({ zh }) => { DICTS.zh = { ...zh, ...northwingZh }; })
+    : import("../locales/zh-TW").then(({ zhTW }) => { DICTS["zh-TW"] = { ...zhTW, ...northwingZhTW }; });
   localeLoads.set(locale, load);
   void load.catch(() => localeLoads.delete(locale));
   return load;

@@ -1,5 +1,6 @@
 import { Suspense, lazy } from "react";
 import { X } from "lucide-react";
+import { useT } from "../../lib/i18n";
 
 const LazyPreviewContent = lazy(() =>
   import("./NorthwingArtifactPreviewContent").then((mod) => ({
@@ -23,15 +24,16 @@ export function NorthwingArtifactPreview({
   workspaceRoot,
   onClose,
 }: NorthwingArtifactPreviewProps) {
+  const t = useT();
   return (
-    <aside className="nw-artifact-preview" aria-label="Artifact preview">
+    <aside className="nw-artifact-preview" aria-label={t("northwing.artifacts.previewLabel")}>
       <header className="nw-artifact-preview__header">
         <strong>{basename(artifact.path)}</strong>
-        <button type="button" onClick={onClose} aria-label="Close preview">
+        <button type="button" onClick={onClose} aria-label={t("northwing.artifacts.closePreview")}>
           <X size={14} />
         </button>
       </header>
-      <Suspense fallback={<div className="nw-artifact-preview__loading">Loading preview...</div>}>
+      <Suspense fallback={<div className="nw-artifact-preview__loading">{t("northwing.artifacts.loadingPreview")}</div>}>
         <LazyPreviewContent artifact={artifact} workspaceRoot={workspaceRoot} />
       </Suspense>
     </aside>

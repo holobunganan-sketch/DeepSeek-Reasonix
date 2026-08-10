@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { WorkKind, WorkQuality, SourcePolicy } from "../../lib/northwingWorkSpec";
 import { WORK_KINDS, WORK_QUALITIES, SOURCE_POLICIES } from "../../lib/northwingWorkSpec";
+import { useT } from "../../lib/i18n";
 import "./NorthwingNewWork.css";
 
 export type NewWorkFormState = {
@@ -63,6 +64,7 @@ export function NorthwingNewWork({
   onLaunch,
   onCancel,
 }: NorthwingNewWorkProps) {
+  const t = useT();
   const [form, setForm] = useState<NewWorkFormState>(() => ({ ...DEFAULT_FORM, ...initialForm }));
   const [workspaceRoot, setWorkspaceRoot] = useState(preselectedWorkspace ?? "");
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -76,11 +78,11 @@ export function NorthwingNewWork({
   const handleSubmit = useCallback(async () => {
     const root = workspaceRoot.trim();
     if (!root) {
-      setError("Select a project folder.");
+      setError(t("northwing.newWork.selectProjectError"));
       return;
     }
     if (!form.objective.trim()) {
-      setError("Describe what you want to finish.");
+      setError(t("northwing.newWork.objectiveError"));
       return;
     }
     setError(undefined);
@@ -91,86 +93,86 @@ export function NorthwingNewWork({
       setError(err instanceof Error ? err.message : String(err));
       setSubmitting(false);
     }
-  }, [workspaceRoot, form, onLaunch]);
+  }, [workspaceRoot, form, onLaunch, t]);
 
   return (
-    <div className="nw-new-work" role="dialog" aria-label="New Work" data-northwing-page="new-work">
+    <div className="nw-new-work" role="dialog" aria-label={t("northwing.nav.newWork")} data-northwing-page="new-work">
       <div className="nw-new-work__card">
-        <h2 className="nw-new-work__title">New Work</h2>
-        <p className="nw-new-work__subtitle">From intent to finished work</p>
+        <h2 className="nw-new-work__title">{t("northwing.nav.newWork")}</h2>
+        <p className="nw-new-work__subtitle">{t("northwing.newWork.subtitle")}</p>
 
         {/* Project / folder */}
         <label className="nw-new-work__field">
-          <span className="nw-new-work__label">Project folder</span>
+          <span className="nw-new-work__label">{t("northwing.newWork.projectFolder")}</span>
           {requireProjectSelection ? (
             <select
               className="nw-input"
               value={workspaceRoot}
               onChange={(e) => setWorkspaceRoot(e.target.value)}
-              aria-label="Project workspace"
+              aria-label={t("northwing.newWork.projectWorkspace")}
             >
-              <option value="">Select a project workspace...</option>
+              <option value="">{t("northwing.newWork.selectWorkspace")}</option>
               {workspaceOptions.map((workspace) => <option key={workspace} value={workspace}>{workspace}</option>)}
             </select>
           ) : (
             <input
               type="text"
               className="nw-input"
-              placeholder={preselectedWorkspace || "Select or enter a project folder..."}
+              placeholder={preselectedWorkspace || t("northwing.newWork.projectPlaceholder")}
               value={workspaceRoot}
               onChange={(e) => setWorkspaceRoot(e.target.value)}
               disabled={!!preselectedWorkspace}
-              aria-label="Project folder"
+              aria-label={t("northwing.newWork.projectFolder")}
             />
           )}
         </label>
 
         <label className="nw-new-work__field">
-          <span className="nw-new-work__label">Work title</span>
+          <span className="nw-new-work__label">{t("northwing.newWork.title")}</span>
           <input
             type="text"
             className="nw-input"
             value={form.title ?? ""}
             onChange={(e) => update("title", e.target.value)}
-            aria-label="Work title"
+            aria-label={t("northwing.newWork.title")}
           />
         </label>
 
         {/* Objective */}
         <label className="nw-new-work__field">
-          <span className="nw-new-work__label">What do you want to finish?</span>
+          <span className="nw-new-work__label">{t("northwing.newWork.objective")}</span>
           <textarea
             className="nw-input nw-input--textarea"
             rows={3}
-            placeholder="Describe your goal, deliverable, or outcome..."
+            placeholder={t("northwing.newWork.objectivePlaceholder")}
             value={form.objective}
             onChange={(e) => update("objective", e.target.value)}
-            aria-label="Work objective"
+            aria-label={t("northwing.newWork.objectiveAria")}
             autoFocus
           />
         </label>
 
         {/* Materials */}
         <label className="nw-new-work__field">
-          <span className="nw-new-work__label">Materials (one per line)</span>
+          <span className="nw-new-work__label">{t("northwing.newWork.materials")}</span>
           <textarea
             className="nw-input nw-input--textarea"
             rows={2}
-            placeholder="Optional: reference files, URLs, or context..."
+            placeholder={t("northwing.newWork.materialsPlaceholder")}
             value={form.materials.join("\n")}
             onChange={(e) => update("materials", e.target.value.split("\n").filter(Boolean))}
-            aria-label="Materials"
+            aria-label={t("northwing.newWork.materials")}
           />
         </label>
 
         {/* Output type */}
         <label className="nw-new-work__field">
-          <span className="nw-new-work__label">Output type</span>
+          <span className="nw-new-work__label">{t("northwing.newWork.outputType")}</span>
           <select
             className="nw-input"
             value={form.outputType}
             onChange={(e) => update("outputType", e.target.value as WorkKind)}
-            aria-label="Output type"
+            aria-label={t("northwing.newWork.outputType")}
           >
             {WORK_KINDS.map((k) => (
               <option key={k} value={k}>{k}</option>
@@ -180,12 +182,12 @@ export function NorthwingNewWork({
 
         {/* Quality */}
         <label className="nw-new-work__field">
-          <span className="nw-new-work__label">Quality</span>
+          <span className="nw-new-work__label">{t("northwing.newWork.quality")}</span>
           <select
             className="nw-input"
             value={form.quality}
             onChange={(e) => update("quality", e.target.value as WorkQuality)}
-            aria-label="Quality"
+            aria-label={t("northwing.newWork.quality")}
           >
             {WORK_QUALITIES.map((q) => (
               <option key={q} value={q}>{q}</option>
@@ -195,12 +197,12 @@ export function NorthwingNewWork({
 
         {/* Source policy */}
         <label className="nw-new-work__field">
-          <span className="nw-new-work__label">Source policy</span>
+          <span className="nw-new-work__label">{t("northwing.newWork.sourcePolicy")}</span>
           <select
             className="nw-input"
             value={form.sourcePolicy}
             onChange={(e) => update("sourcePolicy", e.target.value as SourcePolicy)}
-            aria-label="Source policy"
+            aria-label={t("northwing.newWork.sourcePolicy")}
           >
             {SOURCE_POLICIES.map((s) => (
               <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
@@ -210,18 +212,18 @@ export function NorthwingNewWork({
 
         {/* Model */}
         {modelsLoading ? (
-          <p className="nw-new-work__model-state" role="status">Loading configured models...</p>
+          <p className="nw-new-work__model-state" role="status">{t("northwing.newWork.modelsLoading")}</p>
         ) : availableModels.length > 0 ? (
           <label className="nw-new-work__field">
-            <span className="nw-new-work__label">Model</span>
+            <span className="nw-new-work__label">{t("northwing.newWork.model")}</span>
             <select
               className="nw-input"
               value={form.modelRef}
               onChange={(e) => update("modelRef", e.target.value)}
-              aria-label="Model"
+              aria-label={t("northwing.newWork.model")}
             >
               <option value="">
-                Default: {availableModels.find((model) => model.current)?.name ?? availableModels[0].name}
+                {t("northwing.newWork.default")}: {availableModels.find((model) => model.current)?.name ?? availableModels[0].name}
               </option>
               {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>{m.name}</option>
@@ -230,11 +232,11 @@ export function NorthwingNewWork({
           </label>
         ) : (
           <div className="nw-new-work__model-state" role="alert">
-            <strong>No usable model configured</strong>
-            <span>{modelCatalogError || "Configure a provider and API key before starting Work."}</span>
+            <strong>{t("northwing.newWork.noModel")}</strong>
+            <span>{modelCatalogError || t("northwing.newWork.noModelBody")}</span>
             {onConfigureModels && (
               <button type="button" className="nw-btn nw-btn--ghost" onClick={onConfigureModels}>
-                Configure models
+                {t("northwing.newWork.configureModels")}
               </button>
             )}
           </div>
@@ -248,70 +250,70 @@ export function NorthwingNewWork({
           aria-expanded={showAdvanced}
         >
           {showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          <span>Advanced</span>
+          <span>{t("northwing.newWork.advanced")}</span>
         </button>
 
         {showAdvanced && (
           <div className="nw-new-work__advanced">
             <label className="nw-new-work__field">
-              <span className="nw-new-work__label">Audience</span>
+              <span className="nw-new-work__label">{t("northwing.newWork.audience")}</span>
               <input
                 type="text"
                 className="nw-input"
-                placeholder="Who will use this output?"
+                placeholder={t("northwing.newWork.audiencePlaceholder")}
                 value={form.audience}
                 onChange={(e) => update("audience", e.target.value)}
               />
             </label>
             <label className="nw-new-work__field">
-              <span className="nw-new-work__label">Constraints</span>
+              <span className="nw-new-work__label">{t("northwing.newWork.constraints")}</span>
               <textarea
                 className="nw-input nw-input--textarea"
                 rows={2}
-                placeholder="Limits, requirements, or rules..."
+                placeholder={t("northwing.newWork.constraintsPlaceholder")}
                 value={form.constraints}
                 onChange={(e) => update("constraints", e.target.value)}
               />
             </label>
             <label className="nw-new-work__field">
-              <span className="nw-new-work__label">Acceptance criteria (one per line)</span>
+              <span className="nw-new-work__label">{t("northwing.newWork.acceptance")}</span>
               <textarea
                 className="nw-input nw-input--textarea"
                 rows={2}
-                placeholder="How will you know it is done?"
+                placeholder={t("northwing.newWork.acceptancePlaceholder")}
                 value={form.acceptanceCriteria.join("\n")}
                 onChange={(e) => update("acceptanceCriteria", e.target.value.split("\n").filter(Boolean))}
               />
             </label>
             <label className="nw-new-work__field">
-              <span className="nw-new-work__label">Pause policy</span>
+              <span className="nw-new-work__label">{t("northwing.newWork.pausePolicy")}</span>
               <select
                 className="nw-input"
                 value={form.pausePolicy}
                 onChange={(e) => update("pausePolicy", e.target.value)}
               >
-                <option value="pause">Pause on questions</option>
-                <option value="continue">Continue when possible</option>
-                <option value="ask_every">Ask every step</option>
+                <option value="pause">{t("northwing.newWork.pauseQuestions")}</option>
+                <option value="continue">{t("northwing.newWork.continue")}</option>
+                <option value="ask_every">{t("northwing.newWork.askEvery")}</option>
               </select>
             </label>
             {effortSupported && availableEfforts.length > 0 ? (
               <label className="nw-new-work__field">
-                <span className="nw-new-work__label">Reasoning effort</span>
+                <span className="nw-new-work__label">{t("northwing.newWork.reasoningEffort")}</span>
                 <select
                   className="nw-input"
                   value={form.reasoningEffort}
                   onChange={(e) => update("reasoningEffort", e.target.value)}
-                  aria-label="Reasoning effort"
+                  aria-label={t("northwing.newWork.reasoningEffort")}
                 >
-                  <option value="">Default</option>
+                  <option value="">{t("northwing.newWork.default")}</option>
                   {availableEfforts.map((level) => (
                     <option key={level} value={level}>{level}</option>
                   ))}
                 </select>
               </label>
             ) : (
-              <p className="nw-new-work__model-state">The selected provider does not expose reasoning effort controls.</p>
+              <p className="nw-new-work__model-state">{t("northwing.newWork.noEffort")}</p>
             )}
           </div>
         )}
@@ -322,7 +324,7 @@ export function NorthwingNewWork({
         {/* Actions */}
         <div className="nw-new-work__actions">
           <button type="button" className="nw-btn nw-btn--ghost" onClick={onCancel} disabled={submitting}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -330,7 +332,7 @@ export function NorthwingNewWork({
             onClick={handleSubmit}
             disabled={submitting || modelsLoading || availableModels.length === 0}
           >
-            {submitting ? "Creating..." : "Start Work"}
+            {submitting ? t("northwing.newWork.creating") : t("northwing.newWork.start")}
           </button>
         </div>
       </div>

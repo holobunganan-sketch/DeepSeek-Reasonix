@@ -1,6 +1,7 @@
 import { FolderKanban, Plus, Search } from "lucide-react";
 import { useState, useMemo } from "react";
 import type { NorthwingProjectSummary } from "../domain/catalog";
+import { useT } from "../../lib/i18n";
 
 export type NorthwingProjectsProps = {
   projects: NorthwingProjectSummary[];
@@ -24,6 +25,7 @@ export function NorthwingProjects({
   creatingProject = false,
   createProjectError,
 }: NorthwingProjectsProps) {
+  const t = useT();
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -35,16 +37,16 @@ export function NorthwingProjects({
   return (
     <main role="main" data-northwing-page="projects" className="nw-page projects-page">
       <header className="projects-page__header">
-        <h1 className="nw-page__title">Projects</h1>
+        <h1 className="nw-page__title">{t("northwing.nav.projects")}</h1>
         <button
           type="button"
           className="nw-btn nw-btn--primary"
-          aria-label="New Project"
+          aria-label={t("northwing.projects.new")}
           onClick={onNewProject}
           disabled={creatingProject}
         >
           <Plus size={16} aria-hidden="true" />
-          <span>{creatingProject ? "Creating..." : "New Project"}</span>
+          <span>{creatingProject ? t("northwing.projects.creating") : t("northwing.projects.new")}</span>
         </button>
       </header>
 
@@ -54,19 +56,19 @@ export function NorthwingProjects({
         <Search size={16} aria-hidden="true" />
         <input
           type="search"
-          placeholder="Search projects..."
+          placeholder={t("northwing.projects.search")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          aria-label="Search projects"
+          aria-label={t("northwing.projects.search")}
         />
       </div>
 
       {filtered.length === 0 ? (
         <div className="nw-card projects-page__empty">
           <FolderKanban size={32} aria-hidden="true" />
-          <p>No projects found.</p>
+          <p>{t("northwing.projects.noResults")}</p>
           <button type="button" className="nw-btn nw-btn--primary" onClick={onNewProject} disabled={creatingProject}>
-            {creatingProject ? "Creating..." : "New Project"}
+            {creatingProject ? t("northwing.projects.creating") : t("northwing.projects.new")}
           </button>
         </div>
       ) : (
@@ -88,11 +90,11 @@ export function NorthwingProjects({
               <div className="project-row__main">
               <div className="project-row__title-row">
                 <FolderKanban size={18} aria-hidden="true" />
-                <span className="project-row__name">{project.name || "Untitled project"}</span>
+                <span className="project-row__name">{project.name || t("northwing.projects.untitled")}</span>
               </div>
                 <div className="project-row__meta">
-                  <span>{project.workCount} work{project.workCount === 1 ? "" : "s"}</span>
-                  <span>{project.artifactCount} artifact{project.artifactCount === 1 ? "" : "s"}</span>
+                  <span>{t("northwing.projects.workCount", { count: project.workCount })}</span>
+                  <span>{t("northwing.projects.artifactCount", { count: project.artifactCount })}</span>
                 </div>
               </div>
               {project.updatedAt && (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useT } from "../../lib/i18n";
 
 export type NorthwingArtifactPreviewContentProps = {
   artifact: {
@@ -14,6 +15,7 @@ export function NorthwingArtifactPreviewContent({
   artifact,
   workspaceRoot,
 }: NorthwingArtifactPreviewContentProps) {
+  const t = useT();
   const [state, setState] = useState<"loading" | "loaded" | "binary" | "error">("loading");
   const [url, setUrl] = useState<string | undefined>();
 
@@ -47,13 +49,13 @@ export function NorthwingArtifactPreviewContent({
   }, [artifact.path, workspaceRoot]);
 
   if (state === "loading") {
-    return <div className="nw-artifact-preview__loading">Loading preview...</div>;
+    return <div className="nw-artifact-preview__loading">{t("northwing.artifacts.loadingPreview")}</div>;
   }
   if (state === "error") {
-    return <div className="nw-artifact-preview__error">Preview unavailable</div>;
+    return <div className="nw-artifact-preview__error">{t("northwing.artifacts.previewUnavailable")}</div>;
   }
   if (state === "binary") {
-    return <div className="nw-artifact-preview__binary">This file does not support embedded preview.</div>;
+    return <div className="nw-artifact-preview__binary">{t("northwing.artifacts.binaryPreview")}</div>;
   }
   if (url && /\.(png|jpe?g|gif|webp|svg)$/i.test(artifact.path)) {
     return <img src={url} alt={basename(artifact.path)} className="nw-artifact-preview__image" />;
@@ -61,7 +63,7 @@ export function NorthwingArtifactPreviewContent({
   if (url && /\.pdf$/i.test(artifact.path)) {
     return <iframe src={url} title={basename(artifact.path)} className="nw-artifact-preview__pdf" />;
   }
-  return <div className="nw-artifact-preview__unsupported">Preview format not supported</div>;
+  return <div className="nw-artifact-preview__unsupported">{t("northwing.artifacts.unsupportedPreview")}</div>;
 }
 
 function basename(path: string): string {

@@ -2,7 +2,6 @@ import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useM
 import { MessageSquare } from "lucide-react";
 import { NorthwingNavigation } from "../Navigation/NorthwingNavigation";
 import type { NorthwingDestination } from "../Navigation/routes";
-import { destinationPageName } from "../Navigation/routes";
 import { NorthwingHome } from "../Home/NorthwingHome";
 import type { NorthwingCatalog } from "../domain/catalog";
 import { normalizeNorthwingCatalog } from "../domain/catalog";
@@ -29,6 +28,8 @@ import {
   type DesktopWindowBridge,
 } from "../../components/DesktopWindowChrome";
 import { sameNorthwingWorkspace } from "../../lib/northwingWorkspaceIdentity";
+import { useT } from "../../lib/i18n";
+import { northwingDestinationLabel } from "../northwingI18n";
 
 const SettingsPanel = lazy(() => import("../../components/SettingsPanel").then((module) => ({ default: module.SettingsPanel })));
 
@@ -50,15 +51,6 @@ export type NorthwingShellProps = {
 };
 
 const DEFAULT_NORTHWING_DESTINATION: NorthwingDestination = { kind: "home" };
-
-function PlaceholderPage({ title, children }: { title: string; children?: React.ReactNode }) {
-  return (
-    <div className="northwing-placeholder-page">
-      <h1 className="northwing-placeholder-page__title">{title}</h1>
-      {children && <p className="northwing-placeholder-page__text">{children}</p>}
-    </div>
-  );
-}
 
 function NorthwingHomePage() {
   const gateway = useContext(NorthwingGatewayContext);
@@ -134,6 +126,7 @@ function useShellCatalog() {
 }
 
 function NorthwingProjectsPage() {
+  const t = useT();
   const navigate = useContext(NorthwingNavigateContext);
   const { catalog, loading, error, reload } = useShellCatalog();
   const [creatingProject, setCreatingProject] = useState(false);
@@ -158,11 +151,11 @@ function NorthwingProjectsPage() {
   if (loading || error) {
     return (
       <main role="main" data-northwing-page="projects" className="nw-page">
-        <h1 className="nw-page__title">Projects</h1>
-        <p className="nw-page__subtitle">{loading ? "Loading projects..." : error}</p>
+        <h1 className="nw-page__title">{t("northwing.nav.projects")}</h1>
+        <p className="nw-page__subtitle">{loading ? t("northwing.projects.loading") : error}</p>
         {error && (
           <button type="button" className="nw-btn nw-btn--primary" onClick={reload}>
-            Retry
+            {t("common.retry")}
           </button>
         )}
       </main>
@@ -182,16 +175,17 @@ function NorthwingProjectsPage() {
 }
 
 function NorthwingWorkListPage() {
+  const t = useT();
   const navigate = useContext(NorthwingNavigateContext);
   const { catalog, loading, error, reload } = useShellCatalog();
   if (loading || error) {
     return (
       <main role="main" data-northwing-page="work-list" className="nw-page">
-        <h1 className="nw-page__title">Work</h1>
-        <p className="nw-page__subtitle">{loading ? "Loading work..." : error}</p>
+        <h1 className="nw-page__title">{t("northwing.nav.work")}</h1>
+        <p className="nw-page__subtitle">{loading ? t("northwing.workList.loading") : error}</p>
         {error && (
           <button type="button" className="nw-btn nw-btn--primary" onClick={reload}>
-            Retry
+            {t("common.retry")}
           </button>
         )}
       </main>
@@ -207,16 +201,17 @@ function NorthwingWorkListPage() {
 }
 
 function NorthwingProjectDetailPage({ workspaceRoot }: { workspaceRoot: string }) {
+  const t = useT();
   const navigate = useContext(NorthwingNavigateContext);
   const { catalog, loading, error, reload } = useShellCatalog();
   if (loading || error) {
     return (
       <main role="main" data-northwing-page="project" className="nw-page">
-        <h1 className="nw-page__title">Project</h1>
-        <p className="nw-page__subtitle">{loading ? "Loading project..." : error}</p>
+        <h1 className="nw-page__title">{t("northwing.nav.project")}</h1>
+        <p className="nw-page__subtitle">{loading ? t("northwing.project.loading") : error}</p>
         {error && (
           <button type="button" className="nw-btn nw-btn--primary" onClick={reload}>
-            Retry
+            {t("common.retry")}
           </button>
         )}
       </main>
@@ -226,8 +221,8 @@ function NorthwingProjectDetailPage({ workspaceRoot }: { workspaceRoot: string }
   if (!project) {
     return (
       <main role="main" data-northwing-page="project" className="nw-page">
-        <h1 className="nw-page__title">Project not found</h1>
-        <p className="nw-page__subtitle">The requested project could not be loaded.</p>
+        <h1 className="nw-page__title">{t("northwing.project.notFound")}</h1>
+        <p className="nw-page__subtitle">{t("northwing.project.notFoundBody")}</p>
       </main>
     );
   }
@@ -248,12 +243,13 @@ function NorthwingProjectDetailPage({ workspaceRoot }: { workspaceRoot: string }
 }
 
 function NorthwingArtifactsPage() {
+  const t = useT();
   const { catalog, loading, error, reload } = useShellCatalog();
   if (loading || error) {
     return (
       <main role="main" data-northwing-page="artifacts" className="nw-page">
-        <h1 className="nw-page__title">Artifacts</h1>
-        <p className="nw-page__subtitle">{loading ? "Loading artifacts..." : error}</p>
+        <h1 className="nw-page__title">{t("northwing.nav.artifacts")}</h1>
+        <p className="nw-page__subtitle">{loading ? t("northwing.artifacts.loading") : error}</p>
       </main>
     );
   }
@@ -291,14 +287,15 @@ function NorthwingSettingsPage({
   returnTo?: "home" | "new-work";
   navigate: (destination: NorthwingDestination) => void;
 }) {
+  const t = useT();
   const platformAttribute = document.documentElement.getAttribute("data-platform");
   const desktopPlatform = platformAttribute === "windows" || platformAttribute === "darwin"
     ? platformAttribute
     : "linux";
   return (
     <main role="main" data-northwing-page="settings" className="nw-page">
-      <h1 className="nw-page__title">Settings</h1>
-      <Suspense fallback={<p className="nw-page__subtitle">Loading Settings...</p>}>
+      <h1 className="nw-page__title">{t("northwing.nav.settings")}</h1>
+      <Suspense fallback={<p className="nw-page__subtitle">{t("northwing.settings.loading")}</p>}>
         <SettingsPanel
           initialTab="models"
           desktopPlatform={desktopPlatform}
@@ -308,6 +305,16 @@ function NorthwingSettingsPage({
           onClose={() => navigate(returnTo === "new-work" ? { kind: "new-work" } : { kind: "home" })}
         />
       </Suspense>
+    </main>
+  );
+}
+
+function NorthwingSessionUnavailablePage() {
+  const t = useT();
+  return (
+    <main role="main" data-northwing-page="work" className="nw-page">
+      <h1 className="nw-page__title">{t("northwing.work.unavailable")}</h1>
+      <p className="nw-page__subtitle">{t("northwing.work.sessionSurfaceUnavailable")}</p>
     </main>
   );
 }
@@ -375,7 +382,7 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
     case "work": {
       const gw = gateway;
       if (!gw?.SessionWorkspace) {
-        return <PlaceholderPage title="Work">Work workspace will appear here. Select a workbench target.</PlaceholderPage>;
+        return <NorthwingSessionUnavailablePage />;
       }
       return (
         <NorthwingWorkView
@@ -413,6 +420,7 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
 }
 
 export function NorthwingShell({ initialDestination = DEFAULT_NORTHWING_DESTINATION, gateway }: NorthwingShellProps) {
+  const t = useT();
   const [destination, setDestination] = useState<NorthwingDestination>(initialDestination);
   const [conversionDraft, setConversionDraft] = useState<ChatWorkDraft | null>(null);
   const windowsFramelessChrome = typeof document !== "undefined"
@@ -490,15 +498,15 @@ export function NorthwingShell({ initialDestination = DEFAULT_NORTHWING_DESTINAT
         </div>
         <div className="northwing-shell__main">
           <header className="northwing-shell__topbar">
-            <span className="northwing-shell__breadcrumb">{destinationPageName(destination)}</span>
+            <span className="northwing-shell__breadcrumb">{northwingDestinationLabel(t, destination.kind)}</span>
             <button
               type="button"
               className="nw-btn nw-btn--ghost"
-              aria-label="Quick Chat"
+              aria-label={t("northwing.nav.quickChat")}
               onClick={handleQuickChat}
             >
               <MessageSquare size={16} aria-hidden="true" />
-              <span>Quick Chat</span>
+              <span>{t("northwing.nav.quickChat")}</span>
             </button>
           </header>
           {pageContent}

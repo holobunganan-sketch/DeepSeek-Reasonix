@@ -12,6 +12,7 @@ import { NorthwingArtifactPanel } from "./NorthwingArtifactPanel";
 
 import { NorthwingNavigateContext } from "../Shell/NorthwingShell";
 import type { NorthwingDestination } from "../Navigation/routes";
+import { useT } from "../../lib/i18n";
 
 export type NorthwingArtifactsProps = {
   artifacts: FilterableArtifact[];
@@ -34,6 +35,7 @@ export function NorthwingArtifacts({
   onReveal,
   onMarkFinal,
 }: NorthwingArtifactsProps) {
+  const t = useT();
   const navigate = useContext(NorthwingNavigateContext);
   const [criteria, setCriteria] = useState<ArtifactFilterCriteria>({});
   const [search, setSearch] = useState("");
@@ -104,8 +106,8 @@ export function NorthwingArtifacts({
   if (loading) {
     return (
       <main role="main" data-northwing-page="artifacts" className="nw-page">
-        <h1 className="nw-page__title">Artifacts</h1>
-        <p className="nw-page__subtitle">Loading artifacts...</p>
+        <h1 className="nw-page__title">{t("northwing.nav.artifacts")}</h1>
+        <p className="nw-page__subtitle">{t("northwing.artifacts.loading")}</p>
       </main>
     );
   }
@@ -113,7 +115,7 @@ export function NorthwingArtifacts({
   if (error) {
     return (
       <main role="main" data-northwing-page="artifacts" className="nw-page">
-        <h1 className="nw-page__title">Artifacts unavailable</h1>
+        <h1 className="nw-page__title">{t("northwing.artifacts.unavailable")}</h1>
         <p className="nw-page__subtitle">{error}</p>
       </main>
     );
@@ -122,14 +124,14 @@ export function NorthwingArtifacts({
   return (
     <main role="main" data-northwing-page="artifacts" className="nw-artifacts-page">
       <div className="nw-artifacts-page__header">
-        <h1 className="nw-artifacts-page__title">Artifacts</h1>
+        <h1 className="nw-artifacts-page__title">{t("northwing.nav.artifacts")}</h1>
         <p className="nw-artifacts-page__subtitle">
-          <FileOutput size={14} /> {filtered.length} of {artifacts.length} artifacts
+          <FileOutput size={14} /> {t("northwing.artifacts.count", { shown: filtered.length, total: artifacts.length })}
         </p>
       </div>
       <div className="nw-artifacts-page__filters">
         {KIND_CATEGORIES.map((kind) => {
-          const label = kind === "" ? "All" : kind === "other" ? "Other" : `.${kind}`;
+          const label = kind === "" ? t("northwing.artifacts.all") : kind === "other" ? t("northwing.artifacts.other") : `.${kind}`;
           return (
             <button
               key={kind}
@@ -146,15 +148,15 @@ export function NorthwingArtifacts({
           className={`nw-artifacts-filter${criteria.finalOnly ? " nw-artifacts-filter--active" : ""}`}
           onClick={toggleFinal}
         >
-          Final only
+          {t("northwing.artifacts.finalOnly")}
         </button>
         <input
           className="nw-artifacts-page__search"
           type="search"
-          placeholder="Search artifacts..."
+          placeholder={t("northwing.artifacts.search")}
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
-          aria-label="Search artifacts"
+          aria-label={t("northwing.artifacts.search")}
         />
       </div>
       {actionError && <p className="nw-artifacts-page__error" role="alert">{actionError}</p>}
@@ -162,8 +164,8 @@ export function NorthwingArtifacts({
         {filtered.length === 0 ? (
           <p className="nw-artifacts-page__empty">
             {artifacts.length === 0
-              ? "No artifacts yet. Artifacts appear here after a Work produces files."
-              : "No artifacts match the current filters."}
+              ? t("northwing.artifacts.empty")
+              : t("northwing.artifacts.noMatches")}
           </p>
         ) : (
           filtered.map((artifact) => (
@@ -181,14 +183,14 @@ export function NorthwingArtifacts({
         )}
       </div>
       {previewArtifact && (
-        <aside className="nw-artifact-preview" aria-label="Artifact preview">
+        <aside className="nw-artifact-preview" aria-label={t("northwing.artifacts.previewLabel")}>
           <header className="nw-artifact-preview__header">
             <strong>{previewArtifact.path.replace(/\\/g, "/").split("/").filter(Boolean).pop()}</strong>
-            <button type="button" onClick={() => setPreviewArtifact(undefined)} aria-label="Close preview">
+            <button type="button" onClick={() => setPreviewArtifact(undefined)} aria-label={t("northwing.artifacts.closePreview")}>
               <X size={14} />
             </button>
           </header>
-          {previewLoading && <div className="nw-artifact-preview__loading">Loading preview...</div>}
+          {previewLoading && <div className="nw-artifact-preview__loading">{t("northwing.artifacts.loadingPreview")}</div>}
           {!previewLoading && preview?.kind === "image" && preview.url && (
             <img className="nw-artifact-preview__image" src={preview.url} alt={previewArtifact.path} />
           )}
@@ -199,7 +201,7 @@ export function NorthwingArtifacts({
             <pre className="nw-artifact-preview__text">{preview.body}</pre>
           )}
           {!previewLoading && preview?.binary && (
-            <div className="nw-artifact-preview__binary">This file does not support embedded preview.</div>
+            <div className="nw-artifact-preview__binary">{t("northwing.artifacts.binaryPreview")}</div>
           )}
         </aside>
       )}

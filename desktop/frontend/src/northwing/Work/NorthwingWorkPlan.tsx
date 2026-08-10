@@ -1,5 +1,7 @@
 import type { WorkStage, HarnessStep } from "../../lib/northwingWorkSpec";
 import type { AcceptanceItem } from "./NorthwingWorkCoordinator";
+import { useT } from "../../lib/i18n";
+import { northwingStageLabel } from "../northwingI18n";
 
 const stepLabels: Record<string, string> = {
   inspect: "Inspect inputs",
@@ -12,18 +14,6 @@ const stepLabels: Record<string, string> = {
   repair: "Repair findings",
   validate: "Validate output",
   requirement_audit: "Requirement audit",
-};
-
-const stageLabels: Record<WorkStage, string> = {
-  intake: "Intake",
-  planning: "Planning",
-  producing: "Producing",
-  reviewing: "Reviewing",
-  repairing: "Repairing",
-  validating: "Validating",
-  waiting_user: "Waiting for you",
-  completed: "Completed",
-  failed: "Failed",
 };
 
 export type NorthwingWorkPlanProps = {
@@ -41,19 +31,20 @@ export function NorthwingWorkPlan({
   acceptance,
   unresolvedFindings,
 }: NorthwingWorkPlanProps) {
+  const t = useT();
   const steps = harnessSteps ?? [];
 
   return (
     <div className="nw-work-plan">
       <section className="nw-work-plan__section" aria-labelledby="nw-work-plan-stages-heading">
         <h2 id="nw-work-plan-stages-heading" className="nw-work-plan__heading">
-          Progress
+          {t("northwing.work.progress")}
         </h2>
         <div className={`nw-work-plan__stage-badge nw-work-plan__stage-badge--${stage}`}>
-          {stageLabels[stage]}
+          {northwingStageLabel(t, stage)}
         </div>
         {steps.length > 0 && (
-          <ol className="nw-work-plan__steps" aria-label="Harness steps">
+          <ol className="nw-work-plan__steps" aria-label={t("northwing.work.harnessSteps")}>
             {steps.map((step, index) => {
               const label = stepLabels[step] ?? step.replaceAll("_", " ");
               const isCurrent = step === currentHarnessStep;
@@ -74,12 +65,12 @@ export function NorthwingWorkPlan({
 
       <section className="nw-work-plan__section" aria-labelledby="nw-work-plan-acceptance-heading">
         <h2 id="nw-work-plan-acceptance-heading" className="nw-work-plan__heading">
-          Acceptance
+          {t("northwing.work.acceptanceHeading")}
         </h2>
         {acceptance.length === 0 ? (
-          <p className="nw-work-plan__empty">No acceptance criteria defined.</p>
+          <p className="nw-work-plan__empty">{t("northwing.work.noAcceptance")}</p>
         ) : (
-          <ul className="nw-work-plan__acceptance" aria-label="Acceptance criteria">
+          <ul className="nw-work-plan__acceptance" aria-label={t("northwing.work.acceptanceCriteria")}>
             {acceptance.map((item) => (
               <li
                 key={item.id}
@@ -98,9 +89,9 @@ export function NorthwingWorkPlan({
       {unresolvedFindings.length > 0 && (
         <section className="nw-work-plan__section" aria-labelledby="nw-work-plan-findings-heading">
           <h2 id="nw-work-plan-findings-heading" className="nw-work-plan__heading">
-            Findings
+            {t("northwing.work.findings")}
           </h2>
-          <ul className="nw-work-plan__findings" aria-label="Unresolved findings">
+          <ul className="nw-work-plan__findings" aria-label={t("northwing.work.unresolvedFindings")}>
             {unresolvedFindings.map((finding, index) => (
               <li key={index} className="nw-work-plan__finding">
                 {finding}

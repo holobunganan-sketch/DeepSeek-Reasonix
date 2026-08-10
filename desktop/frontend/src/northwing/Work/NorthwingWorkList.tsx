@@ -2,23 +2,13 @@ import { useMemo, useState } from "react";
 import { Briefcase, AlertCircle, CheckCircle2, XCircle, Play, Search, ArrowUpDown } from "lucide-react";
 import type { NorthwingWorkSummary } from "../domain/catalog";
 import { filterWorks, countWorksByStatus, type WorkStatusFilter, type WorkSortOption } from "./workFilters";
+import { useT } from "../../lib/i18n";
+import { northwingStageLabel } from "../northwingI18n";
 
 export type NorthwingWorkListProps = {
   works: NorthwingWorkSummary[];
   onOpenWork?: (work: NorthwingWorkSummary) => void;
   onNewWork?: () => void;
-};
-
-const stageLabels: Record<string, string> = {
-  intake: "Intake",
-  planning: "Planning",
-  producing: "Producing",
-  reviewing: "Reviewing",
-  repairing: "Repairing",
-  validating: "Validating",
-  waiting_user: "Waiting for you",
-  completed: "Completed",
-  failed: "Failed",
 };
 
 function formatTime(iso: string): string {
@@ -29,6 +19,7 @@ function formatTime(iso: string): string {
 }
 
 export function NorthwingWorkList({ works, onOpenWork, onNewWork }: NorthwingWorkListProps) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<WorkStatusFilter>("all");
   const [sort, setSort] = useState<WorkSortOption>("updated_desc");
@@ -39,10 +30,10 @@ export function NorthwingWorkList({ works, onOpenWork, onNewWork }: NorthwingWor
   return (
     <main role="main" data-northwing-page="work-list" className="nw-page work-list-page">
       <header className="work-list-page__header">
-        <h1 className="nw-page__title">Work</h1>
-        <button type="button" className="nw-btn nw-btn--primary" aria-label="New Work" onClick={onNewWork}>
+        <h1 className="nw-page__title">{t("northwing.nav.work")}</h1>
+        <button type="button" className="nw-btn nw-btn--primary" aria-label={t("northwing.nav.newWork")} onClick={onNewWork}>
           <Briefcase size={16} aria-hidden="true" />
-          <span>New Work</span>
+          <span>{t("northwing.nav.newWork")}</span>
         </button>
       </header>
 
@@ -51,13 +42,13 @@ export function NorthwingWorkList({ works, onOpenWork, onNewWork }: NorthwingWor
           <Search size={16} aria-hidden="true" />
           <input
             type="search"
-            placeholder="Search work..."
+            placeholder={t("northwing.workList.search")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search work"
+            aria-label={t("northwing.workList.search")}
           />
         </div>
-        <div className="work-list-page__filters" role="tablist" aria-label="Filter work by status">
+        <div className="work-list-page__filters" role="tablist" aria-label={t("northwing.workList.filterLabel")}>
           {(["all", "active", "waiting", "completed", "failed"] as WorkStatusFilter[]).map((s) => (
             <button
               key={s}
@@ -67,31 +58,27 @@ export function NorthwingWorkList({ works, onOpenWork, onNewWork }: NorthwingWor
               className={`nw-btn nw-btn--ghost work-list-page__filter${status === s ? " work-list-page__filter--active" : ""}`}
               onClick={() => setStatus(s)}
             >
-              {s === "all" && "All"}
-              {s === "active" && "Active"}
-              {s === "waiting" && "Waiting"}
-              {s === "completed" && "Completed"}
-              {s === "failed" && "Failed"}
+              {t(`northwing.workList.${s}` as "northwing.workList.all" | "northwing.workList.active" | "northwing.workList.waiting" | "northwing.workList.completed" | "northwing.workList.failed")}
               <span className="work-list-page__count">{counts[s]}</span>
             </button>
           ))}
         </div>
         <div className="work-list-page__sort">
           <ArrowUpDown size={16} aria-hidden="true" />
-          <select value={sort} onChange={(e) => setSort(e.target.value as WorkSortOption)} aria-label="Sort work">
-            <option value="updated_desc">Updated: newest first</option>
-            <option value="updated_asc">Updated: oldest first</option>
-            <option value="title_asc">Title: A-Z</option>
-            <option value="title_desc">Title: Z-A</option>
+          <select value={sort} onChange={(e) => setSort(e.target.value as WorkSortOption)} aria-label={t("northwing.workList.sortLabel")}>
+            <option value="updated_desc">{t("northwing.workList.sortNewest")}</option>
+            <option value="updated_asc">{t("northwing.workList.sortOldest")}</option>
+            <option value="title_asc">{t("northwing.workList.sortTitleAsc")}</option>
+            <option value="title_desc">{t("northwing.workList.sortTitleDesc")}</option>
           </select>
         </div>
       </div>
 
       {filtered.length === 0 ? (
         <div className="nw-card work-list-page__empty">
-          <p>No Work matches the current filter.</p>
+          <p>{t("northwing.workList.noMatches")}</p>
           <button type="button" className="nw-btn nw-btn--primary" onClick={onNewWork}>
-            New Work
+            {t("northwing.nav.newWork")}
           </button>
         </div>
       ) : (
@@ -114,15 +101,15 @@ export function NorthwingWorkList({ works, onOpenWork, onNewWork }: NorthwingWor
                 <div className="work-list-item__title-row">
                   <span className="work-list-item__title">{work.title}</span>
                   {work.bindingStatus === "needs_rebind" && (
-                    <span className="work-list-item__rebind" title="Session rebind needed">
-                      <AlertCircle size={14} aria-hidden="true" /> needs rebind
+                    <span className="work-list-item__rebind" title={t("northwing.workList.rebind")}>
+                      <AlertCircle size={14} aria-hidden="true" /> {t("northwing.workList.rebind")}
                     </span>
                   )}
                 </div>
                 <div className="work-list-item__meta">
                   <span className="work-list-item__project">{work.projectName}</span>
                   <span className={`work-list-item__stage work-list-item__stage--${work.stage}`}>
-                    {stageLabels[work.stage] ?? work.stage}
+                    {northwingStageLabel(t, work.stage)}
                   </span>
                   <span className="work-list-item__quality">{work.quality}</span>
                   <span className="work-list-item__source">{work.sourcePolicy.replace(/_/g, " ")}</span>

@@ -6,6 +6,7 @@ import React from "react";
 import { NorthwingArtifacts } from "../northwing/Artifacts/NorthwingArtifacts";
 import { NorthwingMaterialsPanel } from "../northwing/Work/NorthwingMaterialsPanel";
 import type { CoworkArtifact } from "../lib/northwingCowork";
+import { LocaleProvider } from "../lib/i18n";
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
   pretendToBeVisual: true,
@@ -66,13 +67,13 @@ const artifact = {
 };
 await act(async () => {
   root.render(
-    <NorthwingArtifacts
+    <LocaleProvider><NorthwingArtifacts
       artifacts={[artifact]}
       onPreview={async (selected) => { actions.push(`preview:${selected.id}`); }}
       onOpen={async (selected) => { actions.push(`open:${selected.id}`); }}
       onReveal={async (selected) => { actions.push(`reveal:${selected.id}`); }}
       onMarkFinal={async (selected) => { actions.push(`final:${selected.id}`); }}
-    />,
+    /></LocaleProvider>,
   );
   await flush();
 });
@@ -93,7 +94,7 @@ const versions: CoworkArtifact[] = [
 ];
 const originalOrder = versions.map((version) => version.id);
 await act(async () => {
-  root.render(<NorthwingMaterialsPanel workspaceRoot="/workspace/project-1" artifacts={versions} />);
+  root.render(<LocaleProvider><NorthwingMaterialsPanel workspaceRoot="/workspace/project-1" artifacts={versions} /></LocaleProvider>);
   await flush();
 });
 await click(button("Versions"));

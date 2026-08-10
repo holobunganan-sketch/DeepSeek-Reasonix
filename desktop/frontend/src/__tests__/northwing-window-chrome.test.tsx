@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import React from "react";
 import { NorthwingShell, type NorthwingShellGateway } from "../northwing/Shell/NorthwingShell";
+import { LocaleProvider } from "../lib/i18n";
 
 let failed = 0;
 
@@ -71,7 +72,7 @@ async function run() {
   if (!rootElement) throw new Error("missing root");
   const root = createRoot(rootElement);
   await act(async () => {
-    root.render(<NorthwingShell gateway={gateway} />);
+    root.render(<LocaleProvider><NorthwingShell gateway={gateway} /></LocaleProvider>);
     await flush();
   });
 

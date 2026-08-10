@@ -7,6 +7,7 @@ import { NorthwingMaterialsPanel } from "./NorthwingMaterialsPanel";
 import { useNorthwingWorkProjection } from "./useNorthwingWorkProjection";
 import type { NorthwingDestination } from "../Navigation/routes";
 import type { CoworkWorkRef, CoworkArtifact, CoworkProject } from "../../lib/northwingCowork";
+import { useT } from "../../lib/i18n";
 
 export type NorthwingWorkViewProps = {
   workspaceRoot: string;
@@ -27,6 +28,7 @@ export function NorthwingWorkView({
   SessionWorkspace,
   onNavigate,
 }: NorthwingWorkViewProps) {
+  const t = useT();
   const projection = useNorthwingWorkProjection(workspaceRoot, workId);
   const resolvedWork = initialWork ?? projection.work;
   const resolvedArtifacts = useMemo(() => {
@@ -38,7 +40,7 @@ export function NorthwingWorkView({
   if (projection.loading) {
     return (
       <div className="nw-page nw-work-view">
-        <p className="nw-page__subtitle">Loading Work...</p>
+        <p className="nw-page__subtitle">{t("northwing.work.loading")}</p>
       </div>
     );
   }
@@ -46,7 +48,7 @@ export function NorthwingWorkView({
   if (projection.error) {
     return (
       <div className="nw-page nw-work-view">
-        <h1 className="nw-page__title">Work unavailable</h1>
+        <h1 className="nw-page__title">{t("northwing.work.unavailable")}</h1>
         <p className="nw-page__subtitle">{projection.error}</p>
       </div>
     );
@@ -67,7 +69,7 @@ export function NorthwingWorkView({
         onNavigate={onNavigate}
       />
       <div className="nw-work-view__body">
-        <aside className="nw-work-view__left" aria-label="Work plan">
+        <aside className="nw-work-view__left" aria-label={t("northwing.work.plan")}>
           <NorthwingWorkPlan
             stage={projection.stage}
             currentHarnessStep={projection.currentHarnessStep}
@@ -76,16 +78,16 @@ export function NorthwingWorkView({
             unresolvedFindings={projection.unresolvedFindings}
           />
         </aside>
-        <section className="nw-work-view__center" aria-label="Work activity">
+        <section className="nw-work-view__center" aria-label={t("northwing.work.activity")}>
           {SessionWorkspace ? (
             <NorthwingWorkActivity destination={destination} SessionWorkspace={SessionWorkspace} />
           ) : (
             <div className="nw-work-view__placeholder">
-              <p>Work session not available. Select a workbench target to begin.</p>
+              <p>{t("northwing.work.sessionUnavailable")}</p>
             </div>
           )}
         </section>
-        <aside className="nw-work-view__right" aria-label="Materials and artifacts">
+        <aside className="nw-work-view__right" aria-label={t("northwing.work.materialsArtifacts")}>
           <NorthwingMaterialsPanel
             workspaceRoot={workspaceRoot}
             materials={resolvedWork?.materials}

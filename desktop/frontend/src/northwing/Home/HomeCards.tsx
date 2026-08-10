@@ -1,22 +1,12 @@
 import { FileText, FolderKanban, Package, Play, AlertCircle, CheckCircle2, Clock } from "lucide-react";
 import type { NorthwingWorkSummary, NorthwingArtifactSummary, NorthwingProjectSummary } from "../domain/catalog";
+import { useT } from "../../lib/i18n";
+import { northwingStageLabel } from "../northwingI18n";
 
 type WorkCardProps = {
   work: NorthwingWorkSummary;
   onClick?: (work: NorthwingWorkSummary) => void;
   showProject?: boolean;
-};
-
-const stageLabels: Record<string, string> = {
-  intake: "Intake",
-  planning: "Planning",
-  producing: "Producing",
-  reviewing: "Reviewing",
-  repairing: "Repairing",
-  validating: "Validating",
-  waiting_user: "Waiting for you",
-  completed: "Completed",
-  failed: "Failed",
 };
 
 function formatTimeAgo(iso: string): string {
@@ -27,6 +17,7 @@ function formatTimeAgo(iso: string): string {
 }
 
 export function WorkCard({ work, onClick, showProject = true }: WorkCardProps) {
+  const t = useT();
   const waiting = work.stage === "waiting_user";
   return (
     <article
@@ -47,9 +38,9 @@ export function WorkCard({ work, onClick, showProject = true }: WorkCardProps) {
       </div>
       {showProject && <p className="home-card__meta">{work.projectName}</p>}
       <div className="home-card__footer">
-        <span className={`home-card__stage home-card__stage--${work.stage}`}>{stageLabels[work.stage] ?? work.stage}</span>
+        <span className={`home-card__stage home-card__stage--${work.stage}`}>{northwingStageLabel(t, work.stage)}</span>
         <span className="home-card__acceptance">
-          {work.completedCriteria}/{work.totalCriteria} acceptance
+          {t("northwing.home.acceptance", { done: work.completedCriteria, total: work.totalCriteria })}
         </span>
       </div>
       {work.updatedAt && (
@@ -67,6 +58,7 @@ type ArtifactCardProps = {
 };
 
 export function ArtifactCard({ artifact, onClick }: ArtifactCardProps) {
+  const t = useT();
   const fileName = artifact.path.split("/").pop() ?? artifact.path;
   return (
     <article
@@ -84,7 +76,7 @@ export function ArtifactCard({ artifact, onClick }: ArtifactCardProps) {
       <div className="home-card__header">
         <Package size={16} aria-hidden="true" />
         <h3 className="home-card__title">{fileName}</h3>
-        {artifact.final && <CheckCircle2 size={16} className="home-card__status-icon home-card__status-icon--final" aria-label="Final" />}
+        {artifact.final && <CheckCircle2 size={16} className="home-card__status-icon home-card__status-icon--final" aria-label={t("northwing.project.final")} />}
       </div>
       <p className="home-card__meta">{artifact.kind.toUpperCase()}</p>
       <p className="home-card__meta">{artifact.projectName}</p>
@@ -103,6 +95,7 @@ type ProjectCardProps = {
 };
 
 export function ProjectCard({ project, onClick }: ProjectCardProps) {
+  const t = useT();
   return (
     <article
       className="nw-card home-card home-card--project"
@@ -121,8 +114,7 @@ export function ProjectCard({ project, onClick }: ProjectCardProps) {
         <h3 className="home-card__title">{project.name}</h3>
       </div>
       <p className="home-card__meta">
-        {project.workCount} work{project.workCount === 1 ? "" : "s"} · {project.artifactCount} artifact
-        {project.artifactCount === 1 ? "" : "s"}
+        {t("northwing.home.projectCounts", { works: project.workCount, artifacts: project.artifactCount })}
       </p>
       {project.updatedAt && (
         <time className="home-card__time" dateTime={project.updatedAt}>
@@ -160,15 +152,16 @@ export function EmptyCard({ title, message, action }: EmptyCardProps) {
 }
 
 export function NewWorkCard({ onClick }: { onClick?: () => void }) {
+  const t = useT();
   return (
     <article className="nw-card home-card home-card--new-work">
       <div className="home-card__header">
         <FileText size={24} aria-hidden="true" />
-        <h3 className="home-card__title">New Work</h3>
+        <h3 className="home-card__title">{t("northwing.nav.newWork")}</h3>
       </div>
-      <p className="home-card__meta">Start a new Work with acceptance, materials, and formal output.</p>
-      <button type="button" className="nw-btn nw-btn--primary home-card__action" aria-label="New Work" onClick={onClick}>
-        Create Work
+      <p className="home-card__meta">{t("northwing.home.newWorkBody")}</p>
+      <button type="button" className="nw-btn nw-btn--primary home-card__action" aria-label={t("northwing.nav.newWork")} onClick={onClick}>
+        {t("northwing.home.createWork")}
       </button>
     </article>
   );

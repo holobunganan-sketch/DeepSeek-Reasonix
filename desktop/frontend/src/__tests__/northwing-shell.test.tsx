@@ -8,6 +8,7 @@ import {
   type NorthwingShellGateway,
   type NorthwingDestination,
 } from "../northwing/Shell/NorthwingShell";
+import { LocaleProvider } from "../lib/i18n";
 
 function SessionWorkspaceMock({ destination }: { destination: NorthwingDestination }) {
   return (
@@ -71,7 +72,7 @@ async function render(element: React.ReactElement) {
   if (!rootElement) throw new Error("missing root");
   const root = createRoot(rootElement);
   await act(async () => {
-    root.render(element);
+    root.render(<LocaleProvider>{element}</LocaleProvider>);
     await flush();
   });
   return root;

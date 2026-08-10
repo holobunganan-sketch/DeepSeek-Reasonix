@@ -3,8 +3,9 @@
 // 呼叫時由 lib/i18n.tsx 填充，需與英文保持同名。
 
 import type { DictKey } from "./en";
+import type { NorthwingDictKey } from "./northwing";
 
-export const zhTW: Record<DictKey, string> = {
+export const zhTW: Record<Exclude<DictKey, NorthwingDictKey>, string> = {
   // 通用動詞 / 框架
   "common.close": "關閉",
   "common.cancel": "取消",

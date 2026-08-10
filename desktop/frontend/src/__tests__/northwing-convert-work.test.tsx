@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 import React from "react";
 import { NorthwingShell, type NorthwingDestination } from "../northwing/Shell/NorthwingShell";
 import { readChatWorkDraft } from "../northwing/QuickChat/convertChatToWork";
+import { LocaleProvider } from "../lib/i18n";
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { pretendToBeVisual: true, url: "http://localhost/" });
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -93,7 +94,7 @@ const rootNode = document.getElementById("root");
 if (!rootNode) throw new Error("missing test root");
 const root = createRoot(rootNode);
 await act(async () => {
-  root.render(<NorthwingShell initialDestination={{ kind: "quick-chat", tabId: "chat-7" }} gateway={{ workspaceRoots: ["C:/team-project"], SessionWorkspace: SessionWorkspaceStub, onNavigate: (destination) => navigations.push(destination) }} />);
+  root.render(<LocaleProvider><NorthwingShell initialDestination={{ kind: "quick-chat", tabId: "chat-7" }} gateway={{ workspaceRoots: ["C:/team-project"], SessionWorkspace: SessionWorkspaceStub, onNavigate: (destination) => navigations.push(destination) }} /></LocaleProvider>);
   await flush();
 });
 
@@ -122,7 +123,7 @@ await act(async () => { click(Array.from(document.querySelectorAll("button")).fi
 ok(!navigations.some((destination) => destination.kind === "quick-chat" && destination.tabId === chatTab.id), "ordinary New Work cancellation does not reuse an abandoned chat return context");
 
 await act(async () => {
-  root.render(<NorthwingShell initialDestination={{ kind: "quick-chat", tabId: "chat-7" }} gateway={{ workspaceRoots: ["C:/team-project"], SessionWorkspace: SessionWorkspaceStub, onNavigate: (destination) => navigations.push(destination) }} />);
+  root.render(<LocaleProvider><NorthwingShell initialDestination={{ kind: "quick-chat", tabId: "chat-7" }} gateway={{ workspaceRoots: ["C:/team-project"], SessionWorkspace: SessionWorkspaceStub, onNavigate: (destination) => navigations.push(destination) }} /></LocaleProvider>);
   await flush();
 });
 await act(async () => { click(Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Convert to Work")) ?? null); await flush(); });
@@ -148,7 +149,7 @@ ok(chatMutations.length === 0, "conversion never closes, rebinds, renames, or wr
 tabs = [oldActiveChatTab, newChatTab];
 historyCalls = [];
 await act(async () => {
-  root.render(<NorthwingShell initialDestination={{ kind: "quick-chat" }} gateway={{ workspaceRoots: ["C:/team-project"], SessionWorkspace: SessionWorkspaceStub, onNavigate: (destination) => navigations.push(destination) }} />);
+  root.render(<LocaleProvider><NorthwingShell initialDestination={{ kind: "quick-chat" }} gateway={{ workspaceRoots: ["C:/team-project"], SessionWorkspace: SessionWorkspaceStub, onNavigate: (destination) => navigations.push(destination) }} /></LocaleProvider>);
   await flush();
 });
 const unboundConvert = document.querySelector<HTMLButtonElement>("button.nw-quick-chat__convert");

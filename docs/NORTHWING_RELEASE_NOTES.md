@@ -7,6 +7,7 @@ Northwing 0.3.1 is the stability recovery release for the 0.3 desktop line. It r
 - Restores Minimize, Maximize/Restore, and Close controls in the outer Windows frameless shell, including draggable titlebar behavior, double-click maximize, and maximized-state synchronization.
 - Gives the Northwing shell sole ownership of native window chrome. Work and Quick Chat reuse an embedded Reasonix execution surface without a second sidebar, project tree, or window-control group.
 - Replaces internal kebab-case route names in user-visible breadcrumbs.
+- Localizes Northwing product navigation, primary pages, forms, actions, native window labels, and state messages through the existing English/Simplified Chinese/Traditional Chinese dictionaries.
 - Removes stable navigation entries that led only to placeholder pages.
 
 ## Project and Work lifecycle

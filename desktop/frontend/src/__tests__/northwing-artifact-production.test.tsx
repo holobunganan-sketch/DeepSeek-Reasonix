@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import React from "react";
 import { NorthwingShell } from "../northwing/Shell/NorthwingShell";
 import type { NorthwingCatalog } from "../northwing/domain/catalog";
+import { LocaleProvider } from "../lib/i18n";
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
   pretendToBeVisual: true,
@@ -107,7 +108,7 @@ const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("missing root");
 const root = createRoot(rootElement);
 await act(async () => {
-  root.render(<NorthwingShell initialDestination={{ kind: "artifacts" }} gateway={{ readCatalog: async () => catalog() }} />);
+  root.render(<LocaleProvider><NorthwingShell initialDestination={{ kind: "artifacts" }} gateway={{ readCatalog: async () => catalog() }} /></LocaleProvider>);
   await flush();
 });
 
