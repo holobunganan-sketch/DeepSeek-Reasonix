@@ -27,8 +27,6 @@ export type NorthwingShellGateway = {
   workspaceRoots?: string[];
   SessionWorkspace?: React.ComponentType<{ destination: NorthwingDestination; onSessionTabReady?: (tabId: string) => void }>;
   readCatalog?: () => Promise<NorthwingCatalog>;
-  onNewWork?: () => void;
-  onOpenQuickChat?: () => void;
   onNavigate?: (destination: NorthwingDestination) => void;
   windowBridge?: DesktopWindowBridge;
 };
@@ -83,7 +81,7 @@ function NorthwingHomePage() {
       loading={loading}
       error={error}
       onRetry={load}
-      onNewWork={() => gateway?.onNewWork?.()}
+      onNewWork={() => navigate({ kind: "new-work" })}
       onQuickChat={() => navigate({ kind: "quick-chat" })}
       onOpenWork={(work) => navigate({ kind: "work", workspaceRoot: work.workspace, workId: work.workId })}
       onOpenProject={(project) =>
@@ -174,7 +172,7 @@ function NorthwingWorkListPage() {
     <NorthwingWorkList
       works={works}
       onOpenWork={(work) => navigate({ kind: "work", workspaceRoot: work.workspace, workId: work.workId })}
-      onNewWork={() => navigate({ kind: "home" })}
+      onNewWork={() => navigate({ kind: "new-work" })}
     />
   );
 }
@@ -215,7 +213,7 @@ function NorthwingProjectDetailPage({ workspaceRoot }: { workspaceRoot: string }
       onOpenArtifact={(artifact) =>
         navigate({ kind: "work", workspaceRoot: artifact.workspace, workId: artifact.workId })
       }
-      onNewWork={() => navigate({ kind: "home" })}
+      onNewWork={() => navigate({ kind: "new-work", workspaceRoot })}
     />
   );
 }
@@ -292,6 +290,7 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
           workspaceRoot={destination.workspaceRoot}
           workId={destination.workId}
           SessionWorkspace={gw.SessionWorkspace}
+          onNavigate={_navigate}
         />
       );
     }
@@ -355,13 +354,11 @@ export function NorthwingShell({ initialDestination = DEFAULT_NORTHWING_DESTINAT
 
   const handleNewWork = useCallback(() => {
     handleAbandonConversionAndNavigate({ kind: "new-work" });
-    gateway?.onNewWork?.();
-  }, [gateway, handleAbandonConversionAndNavigate]);
+  }, [handleAbandonConversionAndNavigate]);
 
   const handleQuickChat = useCallback(() => {
     handleAbandonConversionAndNavigate({ kind: "quick-chat" });
-    gateway?.onOpenQuickChat?.();
-  }, [handleAbandonConversionAndNavigate, gateway]);
+  }, [handleAbandonConversionAndNavigate]);
 
   const handleBeginConversion = useCallback((draft: ChatWorkDraft) => {
     setConversionDraft(draft);

@@ -25,8 +25,6 @@ function createGateway(): NorthwingShellGateway {
   return {
     workspaceRoots: [],
     SessionWorkspace: SessionWorkspaceMock,
-    onNewWork: () => {},
-    onOpenQuickChat: () => {},
     onNavigate: () => {},
   };
 }
@@ -61,6 +59,8 @@ globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.Event = dom.window.Event;
 globalThis.KeyboardEvent = dom.window.KeyboardEvent;
 globalThis.MouseEvent = dom.window.MouseEvent;
+Object.defineProperty(dom.window.HTMLElement.prototype, "attachEvent", { configurable: true, value: () => {} });
+Object.defineProperty(dom.window.HTMLElement.prototype, "detachEvent", { configurable: true, value: () => {} });
 
 function flush() {
   return new Promise((resolve) => setTimeout(resolve, 20));
@@ -95,8 +95,85 @@ async function run() {
   const quickChat = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes("Quick Chat"));
   ok(quickChat, "Quick Chat secondary entry exists");
 
+  const homeCreateWork = document.querySelector<HTMLButtonElement>(".home-card--new-work button");
+  await act(async () => {
+    homeCreateWork?.click();
+    await flush();
+  });
+  equal(
+    document.querySelector("[data-northwing-page]")?.getAttribute("data-northwing-page"),
+    "new-work",
+    "Home Create Work navigates through the Shell to the New Work form",
+  );
+
   await act(async () => {
     homeRoot.unmount();
+    await flush();
+  });
+
+  const workListRoot = await render(
+    <NorthwingShell initialDestination={{ kind: "work-list" }} gateway={createGateway()} />,
+  );
+  const workListNewWork = document.querySelector<HTMLButtonElement>(
+    '[data-northwing-page="work-list"] [aria-label="New Work"]',
+  );
+  await act(async () => {
+    workListNewWork?.click();
+    await flush();
+  });
+  equal(
+    document.querySelector("[data-northwing-page]")?.getAttribute("data-northwing-page"),
+    "new-work",
+    "Work list New Work navigates to the New Work form",
+  );
+  await act(async () => {
+    workListRoot.unmount();
+    await flush();
+  });
+
+  const projectRoot = await render(
+    <NorthwingShell
+      initialDestination={{ kind: "project", workspaceRoot: "/workspace/project-a" }}
+      gateway={{
+        ...createGateway(),
+        readCatalog: async () => ({
+          projects: [{
+            workspace: "/workspace/project-a",
+            exists: true,
+            id: "project-a",
+            name: "Project A",
+            updatedAt: "2026-08-10T00:00:00Z",
+            workCount: 0,
+            artifactCount: 0,
+          }],
+          activeWorks: [],
+          waitingForUser: [],
+          recentArtifacts: [],
+        }),
+      }}
+    />,
+  );
+  const projectNewWork = document.querySelector<HTMLButtonElement>(
+    '[data-northwing-page="project"] [aria-label="New Work"]',
+  );
+  await act(async () => {
+    projectNewWork?.click();
+    await flush();
+  });
+  equal(
+    document.querySelector("[data-northwing-page]")?.getAttribute("data-northwing-page"),
+    "new-work",
+    "Project New Work navigates to the New Work form",
+  );
+  const selectedProject = document.querySelector<HTMLInputElement>('[aria-label="Project folder"]');
+  equal(
+    selectedProject?.value,
+    "/workspace/project-a",
+    "Project New Work preserves the selected workspace",
+  );
+  ok(selectedProject?.disabled, "Project New Work locks the selected workspace");
+  await act(async () => {
+    projectRoot.unmount();
     await flush();
   });
 
@@ -165,6 +242,17 @@ async function run() {
     document.querySelector('[data-testid="session-workspace"]')?.getAttribute("data-destination-kind"),
     "work",
     "work page passes the work destination to its session adapter",
+  );
+
+  const workBack = document.querySelector<HTMLButtonElement>('[aria-label="Back to Work list"]');
+  await act(async () => {
+    workBack?.click();
+    await flush();
+  });
+  equal(
+    document.querySelector("[data-northwing-page]")?.getAttribute("data-northwing-page"),
+    "work-list",
+    "Work Back navigates to the Work list",
   );
 
   await act(async () => {

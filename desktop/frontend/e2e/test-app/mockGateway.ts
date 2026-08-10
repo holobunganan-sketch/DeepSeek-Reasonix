@@ -70,8 +70,6 @@ export function buildMockGateway(): NorthwingShellGateway {
       // Return a fresh deep copy each time
       return JSON.parse(JSON.stringify(catalog));
     },
-    onNewWork: () => void 0,
-    onOpenQuickChat: () => void 0,
     onNavigate: () => void 0,
   };
 }
