@@ -187,12 +187,9 @@ function NorthwingWorkListPage() {
       </main>
     );
   }
-  const works = [...catalog.activeWorks, ...catalog.waitingForUser].sort((a, b) =>
-    b.updatedAt.localeCompare(a.updatedAt),
-  );
   return (
     <NorthwingWorkList
-      works={works}
+      works={catalog.works}
       onOpenWork={(work) => navigate({ kind: "work", workspaceRoot: work.workspace, workId: work.workId })}
       onNewWork={() => navigate({ kind: "new-work" })}
     />
@@ -224,7 +221,7 @@ function NorthwingProjectDetailPage({ workspaceRoot }: { workspaceRoot: string }
       </main>
     );
   }
-  const works = catalog.activeWorks.filter((w) => w.workspace === workspaceRoot);
+  const works = catalog.works.filter((w) => w.workspace === workspaceRoot);
   const artifacts = catalog.recentArtifacts.filter((a) => a.workspace === workspaceRoot);
   return (
     <NorthwingProjectView

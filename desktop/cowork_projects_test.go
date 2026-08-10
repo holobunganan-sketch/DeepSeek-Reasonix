@@ -19,6 +19,9 @@ func TestNorthwingCatalogSurfacesWorksAndArtifacts(t *testing.T) {
 	if len(catalog.Projects) != 1 || !catalog.Projects[0].Exists {
 		t.Fatalf("expected one existing project: %#v", catalog.Projects)
 	}
+	if len(catalog.Works) != 1 || catalog.Works[0].WorkID != "work-v2-001" {
+		t.Fatalf("expected complete Work projection: %#v", catalog.Works)
+	}
 
 	if len(catalog.ActiveWorks) != 1 {
 		t.Fatalf("expected 1 active work, got %d: %#v", len(catalog.ActiveWorks), catalog.ActiveWorks)

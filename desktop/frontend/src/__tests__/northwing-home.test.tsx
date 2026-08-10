@@ -64,6 +64,7 @@ const catalogFixture: NorthwingCatalog = {
       artifactCount: 1,
     },
   ],
+  works: [],
   activeWorks: [
     {
       workId: "work-123",

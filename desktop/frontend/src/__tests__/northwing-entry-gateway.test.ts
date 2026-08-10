@@ -24,6 +24,7 @@ function equal<T>(actual: T, expected: T, label: string) {
 
 const catalog: NorthwingCatalog = {
   projects: [],
+  works: [],
   activeWorks: [],
   waitingForUser: [],
   recentArtifacts: [],

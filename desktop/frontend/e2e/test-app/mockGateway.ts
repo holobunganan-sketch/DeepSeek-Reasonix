@@ -56,12 +56,13 @@ const defaultCatalog: NorthwingCatalog = {
       updatedAt: new Date().toISOString(),
     },
   ],
+  works: [mockWork, mockWaitingWork],
   activeWorks: [mockWork],
   waitingForUser: [mockWaitingWork],
   recentArtifacts: [mockArtifact],
 };
 
-let catalog = { ...defaultCatalog, activeWorks: [{...mockWork}], waitingForUser: [{...mockWaitingWork}], recentArtifacts: [{...mockArtifact}] };
+let catalog = { ...defaultCatalog, works: [{...mockWork}, {...mockWaitingWork}], activeWorks: [{...mockWork}], waitingForUser: [{...mockWaitingWork}], recentArtifacts: [{...mockArtifact}] };
 
 export function buildMockGateway(): NorthwingShellGateway {
   return {
@@ -80,6 +81,7 @@ export function buildMockGateway(): NorthwingShellGateway {
  */
 export function __e2e_setCatalog(next: Partial<NorthwingCatalog>): void {
   if (next.projects) catalog.projects = next.projects;
+  if (next.works) catalog.works = next.works;
   if (next.activeWorks) catalog.activeWorks = next.activeWorks;
   if (next.waitingForUser) catalog.waitingForUser = next.waitingForUser;
   if (next.recentArtifacts) catalog.recentArtifacts = next.recentArtifacts;

@@ -66,6 +66,7 @@ type ArtifactSummary struct {
 // transcripts.
 type Catalog struct {
 	Projects        []ProjectSummary  `json:"projects"`
+	Works           []WorkSummary     `json:"works"`
 	ActiveWorks     []WorkSummary     `json:"activeWorks"`
 	WaitingForUser  []WorkSummary     `json:"waitingForUser"`
 	RecentArtifacts []ArtifactSummary `json:"recentArtifacts"`
@@ -73,6 +74,16 @@ type Catalog struct {
 
 func isTerminalStage(stage WorkStage) bool {
 	return stage == WorkStageCompleted || stage == WorkStageFailed
+}
+
+func workSummaryBefore(left, right WorkSummary) bool {
+	if left.UpdatedAt.Equal(right.UpdatedAt) {
+		if left.ProjectID == right.ProjectID {
+			return left.WorkID < right.WorkID
+		}
+		return left.ProjectID < right.ProjectID
+	}
+	return left.UpdatedAt.After(right.UpdatedAt)
 }
 
 // Summaries reads multiple manifests behind one desktop binding. This avoids an
@@ -143,6 +154,7 @@ func (s *Store) Catalog(workspaceRoots []string) (Catalog, error) {
 	seen := make(map[string]struct{}, len(workspaceRoots))
 	catalog := Catalog{
 		Projects:        make([]ProjectSummary, 0, len(workspaceRoots)),
+		Works:           make([]WorkSummary, 0),
 		ActiveWorks:     make([]WorkSummary, 0),
 		WaitingForUser:  make([]WorkSummary, 0),
 		RecentArtifacts: make([]ArtifactSummary, 0),
@@ -203,7 +215,8 @@ func (s *Store) Catalog(workspaceRoots []string) (Catalog, error) {
 				BindingStatus:     NormalizeBindingStatus(work.BindingStatus),
 				UpdatedAt:         work.UpdatedAt,
 			}
-			if !isTerminalStage(summary.Stage) {
+			catalog.Works = append(catalog.Works, summary)
+			if !isTerminalStage(summary.Stage) && summary.Stage != WorkStageWaitingUser {
 				catalog.ActiveWorks = append(catalog.ActiveWorks, summary)
 			}
 			if summary.Stage == WorkStageWaitingUser {
@@ -229,11 +242,14 @@ func (s *Store) Catalog(workspaceRoots []string) (Catalog, error) {
 		}
 	}
 
+	sort.SliceStable(catalog.Works, func(i, j int) bool {
+		return workSummaryBefore(catalog.Works[i], catalog.Works[j])
+	})
 	sort.SliceStable(catalog.ActiveWorks, func(i, j int) bool {
-		return catalog.ActiveWorks[i].UpdatedAt.After(catalog.ActiveWorks[j].UpdatedAt)
+		return workSummaryBefore(catalog.ActiveWorks[i], catalog.ActiveWorks[j])
 	})
 	sort.SliceStable(catalog.WaitingForUser, func(i, j int) bool {
-		return catalog.WaitingForUser[i].UpdatedAt.After(catalog.WaitingForUser[j].UpdatedAt)
+		return workSummaryBefore(catalog.WaitingForUser[i], catalog.WaitingForUser[j])
 	})
 	sort.SliceStable(catalog.RecentArtifacts, func(i, j int) bool {
 		return catalog.RecentArtifacts[i].CreatedAt.After(catalog.RecentArtifacts[j].CreatedAt)
