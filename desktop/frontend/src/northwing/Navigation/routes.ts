@@ -6,7 +6,7 @@ export type NorthwingDestination =
   | { kind: "work"; workspaceRoot: string; workId: string }
   | { kind: "artifacts" }
   | { kind: "quick-chat"; tabId?: string }
-  | { kind: "advanced" }
+  | { kind: "settings"; returnTo?: "home" | "new-work" }
   | { kind: "new-work"; workspaceRoot?: string };
 
 export function isSessionDestination(destination: NorthwingDestination): boolean {
@@ -14,7 +14,7 @@ export function isSessionDestination(destination: NorthwingDestination): boolean
 }
 
 export function destinationPageName(destination: NorthwingDestination): string {
-  return destination.kind;
+  return describeDestination(destination);
 }
 
 export function describeDestination(destination: NorthwingDestination): string {
@@ -33,8 +33,8 @@ export function describeDestination(destination: NorthwingDestination): string {
       return "Artifacts";
     case "quick-chat":
       return "Quick Chat";
-    case "advanced":
-      return "Advanced tools";
+    case "settings":
+      return "Settings";
     case "new-work":
       return "New Work";
   }

@@ -3,6 +3,7 @@ import { ok, strictEqual } from "node:assert";
 import {
   type NorthwingDestination,
   describeDestination,
+  destinationPageName,
   isSessionDestination,
 } from "../northwing/Navigation/routes";
 
@@ -19,7 +20,7 @@ test("navigation: all primary destinations describe correctly", () => {
     { kind: "work-list" },
     { kind: "artifacts" },
     { kind: "quick-chat" },
-    { kind: "advanced" },
+    { kind: "settings" },
   ];
   for (const dest of destinations) {
     ok(typeof describeDestination(dest) === "string", `${dest.kind} must describe`);
@@ -41,4 +42,7 @@ test("navigation: artifacts route works", () => {
 
 test("navigation: new-work route works", () => {
   strictEqual(describeDestination({ kind: "new-work" }), "New Work");
+  strictEqual(destinationPageName({ kind: "new-work" }), "New Work");
+  strictEqual(destinationPageName({ kind: "work-list" }), "Work");
+  strictEqual(destinationPageName({ kind: "quick-chat" }), "Quick Chat");
 });

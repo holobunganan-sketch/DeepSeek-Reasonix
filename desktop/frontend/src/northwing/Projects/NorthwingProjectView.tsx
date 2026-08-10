@@ -35,7 +35,7 @@ export function NorthwingProjectView({
   project,
   works,
   artifacts,
-  chats = [],
+  chats,
   onOpenWork,
   onOpenArtifact,
   onOpenChat,
@@ -144,7 +144,7 @@ export function NorthwingProjectView({
         )}
       </section>
 
-      <section className="project-page__section project-page__section--chats" aria-labelledby="project-chats-heading">
+      {chats && onOpenChat && <section className="project-page__section project-page__section--chats" aria-labelledby="project-chats-heading">
         <div className="project-page__section-header">
           <MessageSquare size={18} aria-hidden="true" />
           <h2 id="project-chats-heading" className="project-page__section-title">
@@ -180,7 +180,7 @@ export function NorthwingProjectView({
             ))}
           </ul>
         )}
-      </section>
+      </section>}
     </main>
   );
 }

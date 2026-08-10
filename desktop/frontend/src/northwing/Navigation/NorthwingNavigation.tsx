@@ -1,4 +1,4 @@
-import { Home, FolderKanban, Briefcase, Package, Sparkles, Wrench, Plus } from "lucide-react";
+import { Home, FolderKanban, Briefcase, Package, Settings, Plus } from "lucide-react";
 import type { NorthwingDestination } from "./routes";
 
 export type NorthwingNavigationProps = {
@@ -22,8 +22,7 @@ export function NorthwingNavigation({ current, onNavigate, onNewWork }: Northwin
   ];
 
   const secondaryItems: NavItem[] = [
-    { label: "Automations", destination: { kind: "advanced" }, icon: <Sparkles size={18} aria-hidden="true" /> },
-    { label: "Advanced tools", destination: { kind: "advanced" }, icon: <Wrench size={18} aria-hidden="true" /> },
+    { label: "Settings", destination: { kind: "settings" }, icon: <Settings size={18} aria-hidden="true" /> },
   ];
 
   const isActive = (destination: NorthwingDestination) => {

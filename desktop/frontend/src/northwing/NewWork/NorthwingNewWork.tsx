@@ -39,7 +39,12 @@ export type NorthwingNewWorkProps = {
   workspaceOptions?: string[];
   requireProjectSelection?: boolean;
   initialForm?: Partial<Pick<NewWorkFormState, "title" | "objective">>;
-  availableModels?: { id: string; name: string }[];
+  availableModels?: { id: string; name: string; current?: boolean }[];
+  modelsLoading?: boolean;
+  modelCatalogError?: string;
+  availableEfforts?: string[];
+  effortSupported?: boolean;
+  onConfigureModels?: () => void;
   onLaunch: (workspaceRoot: string, form: NewWorkFormState) => Promise<void>;
   onCancel?: () => void;
 };
@@ -50,6 +55,11 @@ export function NorthwingNewWork({
   requireProjectSelection = false,
   initialForm,
   availableModels = [],
+  modelsLoading = false,
+  modelCatalogError,
+  availableEfforts = [],
+  effortSupported = false,
+  onConfigureModels,
   onLaunch,
   onCancel,
 }: NorthwingNewWorkProps) {
@@ -199,7 +209,9 @@ export function NorthwingNewWork({
         </label>
 
         {/* Model */}
-        {availableModels.length > 0 && (
+        {modelsLoading ? (
+          <p className="nw-new-work__model-state" role="status">Loading configured models...</p>
+        ) : availableModels.length > 0 ? (
           <label className="nw-new-work__field">
             <span className="nw-new-work__label">Model</span>
             <select
@@ -208,12 +220,24 @@ export function NorthwingNewWork({
               onChange={(e) => update("modelRef", e.target.value)}
               aria-label="Model"
             >
-              <option value="">Default</option>
+              <option value="">
+                Default: {availableModels.find((model) => model.current)?.name ?? availableModels[0].name}
+              </option>
               {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>{m.name}</option>
               ))}
             </select>
           </label>
+        ) : (
+          <div className="nw-new-work__model-state" role="alert">
+            <strong>No usable model configured</strong>
+            <span>{modelCatalogError || "Configure a provider and API key before starting Work."}</span>
+            {onConfigureModels && (
+              <button type="button" className="nw-btn nw-btn--ghost" onClick={onConfigureModels}>
+                Configure models
+              </button>
+            )}
+          </div>
         )}
 
         {/* Advanced toggle */}
@@ -271,19 +295,24 @@ export function NorthwingNewWork({
                 <option value="ask_every">Ask every step</option>
               </select>
             </label>
-            <label className="nw-new-work__field">
-              <span className="nw-new-work__label">Reasoning effort</span>
-              <select
-                className="nw-input"
-                value={form.reasoningEffort}
-                onChange={(e) => update("reasoningEffort", e.target.value)}
-              >
-                <option value="">Default</option>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </label>
+            {effortSupported && availableEfforts.length > 0 ? (
+              <label className="nw-new-work__field">
+                <span className="nw-new-work__label">Reasoning effort</span>
+                <select
+                  className="nw-input"
+                  value={form.reasoningEffort}
+                  onChange={(e) => update("reasoningEffort", e.target.value)}
+                  aria-label="Reasoning effort"
+                >
+                  <option value="">Default</option>
+                  {availableEfforts.map((level) => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p className="nw-new-work__model-state">The selected provider does not expose reasoning effort controls.</p>
+            )}
           </div>
         )}
 
@@ -299,7 +328,7 @@ export function NorthwingNewWork({
             type="button"
             className="nw-btn nw-btn--primary"
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || modelsLoading || availableModels.length === 0}
           >
             {submitting ? "Creating..." : "Start Work"}
           </button>

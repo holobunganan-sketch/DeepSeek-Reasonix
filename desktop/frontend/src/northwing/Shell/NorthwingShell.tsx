@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import { NorthwingNavigation } from "../Navigation/NorthwingNavigation";
 import type { NorthwingDestination } from "../Navigation/routes";
@@ -12,6 +12,7 @@ import { createNewNorthwingProject } from "../Projects/newProjectController";
 import { NorthwingWorkList } from "../Work/NorthwingWorkList";
 import { NorthwingWorkView } from "../Work/NorthwingWorkView";
 import { NorthwingNewWork } from "../NewWork/NorthwingNewWork";
+import { useNorthwingModelCatalog } from "../NewWork/useNorthwingModelCatalog";
 import { NorthwingQuickChat } from "../QuickChat/NorthwingQuickChat";
 import type { ChatWorkDraft } from "../QuickChat/convertChatToWork";
 import { launchNewWork } from "../NewWork/newWorkController";
@@ -27,6 +28,8 @@ import {
   useDesktopWindowChrome,
   type DesktopWindowBridge,
 } from "../../components/DesktopWindowChrome";
+
+const SettingsPanel = lazy(() => import("../../components/SettingsPanel").then((module) => ({ default: module.SettingsPanel })));
 
 export type { NorthwingDestination } from "../Navigation/routes";
 
@@ -280,14 +283,73 @@ function NorthwingArtifactsPage() {
   );
 }
 
-function NorthwingAdvancedPage() {
+function NorthwingSettingsPage({
+  returnTo,
+  navigate,
+}: {
+  returnTo?: "home" | "new-work";
+  navigate: (destination: NorthwingDestination) => void;
+}) {
+  const platformAttribute = document.documentElement.getAttribute("data-platform");
+  const desktopPlatform = platformAttribute === "windows" || platformAttribute === "darwin"
+    ? platformAttribute
+    : "linux";
   return (
-    <main role="main" data-northwing-page="advanced" className="nw-page">
-      <h1 className="nw-page__title">Advanced tools</h1>
-      <div className="nw-card">
-        <p>Skills, MCP, Automations, Terminal, Git, and developer tools will appear here.</p>
-      </div>
+    <main role="main" data-northwing-page="settings" className="nw-page">
+      <h1 className="nw-page__title">Settings</h1>
+      <Suspense fallback={<p className="nw-page__subtitle">Loading Settings...</p>}>
+        <SettingsPanel
+          initialTab="models"
+          desktopPlatform={desktopPlatform}
+          agentRunning={false}
+          onChanged={() => window.dispatchEvent(new Event("reasonix:model-catalog-changed"))}
+          onUseSubagent={() => navigate({ kind: "quick-chat" })}
+          onClose={() => navigate(returnTo === "new-work" ? { kind: "new-work" } : { kind: "home" })}
+        />
+      </Suspense>
     </main>
+  );
+}
+
+function NorthwingNewWorkPage({
+  destination,
+  conversionDraft,
+  navigate,
+  onCancelNewWork,
+  onCompleteConversion,
+}: {
+  destination: Extract<NorthwingDestination, { kind: "new-work" }>;
+  conversionDraft: ChatWorkDraft | null;
+  navigate: (destination: NorthwingDestination) => void;
+  onCancelNewWork: () => void;
+  onCompleteConversion: () => void;
+}) {
+  const modelCatalog = useNorthwingModelCatalog();
+  const wsRoot = destination.workspaceRoot ?? "";
+  return (
+    <NorthwingNewWork
+      key={conversionDraft ? `convert-${conversionDraft.chatTabId}` : "new-work"}
+      preselectedWorkspace={conversionDraft ? undefined : wsRoot || undefined}
+      workspaceOptions={conversionDraft?.workspaceRoots}
+      requireProjectSelection={Boolean(conversionDraft)}
+      initialForm={conversionDraft ? { title: conversionDraft.title, objective: conversionDraft.objective } : undefined}
+      availableModels={modelCatalog.models.map((model) => ({
+        id: model.ref,
+        name: `${model.provider} / ${model.model}`,
+        current: model.current,
+      }))}
+      modelsLoading={modelCatalog.loading}
+      modelCatalogError={modelCatalog.error}
+      availableEfforts={modelCatalog.effort.levels}
+      effortSupported={modelCatalog.effort.supported}
+      onConfigureModels={() => navigate({ kind: "settings", returnTo: "new-work" })}
+      onLaunch={async (root, form) => {
+        const launched = await launchNewWork(root, form);
+        if (conversionDraft) onCompleteConversion();
+        navigate({ kind: "work", workspaceRoot: launched.workspaceRoot, workId: launched.work.id });
+      }}
+      onCancel={conversionDraft ? onCancelNewWork : () => navigate({ kind: "home" })}
+    />
   );
 }
 
@@ -325,8 +387,8 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
     }
     case "artifacts":
       return <NorthwingArtifactsPage />;
-    case "advanced":
-      return <NorthwingAdvancedPage />;
+    case "settings":
+      return <NorthwingSettingsPage returnTo={destination.returnTo} navigate={_navigate} />;
     case "quick-chat":
       return (
         <NorthwingQuickChat
@@ -336,24 +398,16 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
           onSessionTabReady={onSessionTabReady}
         />
       );
-    case "new-work": {
-      const wsRoot = destination.workspaceRoot ?? "";
+    case "new-work":
       return (
-        <NorthwingNewWork
-          key={conversionDraft ? `convert-${conversionDraft.chatTabId}` : "new-work"}
-          preselectedWorkspace={conversionDraft ? undefined : wsRoot || undefined}
-          workspaceOptions={conversionDraft?.workspaceRoots}
-          requireProjectSelection={Boolean(conversionDraft)}
-          initialForm={conversionDraft ? { title: conversionDraft.title, objective: conversionDraft.objective } : undefined}
-          onLaunch={async (root, form) => {
-            const launched = await launchNewWork(root, form);
-            if (conversionDraft) onCompleteConversion();
-            _navigate({ kind: "work", workspaceRoot: launched.workspaceRoot, workId: launched.work.id });
-          }}
-          onCancel={conversionDraft ? onCancelNewWork : () => _navigate({ kind: "home" })}
+        <NorthwingNewWorkPage
+          destination={destination}
+          conversionDraft={conversionDraft}
+          navigate={_navigate}
+          onCancelNewWork={onCancelNewWork}
+          onCompleteConversion={onCompleteConversion}
         />
       );
-    }
   }
 }
 

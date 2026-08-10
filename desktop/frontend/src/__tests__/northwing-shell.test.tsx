@@ -89,8 +89,10 @@ async function run() {
     ok(link, `navigation contains ${name} link`);
   }
 
-  const advanced = Array.from(document.querySelectorAll("a, button")).find((el) => el.textContent?.includes("Advanced"));
-  ok(advanced, "Advanced tools entry exists");
+  const settings = Array.from(document.querySelectorAll("a, button")).find((el) => el.textContent?.includes("Settings"));
+  ok(settings, "Settings entry exists");
+  ok(!document.body.textContent?.includes("Advanced tools"), "stable navigation hides the Advanced tools placeholder");
+  ok(!document.body.textContent?.includes("Automations"), "stable navigation hides unavailable Automations");
 
   const quickChat = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes("Quick Chat"));
   ok(quickChat, "Quick Chat secondary entry exists");
@@ -105,6 +107,7 @@ async function run() {
     "new-work",
     "Home Create Work navigates through the Shell to the New Work form",
   );
+  equal(document.querySelector(".northwing-shell__breadcrumb")?.textContent, "New Work", "breadcrumb hides internal new-work route kind");
 
   await act(async () => {
     homeRoot.unmount();
