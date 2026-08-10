@@ -63,11 +63,13 @@ const summarySrc = readFileSync(summaryPath, "utf8");
 ok(/SessionKind/.test(summarySrc) && /"work"/.test(summarySrc),
   "summary.go exposes SessionKind=work for active Works");
 
-// NewWork controller: uses EnsureWorkTab
+// NewWork controller: delegates to the durable lifecycle that owns EnsureWorkTab.
 const controllerPath = resolve(dir, "../northwing/NewWork/newWorkController.ts");
 const controllerSrc = readFileSync(controllerPath, "utf8");
-ok(/app\.EnsureWorkTab/.test(controllerSrc),
-  "newWorkController calls EnsureWorkTab directly");
+const coworkAdapterPath = resolve(dir, "../lib/northwingCowork.ts");
+const coworkAdapterSrc = readFileSync(coworkAdapterPath, "utf8");
+ok(/launchCoworkWork/.test(controllerSrc) && /app\.EnsureWorkTab/.test(coworkAdapterSrc),
+  "newWorkController delegates to the durable lifecycle that creates a native Work tab");
 
 if (failed) process.exit(1);
 console.log("Northwing native session identity tests passed");

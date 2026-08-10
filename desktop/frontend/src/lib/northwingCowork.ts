@@ -190,22 +190,22 @@ async function ensureCoworkProject(workspaceRoot: string): Promise<CoworkProject
   return createCoworkProject(workspaceRoot, basename(workspaceRoot));
 }
 
-async function prepareCoworkProject(workspaceRoot: string): Promise<{ workspaceRoot: string; project: CoworkProject }> {
-  const requestedRoot = workspaceRoot.trim();
+async function prepareCoworkProject(workspaceInput: string): Promise<{ workspaceRoot: string; project: CoworkProject }> {
+  const requestedRoot = workspaceInput.trim();
   if (!requestedRoot) throw new Error("Select a project folder.");
 
-  let registeredRoot: string;
+  let workspaceRoot: string;
   try {
-    registeredRoot = (await app.SwitchWorkspace(requestedRoot)).trim();
+    workspaceRoot = (await app.SwitchWorkspace(requestedRoot)).trim();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Northwing could not open the workspace: ${message}`);
   }
-  if (!registeredRoot) throw new Error("Northwing could not open the workspace.");
+  if (!workspaceRoot) throw new Error("Northwing could not open the workspace.");
 
-  const project = await ensureCoworkProject(registeredRoot);
-  await requiredBinding("ValidateCoworkProjectWritable")(registeredRoot);
-  return { workspaceRoot: registeredRoot, project };
+  const project = await ensureCoworkProject(workspaceRoot);
+  await requiredBinding("ValidateCoworkProjectWritable")(workspaceRoot);
+  return { workspaceRoot, project };
 }
 
 async function resolveLaunchModel(requestedRef: string): Promise<string> {
