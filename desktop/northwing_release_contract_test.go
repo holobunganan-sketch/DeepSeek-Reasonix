@@ -72,6 +72,7 @@ func TestNorthwingReleaseWorkflowPublishesExplicitUnsignedArtifacts(t *testing.T
 		"Install Wails and NSIS",
 		"Verify clean build checkout",
 		"Build Northwing Windows x64",
+		"Restore tracked frontend dist placeholder",
 		"Verify build output did not modify source checkout",
 		"Build Northwing update helper",
 		"Package unsigned installer and portable build",
@@ -88,6 +89,7 @@ func TestNorthwingReleaseWorkflowPublishesExplicitUnsignedArtifacts(t *testing.T
 	}
 	for _, command := range []string{
 		"wails build -platform windows/amd64 -clean",
+		"git restore --source=HEAD --worktree -- desktop/frontend/dist/.gitkeep",
 		"go build -trimpath -ldflags \"-s -w\" -o desktop/build/bin/northwing-update-helper.exe ./cmd/northwing-update-helper",
 		"package-northwing-windows.ps1",
 		"verify-northwing-windows.ps1",

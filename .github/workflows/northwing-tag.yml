@@ -52,7 +52,7 @@ jobs:
             exit 1
           fi
 
-          printf '%s\\n' "tag=$tag" "version=$version" "create=true" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "tag=$tag" "version=$version" "create=true" >> "$GITHUB_OUTPUT"
 
       - name: Create annotated tag
         if: steps.release.outputs.create == 'true'
