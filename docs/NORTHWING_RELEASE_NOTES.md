@@ -48,6 +48,7 @@ Northwing 0.3.1 is the stability recovery release for the 0.3 desktop line. It r
 - Exercises the production entry at 760×480, 1024×640, 1240×720, and 1440×900, including first-run, terminal Work states, Artifact actions, model/settings states, errors, and native window-control wiring.
 - Builds the production frontend after typechecking, hook linting, CSS/z-index validation, and bundle-budget checks.
 - The stable tag remains gated on Windows-native smoke, installer/portable verification, Authenticode verification, separate Defender scans, and SHA-256 generation.
+- Native Windows smoke now records title and 1240×720 geometry, exercises minimize/maximize/restore, validates second-launch single-instance handoff, requests a normal `WM_CLOSE`, and captures Home evidence when an interactive desktop is available.
 
 ## Packages
 

@@ -254,6 +254,14 @@ jobs:
         shell: pwsh
         run: go build -trimpath -ldflags "-s -w" -o desktop/build/bin/northwing-update-helper.exe ./cmd/northwing-update-helper
 
+      - name: Exercise native Northwing window when interactive desktop is available
+        shell: pwsh
+        run: |
+          ./scripts/smoke-northwing-native-window.ps1 `
+            -ExePath ./desktop/build/bin/northwing.exe `
+            -EvidencePath ./dist/Northwing-${{ steps.product_version.outputs.version }}-native-smoke.json `
+            -ScreenshotPath ./dist/Northwing-${{ steps.product_version.outputs.version }}-native-home-1240x720.png
+
       - name: Verify unified Northwing CLI
         shell: pwsh
         timeout-minutes: 1
@@ -297,5 +305,7 @@ jobs:
             dist/Northwing-${{ steps.product_version.outputs.version }}-windows-x64-portable.zip
             dist/Northwing-${{ steps.product_version.outputs.version }}-SHA256SUMS.txt
             dist/Northwing-${{ steps.product_version.outputs.version }}-defender-scan.json
+            dist/Northwing-${{ steps.product_version.outputs.version }}-native-smoke.json
+            dist/Northwing-${{ steps.product_version.outputs.version }}-native-home-1240x720.png
           if-no-files-found: error
           retention-days: 14

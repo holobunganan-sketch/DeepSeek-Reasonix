@@ -126,6 +126,7 @@ jobs:
           try {
             ./scripts/sign-northwing-release.ps1 -PrepareCredential -RunnerTemp $env:RUNNER_TEMP
             ./scripts/sign-northwing-release.ps1 -SignPayload -Version ${{ steps.version.outputs.version }} -ArtifactDir ./desktop/build/bin
+            ./scripts/smoke-northwing-native-window.ps1 -ExePath ./desktop/build/bin/northwing.exe -EvidencePath ./dist/Northwing-${{ steps.version.outputs.version }}-native-smoke.json -ScreenshotPath ./dist/Northwing-${{ steps.version.outputs.version }}-native-home-1240x720.png -RequireInteractiveWindow
             ./scripts/package-northwing-windows.ps1 -Version ${{ steps.version.outputs.version }} -ExpectedSignerSPKIBase64 $env:NORTHWING_MANIFEST_SPKI_BASE64
             ./scripts/sign-northwing-release.ps1 -SignSetup -Version ${{ steps.version.outputs.version }} -ArtifactDir ./dist
             ./scripts/package-northwing-windows.ps1 -Version ${{ steps.version.outputs.version }} -FinalizeChecksums
@@ -134,6 +135,17 @@ jobs:
           } finally {
             ./scripts/sign-northwing-release.ps1 -CleanupCredential -RunnerTemp $env:RUNNER_TEMP
           }
+
+      - name: Upload native Windows smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Northwing-${{ steps.version.outputs.version }}-native-smoke
+          path: |
+            dist/Northwing-${{ steps.version.outputs.version }}-native-smoke.json
+            dist/Northwing-${{ steps.version.outputs.version }}-native-home-1240x720.png
+          if-no-files-found: warn
+          retention-days: 90
 
       - name: Scan setup and executables with Microsoft Defender
         shell: pwsh
