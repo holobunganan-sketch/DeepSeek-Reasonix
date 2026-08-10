@@ -1,4 +1,4 @@
-name: Northwing Release
+name: Northwing Stable Release
 
 on:
   push:
@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   release:
-    name: Build and publish unsigned Northwing release
+    name: Validate, sign, and publish Northwing stable release
     runs-on: windows-latest
     permissions:
       contents: write
@@ -29,8 +29,7 @@ jobs:
         env:
           NORTHWING_RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          $tag = $env:NORTHWING_RELEASE_TAG
-          $version = ./scripts/resolve-northwing-release-version.ps1 -Tag $tag -WailsConfig ./desktop/wails.json
+          $version = ./scripts/resolve-northwing-release-version.ps1 -Tag $env:NORTHWING_RELEASE_TAG -WailsConfig ./desktop/wails.json
           git fetch origin main-v2
           if ($LASTEXITCODE -ne 0) { throw "could not fetch origin/main-v2" }
           git merge-base --is-ancestor $env:GITHUB_SHA origin/main-v2
@@ -40,24 +39,56 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: 1.26.5
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
         with:
           version: 10
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/frontend/pnpm-lock.yaml
 
       - name: Install frontend
         working-directory: desktop/frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Install Wails and NSIS
+      - name: Install Playwright Chromium
+        working-directory: desktop/frontend
+        run: pnpm exec playwright install chromium
+
+      - name: Test root Go modules
+        run: go test ./...
+
+      - name: Test desktop Go modules
+        working-directory: desktop
+        run: go test ./...
+
+      - name: Typecheck frontend
+        working-directory: desktop/frontend
+        run: pnpm typecheck
+
+      - name: Test frontend
+        working-directory: desktop/frontend
+        run: pnpm test
+
+      - name: Build production frontend
+        working-directory: desktop/frontend
+        run: pnpm build
+
+      - name: Test production entry in browser
+        working-directory: desktop/frontend
+        run: pnpm test:e2e
+
+      - name: Install Wails and pinned NSIS
         shell: pwsh
         run: |
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
           ./scripts/install-nsis.ps1
 
-      - name: Verify clean build checkout
+      - name: Verify clean release checkout
         shell: pwsh
         run: ./scripts/assert-northwing-release-checkout-clean.ps1 -RepositoryRoot .
 
@@ -80,13 +111,41 @@ jobs:
         shell: pwsh
         run: go build -trimpath -ldflags "-s -w" -o desktop/build/bin/northwing-update-helper.exe ./cmd/northwing-update-helper
 
-      - name: Package unsigned installer and portable build
+      - name: Test signing credential validation
         shell: pwsh
-        run: ./scripts/package-northwing-windows.ps1 -Version ${{ steps.version.outputs.version }} -UnsignedTestArtifact
+        run: ./scripts/test-northwing-release-credential.ps1
 
-      - name: Verify unsigned Windows installer and portable build
+      - name: Sign and formally verify Windows release
         shell: pwsh
-        run: ./scripts/verify-northwing-windows.ps1 -Version ${{ steps.version.outputs.version }} -AllowUnsignedTestArtifact
+        env:
+          NORTHWING_WINDOWS_RELEASE_CREDENTIAL: ${{ secrets.NORTHWING_WINDOWS_RELEASE_CREDENTIAL }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:NORTHWING_WINDOWS_RELEASE_CREDENTIAL)) {
+            throw "NORTHWING_WINDOWS_RELEASE_CREDENTIAL is required for stable release"
+          }
+          try {
+            ./scripts/sign-northwing-release.ps1 -PrepareCredential -RunnerTemp $env:RUNNER_TEMP
+            ./scripts/sign-northwing-release.ps1 -SignPayload -Version ${{ steps.version.outputs.version }} -ArtifactDir ./desktop/build/bin
+            ./scripts/package-northwing-windows.ps1 -Version ${{ steps.version.outputs.version }} -ExpectedSignerSPKIBase64 $env:NORTHWING_MANIFEST_SPKI_BASE64
+            ./scripts/sign-northwing-release.ps1 -SignSetup -Version ${{ steps.version.outputs.version }} -ArtifactDir ./dist
+            ./scripts/package-northwing-windows.ps1 -Version ${{ steps.version.outputs.version }} -FinalizeChecksums
+            ./scripts/sign-northwing-manifest.ps1 -Version ${{ steps.version.outputs.version }} -ArtifactDir ./dist -Repository ${{ github.repository }}
+            ./scripts/verify-northwing-windows.ps1 -Version ${{ steps.version.outputs.version }} -Repository ${{ github.repository }} -ExpectedSignerSPKIBase64 $env:NORTHWING_MANIFEST_SPKI_BASE64
+          } finally {
+            ./scripts/sign-northwing-release.ps1 -CleanupCredential -RunnerTemp $env:RUNNER_TEMP
+          }
+
+      - name: Scan setup and executables with Microsoft Defender
+        shell: pwsh
+        run: ./scripts/scan-northwing-windows-defender.ps1 -Version ${{ steps.version.outputs.version }} -RequireScanner
+
+      - name: Upload Defender evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: Northwing-${{ steps.version.outputs.version }}-defender-scan
+          path: dist/Northwing-${{ steps.version.outputs.version }}-defender-scan.json
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
@@ -101,3 +160,6 @@ jobs:
             dist/Northwing-${{ steps.version.outputs.version }}-windows-x64-setup.exe
             dist/Northwing-${{ steps.version.outputs.version }}-windows-x64-portable.zip
             dist/Northwing-${{ steps.version.outputs.version }}-SHA256SUMS.txt
+            dist/Northwing-${{ steps.version.outputs.version }}-defender-scan.json
+            dist/northwing-update.json
+            dist/northwing-update.json.sig

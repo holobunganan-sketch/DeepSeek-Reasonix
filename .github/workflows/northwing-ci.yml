@@ -285,6 +285,10 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-northwing-windows.ps1 -Version ${{ steps.product_version.outputs.version }} -AllowUnsignedTestArtifact
 
+      - name: Scan unsigned test files with Microsoft Defender when available
+        shell: pwsh
+        run: ./scripts/scan-northwing-windows-defender.ps1 -Version ${{ steps.product_version.outputs.version }}
+
       - uses: actions/upload-artifact@v4
         with:
           name: UNSIGNED-TEST-ONLY-Northwing-${{ steps.product_version.outputs.version }}-windows-x64
@@ -292,5 +296,6 @@ jobs:
             dist/Northwing-${{ steps.product_version.outputs.version }}-windows-x64-setup.exe
             dist/Northwing-${{ steps.product_version.outputs.version }}-windows-x64-portable.zip
             dist/Northwing-${{ steps.product_version.outputs.version }}-SHA256SUMS.txt
+            dist/Northwing-${{ steps.product_version.outputs.version }}-defender-scan.json
           if-no-files-found: error
           retention-days: 14
