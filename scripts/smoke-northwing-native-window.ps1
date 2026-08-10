@@ -5,6 +5,8 @@ param(
   [string]$ExpectedTitle = "Northwing",
   [int]$ExpectedWidth = 1240,
   [int]$ExpectedHeight = 720,
+  [int]$MinimumWidth = 760,
+  [int]$MinimumHeight = 480,
   [string]$EvidencePath,
   [string]$ScreenshotPath,
   [switch]$RequireInteractiveWindow
@@ -46,6 +48,14 @@ namespace NorthwingNativeSmoke {
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SystemParametersInfo(
+      uint action,
+      uint parameter,
+      out RECT value,
+      uint flags
+    );
 
     [DllImport("user32.dll")]
     public static extern bool IsWindowVisible(IntPtr hWnd);
@@ -94,6 +104,10 @@ $evidence = [ordered]@{
   executable = $exe
   expectedTitle = $ExpectedTitle
   expectedClientSize = [ordered]@{ width = $ExpectedWidth; height = $ExpectedHeight }
+  minimumClientSize = [ordered]@{ width = $MinimumWidth; height = $MinimumHeight }
+  workArea = $null
+  effectiveExpectedClientSize = $null
+  clientSizeMode = $null
   interactiveWindow = $false
   title = $null
   clientSize = $null
@@ -174,8 +188,42 @@ check_updates = false
   $clientWidth = $clientRect.Right - $clientRect.Left
   $clientHeight = $clientRect.Bottom - $clientRect.Top
   $evidence.clientSize = [ordered]@{ width = $clientWidth; height = $clientHeight }
-  if ([Math]::Abs($clientWidth - $ExpectedWidth) -gt 8 -or [Math]::Abs($clientHeight - $ExpectedHeight) -gt 8) {
-    throw "Northwing client size is ${clientWidth}x${clientHeight}; expected ${ExpectedWidth}x${ExpectedHeight} (±8)"
+
+  # Hosted Windows runners can expose an interactive desktop whose work area is
+  # narrower than Northwing's 1240px default. Windows legitimately clamps a new
+  # top-level window in that case. Query the real work area so this condition is
+  # recorded and distinguished from a regression that creates an undersized or
+  # arbitrarily sized window. Win32 can include an invisible resize border in
+  # the reported client/window relationship, hence the 32px constrained margin.
+  $workAreaRect = [NorthwingNativeSmoke.RECT]::new()
+  $SPI_GETWORKAREA = 0x0030
+  if (-not [NorthwingNativeSmoke.NativeMethods]::SystemParametersInfo($SPI_GETWORKAREA, 0, [ref]$workAreaRect, 0)) {
+    throw "SystemParametersInfo(SPI_GETWORKAREA) failed with Win32 error $([Runtime.InteropServices.Marshal]::GetLastWin32Error())"
+  }
+  $workAreaWidth = $workAreaRect.Right - $workAreaRect.Left
+  $workAreaHeight = $workAreaRect.Bottom - $workAreaRect.Top
+  $effectiveWidth = [Math]::Min($ExpectedWidth, $workAreaWidth)
+  $effectiveHeight = [Math]::Min($ExpectedHeight, $workAreaHeight)
+  $widthConstrained = $workAreaWidth -lt ($ExpectedWidth - 8)
+  $heightConstrained = $workAreaHeight -lt ($ExpectedHeight - 8)
+  $evidence.workArea = [ordered]@{ width = $workAreaWidth; height = $workAreaHeight }
+  $evidence.effectiveExpectedClientSize = [ordered]@{ width = $effectiveWidth; height = $effectiveHeight }
+  $evidence.clientSizeMode = if ($widthConstrained -or $heightConstrained) { "work-area-constrained" } else { "exact-default" }
+
+  if ($clientWidth -lt $MinimumWidth -or $clientHeight -lt $MinimumHeight) {
+    throw "Northwing client size is ${clientWidth}x${clientHeight}; minimum is ${MinimumWidth}x${MinimumHeight}"
+  }
+  if (-not $widthConstrained -and [Math]::Abs($clientWidth - $ExpectedWidth) -gt 8) {
+    throw "Northwing client width is $clientWidth; expected $ExpectedWidth (±8)"
+  }
+  if (-not $heightConstrained -and [Math]::Abs($clientHeight - $ExpectedHeight) -gt 8) {
+    throw "Northwing client height is $clientHeight; expected $ExpectedHeight (±8)"
+  }
+  if ($widthConstrained -and ($clientWidth -lt ($effectiveWidth - 32) -or $clientWidth -gt ($ExpectedWidth + 8))) {
+    throw "Northwing client width is $clientWidth; expected an OS-clamped width near $effectiveWidth (work area $workAreaWidth)"
+  }
+  if ($heightConstrained -and ($clientHeight -lt ($effectiveHeight - 32) -or $clientHeight -gt ($ExpectedHeight + 8))) {
+    throw "Northwing client height is $clientHeight; expected an OS-clamped height near $effectiveHeight (work area $workAreaHeight)"
   }
 
   Start-Sleep -Seconds 3

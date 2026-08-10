@@ -33,6 +33,14 @@ for (const command of ["pnpm install --frozen-lockfile", "pnpm typecheck", "pnpm
 ok(/verify-northwing-windows\.ps1/.test(workflow) && !/verify-northwing-windows\.ps1[^\n]*AllowUnsigned/.test(workflow), "formal Windows package verification gates release");
 ok(/smoke-northwing-native-window\.ps1[^\n]*-RequireInteractiveWindow/.test(workflow), "interactive native window smoke gates stable release");
 ok(/GetWindowText/.test(nativeSmoke) && /GetClientRect/.test(nativeSmoke), "native smoke verifies window title and 1240×720 client geometry");
+ok(
+  /SystemParametersInfo/.test(nativeSmoke) &&
+    /workArea/.test(nativeSmoke) &&
+    /work-area-constrained/.test(nativeSmoke) &&
+    /760/.test(nativeSmoke) &&
+    /480/.test(nativeSmoke),
+  "native smoke distinguishes an OS work-area clamp from an invalid default or undersized window",
+);
 ok(/IsIconic/.test(nativeSmoke) && /IsZoomed/.test(nativeSmoke), "native smoke verifies minimize, maximize, and restore state");
 ok(/secondLaunch/.test(nativeSmoke) && /WM_CLOSE/.test(nativeSmoke), "native smoke verifies single-instance launch and normal close");
 ok(/scan-northwing-windows-defender\.ps1[^\n]*-RequireScanner/.test(workflow), "Defender availability and clean scans gate release");
