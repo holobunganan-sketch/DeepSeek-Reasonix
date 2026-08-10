@@ -8,6 +8,7 @@ import type { NorthwingCatalog } from "../domain/catalog";
 import { normalizeNorthwingCatalog } from "../domain/catalog";
 import { NorthwingProjects } from "../Projects/NorthwingProjects";
 import { NorthwingProjectView } from "../Projects/NorthwingProjectView";
+import { createNewNorthwingProject } from "../Projects/newProjectController";
 import { NorthwingWorkList } from "../Work/NorthwingWorkList";
 import { NorthwingWorkView } from "../Work/NorthwingWorkView";
 import { NorthwingNewWork } from "../NewWork/NorthwingNewWork";
@@ -125,6 +126,25 @@ function useShellCatalog() {
 function NorthwingProjectsPage() {
   const navigate = useContext(NorthwingNavigateContext);
   const { catalog, loading, error, reload } = useShellCatalog();
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [createProjectError, setCreateProjectError] = useState<string | undefined>();
+
+  const handleNewProject = useCallback(async () => {
+    if (creatingProject) return;
+    setCreatingProject(true);
+    setCreateProjectError(undefined);
+    try {
+      const created = await createNewNorthwingProject();
+      if (!created) return;
+      await reload();
+      navigate({ kind: "project", workspaceRoot: created.workspaceRoot });
+    } catch (err) {
+      setCreateProjectError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCreatingProject(false);
+    }
+  }, [creatingProject, navigate, reload]);
+
   if (loading || error) {
     return (
       <main role="main" data-northwing-page="projects" className="nw-page">
@@ -144,7 +164,9 @@ function NorthwingProjectsPage() {
       onOpenProject={(project) =>
         navigate({ kind: project.id ? "project" : "projects", workspaceRoot: project.workspace })
       }
-      onNewProject={() => navigate({ kind: "projects" })}
+      onNewProject={() => void handleNewProject()}
+      creatingProject={creatingProject}
+      createProjectError={createProjectError}
     />
   );
 }

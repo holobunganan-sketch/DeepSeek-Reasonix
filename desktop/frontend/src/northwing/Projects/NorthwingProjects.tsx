@@ -6,6 +6,8 @@ export type NorthwingProjectsProps = {
   projects: NorthwingProjectSummary[];
   onOpenProject?: (project: NorthwingProjectSummary) => void;
   onNewProject?: () => void;
+  creatingProject?: boolean;
+  createProjectError?: string;
 };
 
 function formatTime(iso: string): string {
@@ -15,7 +17,13 @@ function formatTime(iso: string): string {
   return date.toLocaleString();
 }
 
-export function NorthwingProjects({ projects, onOpenProject, onNewProject }: NorthwingProjectsProps) {
+export function NorthwingProjects({
+  projects,
+  onOpenProject,
+  onNewProject,
+  creatingProject = false,
+  createProjectError,
+}: NorthwingProjectsProps) {
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -28,11 +36,19 @@ export function NorthwingProjects({ projects, onOpenProject, onNewProject }: Nor
     <main role="main" data-northwing-page="projects" className="nw-page projects-page">
       <header className="projects-page__header">
         <h1 className="nw-page__title">Projects</h1>
-        <button type="button" className="nw-btn nw-btn--primary" aria-label="New Project" onClick={onNewProject}>
+        <button
+          type="button"
+          className="nw-btn nw-btn--primary"
+          aria-label="New Project"
+          onClick={onNewProject}
+          disabled={creatingProject}
+        >
           <Plus size={16} aria-hidden="true" />
-          <span>New Project</span>
+          <span>{creatingProject ? "Creating..." : "New Project"}</span>
         </button>
       </header>
+
+      {createProjectError && <p className="nw-page__error" role="alert">{createProjectError}</p>}
 
       <div className="projects-page__search">
         <Search size={16} aria-hidden="true" />
@@ -49,8 +65,8 @@ export function NorthwingProjects({ projects, onOpenProject, onNewProject }: Nor
         <div className="nw-card projects-page__empty">
           <FolderKanban size={32} aria-hidden="true" />
           <p>No projects found.</p>
-          <button type="button" className="nw-btn nw-btn--primary" onClick={onNewProject}>
-            New Project
+          <button type="button" className="nw-btn nw-btn--primary" onClick={onNewProject} disabled={creatingProject}>
+            {creatingProject ? "Creating..." : "New Project"}
           </button>
         </div>
       ) : (

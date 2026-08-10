@@ -131,6 +131,78 @@ async function run() {
     await flush();
   });
 
+  let createdProject = false;
+  let projectCatalogReads = 0;
+  const newProjectBridgeCalls: string[] = [];
+  (window as typeof window & { go?: { main?: { App?: Record<string, unknown> } } }).go = {
+    main: {
+      App: {
+        PickWorkspace: async () => {
+          newProjectBridgeCalls.push("pick-workspace");
+          return "/workspace/new-project";
+        },
+        CoworkProjectState: async () => ({ exists: false }),
+        CreateCoworkProject: async () => {
+          newProjectBridgeCalls.push("create-project");
+          createdProject = true;
+          return {
+            version: 3,
+            id: "new-project",
+            name: "new-project",
+            createdAt: "2026-08-10T00:00:00Z",
+            updatedAt: "2026-08-10T00:00:00Z",
+          };
+        },
+        ValidateCoworkProjectWritable: async () => {},
+      },
+    },
+  };
+  const newProjectRoot = await render(
+    <NorthwingShell
+      initialDestination={{ kind: "projects" }}
+      gateway={{
+        ...createGateway(),
+        readCatalog: async () => {
+          projectCatalogReads += 1;
+          return {
+            projects: createdProject ? [{
+              workspace: "/workspace/new-project",
+              exists: true,
+              id: "new-project",
+              name: "new-project",
+              updatedAt: "2026-08-10T00:00:00Z",
+              workCount: 0,
+              artifactCount: 0,
+            }] : [],
+            activeWorks: [],
+            waitingForUser: [],
+            recentArtifacts: [],
+          };
+        },
+      }}
+    />,
+  );
+  const newProjectButton = document.querySelector<HTMLButtonElement>('[aria-label="New Project"]');
+  await act(async () => {
+    newProjectButton?.click();
+    await flush();
+  });
+  equal(
+    newProjectBridgeCalls.join(","),
+    "pick-workspace,create-project",
+    "New Project uses the native picker and creates a Northwing Project",
+  );
+  equal(
+    document.querySelector("[data-northwing-page]")?.getAttribute("data-northwing-page"),
+    "project",
+    "New Project enters the created Project",
+  );
+  ok(projectCatalogReads >= 2, "New Project refreshes the persisted catalog before Project render");
+  await act(async () => {
+    newProjectRoot.unmount();
+    await flush();
+  });
+
   const projectRoot = await render(
     <NorthwingShell
       initialDestination={{ kind: "project", workspaceRoot: "/workspace/project-a" }}
