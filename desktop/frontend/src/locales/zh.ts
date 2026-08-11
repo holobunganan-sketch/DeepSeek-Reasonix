@@ -2818,7 +2818,7 @@ export const zh: Record<Exclude<DictKey, NorthwingDictKey>, string> = {
   "settings.telemetryLabel": "匿名启动统计",
   "settings.telemetryHint": "启动时发送随机安装 ID、版本号和操作系统用于统计活跃安装量。异常退出后，下次正常启动还可能发送脱敏的原生诊断，包括生命周期阶段、符号化堆栈及 Windows/WebView2 故障类型。发送前会移除 panic 值、个人路径片段和密钥，绝不包含对话或文件内容。",
   "settings.metricsLabel": "共享聚合质量指标",
-  "settings.metricsHint": "默认开启。发送匿名的轮次结束统计、更新器错误类别、生命周期/窗口健康分桶与设置偏好快照。包含用于 DAU 去重的随机安装 ID。Bucket 可能包含归一化后的自定义 Provider 名和模型名——绝不包含对话、提示词、密钥、路径、base URL、记忆正文、工具输出或文件内容。",
+  "settings.metricsHint": "默认开启。发送匿名的轮次结束统计、更新器错误类别、生命周期/窗口健康分桶与设置偏好快照。包含用于 DAU 去重的随机安装 ID。模型与 Provider 选择只保留已配置/无法解析状态，绝不发送自定义名称或模型 ID，也不包含对话、提示词、密钥、路径、base URL、记忆正文、工具输出或文件内容。",
   "updater.currentVersion": "当前版本：{v}",
   "updater.checkButton": "检查更新",
   "updater.checking": "正在检查更新…",

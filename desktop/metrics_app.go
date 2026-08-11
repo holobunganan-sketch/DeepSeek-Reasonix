@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,8 +21,8 @@ import (
 // metrics_app.go is the aggregate desktop-metrics flush: anonymous (signal,
 // bucket) counters observed from the event stream and safe desktop preference
 // snapshots, POSTed once per launch. Never carries content, keys, prompts, paths,
-// or base URLs; custom provider/model identifiers are normalized into bounded
-// buckets. Gated on config desktop.metrics (default on), dev-skipped.
+// base URLs, custom provider names, or model identifiers. Gated on config
+// desktop.metrics (default on), dev-skipped.
 
 var metricsEndpoint = "https://crash.reasonix.io/v1/metrics"
 
@@ -146,56 +145,19 @@ func metricBucket(value string) string {
 	return out
 }
 
-func metricsOfficialProviderHost(baseURL string) string {
-	u, err := url.Parse(strings.TrimSpace(baseURL))
-	if err != nil {
-		return ""
-	}
-	return strings.ToLower(u.Hostname())
-}
-
-func officialProviderBucket(e *config.ProviderEntry) string {
-	if e == nil {
-		return ""
-	}
-	switch config.CanonicalDesktopOfficialProviderName(e.Name) {
-	case "deepseek":
-		if metricsOfficialProviderHost(e.BaseURL) == "api.deepseek.com" {
-			return "deepseek"
-		}
-	case "mimo-api":
-		if metricsOfficialProviderHost(e.BaseURL) == "api.xiaomimimo.com" {
-			return "mimoapi"
-		}
-	case "mimo-token-plan":
-		if metricsOfficialProviderHost(e.BaseURL) == "token-plan-cn.xiaomimimo.com" {
-			return "mimoplan"
-		}
-	}
-	return ""
-}
-
-func providerMetricsBucket(e *config.ProviderEntry) string {
-	if b := officialProviderBucket(e); b != "" {
-		return b
-	}
-	if e == nil {
-		return "unknown"
-	}
-	return metricBucket("custom_" + e.Name)
-}
-
 func safeModelBucket(c *config.Config, ref string) string {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		ref = c.DefaultModel
 	}
-	e, ok := c.ResolveModel(ref)
+	_, ok := c.ResolveModel(ref)
 	if !ok {
 		return "unresolved"
 	}
-	provider := providerMetricsBucket(e)
-	return metricBucket(provider + "_" + e.Model)
+	// Model references can contain user-assigned provider names, private model
+	// deployment IDs, project names, or customer identifiers. Metrics only need
+	// to distinguish a usable configured selection from an unresolved one.
+	return "configured"
 }
 
 func plannerModelBucket(c *config.Config) string {
@@ -206,10 +168,24 @@ func plannerModelBucket(c *config.Config) string {
 }
 
 func safeProviderAccessBucket(c *config.Config, name string) string {
-	if p, ok := c.Provider(name); ok {
-		return providerMetricsBucket(p)
+	if _, ok := c.Provider(name); ok {
+		// Provider names are user-controlled. Keep only the configuration state.
+		return "configured"
 	}
-	return metricBucket("custom_" + name)
+	return "unresolved"
+}
+
+func desktopFinishReasonBucket(value string) string {
+	return knownBucket(value,
+		"stop",
+		"tool_calls",
+		"length",
+		"content_filter",
+		"repetition_truncation",
+		"client_reasoning_limit",
+		"interrupted",
+		"incomplete",
+	)
 }
 
 func (m *metricsAggregator) observeSettingsSnapshot(c *config.Config) {
@@ -308,7 +284,7 @@ func (m *metricsAggregator) observe(e event.Event) {
 			return
 		}
 		if e.Usage.FinishReason != "" {
-			m.inc("finish_reason", e.Usage.FinishReason)
+			m.inc("finish_reason", desktopFinishReasonBucket(e.Usage.FinishReason))
 		}
 		if e.Usage.CacheHitTokens+e.Usage.CacheMissTokens > 0 {
 			m.inc("cache_hit", cacheBucket(e.Usage.CacheHitTokens, e.Usage.CacheMissTokens))
