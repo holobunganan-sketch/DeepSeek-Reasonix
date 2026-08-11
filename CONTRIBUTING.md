@@ -1,7 +1,8 @@
-# Contributing to Reasonix
+# Contributing to Northwing
 
-Thank you for your interest in contributing to Reasonix! This guide covers
-everything you need to get started.
+Thank you for your interest in contributing to Northwing. Northwing is an
+independent product built from a frozen Reasonix kernel baseline; contributions
+to this repository are reviewed and released as Northwing changes.
 
 ## Prerequisites
 
@@ -12,7 +13,7 @@ everything you need to get started.
 ## Getting started
 
 ```bash
-git clone https://github.com/esengine/DeepSeek-Reasonix.git
+git clone https://github.com/holobunganan-sketch/DeepSeek-Reasonix.git
 cd DeepSeek-Reasonix
 go build ./cmd/reasonix    # builds the CLI binary
 go test ./...              # runs the full test suite
@@ -169,14 +170,24 @@ ci: add golangci-lint and govulncheck
 
 ## Submitting changes
 
-1. Fork the repository
+1. Fork the [Northwing repository](https://github.com/holobunganan-sketch/DeepSeek-Reasonix)
 2. Create a feature branch from `main-v2`
 3. Make your changes with tests
 4. Ensure `go test ./...` passes
 5. Ensure `gofmt -l .` shows no changes
 6. Submit a pull request to `main-v2`
 
+Changes to the inherited Reasonix kernel must preserve the frozen-baseline
+policy in [docs/REASONIX_BASELINE.md](./docs/REASONIX_BASELINE.md). Upstream
+issues and contributions that do not affect Northwing should be sent to the
+[upstream Reasonix repository](https://github.com/esengine/DeepSeek-Reasonix).
+
 ## Reporting issues
+
+Use [Northwing GitHub Issues](https://github.com/holobunganan-sketch/DeepSeek-Reasonix/issues)
+for reproducible Northwing bugs and feature requests. Report vulnerabilities
+privately according to [SECURITY.md](./SECURITY.md); do not put secrets or
+exploit details in a public issue.
 
 Open an issue on GitHub with:
 - Steps to reproduce

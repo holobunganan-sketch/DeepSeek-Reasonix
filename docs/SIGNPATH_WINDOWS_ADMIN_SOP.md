@@ -1,5 +1,10 @@
 # Reasonix Windows SignPath 配置与验收 SOP
 
+> [!IMPORTANT]
+> 本文属于上游 `esengine/DeepSeek-Reasonix` SignPath 项目，不能作为 Northwing
+> fork 的证书、Token、Organization、Project 或审批授权。Northwing 的申请状态和
+> 独立权限边界见 [Northwing 代码签名政策](./NORTHWING_CODE_SIGNING_POLICY.md)。
+
 本文供 SignPath 管理员、GitHub 仓库管理员和 Release Maintainer 配置并验收
 Reasonix Windows Authenticode 两阶段签名链路。
 

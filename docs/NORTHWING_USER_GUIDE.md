@@ -11,7 +11,12 @@ Northwing publishes two Windows x64 packages:
 - `Northwing-<version>-windows-x64-setup.exe` — per-user installer;
 - `Northwing-<version>-windows-x64-portable.zip` — portable package.
 
-Verify the selected file against `Northwing-<version>-SHA256SUMS.txt`. Preview builds may display a Windows SmartScreen warning because they are unsigned.
+Verify the selected file against `Northwing-<version>-SHA256SUMS.txt`. All
+Northwing Windows packages published before the first signed Stable release are
+unsigned and may display an Unknown Publisher or Windows SmartScreen warning.
+Check the individual GitHub Release for the authoritative signing status. Future
+Stable releases must satisfy the
+[Northwing Code Signing Policy](./NORTHWING_CODE_SIGNING_POLICY.md).
 
 ## 2. Configure models once
 

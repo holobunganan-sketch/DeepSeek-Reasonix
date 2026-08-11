@@ -67,9 +67,32 @@ Chat 与 Work 共用同一工作区、同一批已配置的 provider 和模型�
 | `Northwing-0.2.0-windows-x64-portable.zip` | 便携版，无需安装 |
 | `Northwing-0.2.0-SHA256SUMS.txt` | 运行前先用它校验所选安装包 |
 
-预览构建可能因未签名而弹出 Windows SmartScreen 警告。运行前请核对发布来源与校验和。
+目前 GitHub 上已经发布的 Northwing Windows 安装包均未签名。Windows 可能显示
+“未知发布者”或 SmartScreen 警告。运行前请核对发布来源并验证公开的 SHA-256
+校验和。0.3.1 Stable 工作流在签名缺失时会直接失败，不会发布未签名 Stable 包。
 
 macOS 与 Linux 版本正在准备中。
+
+## 代码签名
+
+Northwing 正在申请 SignPath Foundation 开源项目计划，当前仍在审核中。下面的服务
+声明不代表现有安装包已经获得签名：
+
+> Free code signing provided by SignPath.io, certificate by SignPath Foundation.
+
+[Northwing 代码签名政策](./docs/NORTHWING_CODE_SIGNING_POLICY.md)记录可信构建路径、
+签名文件范围、当前状态、维护者职责、发布质量门，以及与上游 Reasonix SignPath
+项目的权限边界。每个文件的实际签名状态以对应 GitHub Release 页面为准。
+
+## 隐私与联网行为
+
+Northwing 把项目和会话数据保存在本机，但它不是完全离线应用。用户配置的 AI
+provider 和集成会收到完成请求所需的数据；GitHub 提供更新元数据和下载；可选的
+桌面启动统计、聚合指标与脱敏诊断使用继承自 Reasonix 的服务端点。桌面统计与
+聚合指标目前默认开启，可以分别关闭。
+
+[Northwing 隐私政策](./docs/NORTHWING_PRIVACY_POLICY.md)完整记录数据类别、接收方、
+关闭方式、保留限制与删除方法。
 
 ## 快速开始
 
@@ -86,12 +109,17 @@ macOS 与 Linux 版本正在准备中。
 
 - **Northwing：** [用户指南](./docs/NORTHWING_USER_GUIDE.md) ·
   [架构](./docs/NORTHWING_ARCHITECTURE.md) · [发布说明](./docs/NORTHWING_RELEASE_NOTES.md) ·
-  [工具合约](./docs/NORTHWING_TOOL_CONTRACT.zh-CN.md)
+  [隐私政策](./docs/NORTHWING_PRIVACY_POLICY.md) ·
+  [代码签名政策](./docs/NORTHWING_CODE_SIGNING_POLICY.md) ·
+  [工具合约](./docs/NORTHWING_TOOL_CONTRACT.zh-CN.md) ·
+  [第三方声明](./THIRD_PARTY_NOTICES.md)
 - **引擎参考（Reasonix 内核）：** [指南](./docs/GUIDE.zh-CN.md) ·
   [CLI 命令参考](./docs/CLI.zh-CN.md) · [配置路径](./docs/CONFIG_PATHS.zh-CN.md) ·
   [规格](./docs/SPEC.zh-CN.md)
 
 ## 许可证
 
-MIT —— 见 [LICENSE](./LICENSE)。Northwing 是基于 Reasonix 内核构建的独立产品；
-Reasonix 保留 MIT 许可，版权归其原作者所有。
+MIT —— 见 [LICENSE](./LICENSE)。Northwing 是基于上游
+[Reasonix 仓库](https://github.com/esengine/DeepSeek-Reasonix)的
+[冻结基线](./docs/REASONIX_BASELINE.md)构建的独立产品；Reasonix 保留 MIT 许可，
+版权归其原作者所有。

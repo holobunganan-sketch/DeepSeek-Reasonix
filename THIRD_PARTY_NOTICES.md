@@ -1,12 +1,20 @@
 # Third-Party Notices
 
-Northwing is a modified distribution built on the Reasonix project and preserves the complete Reasonix kernel and its MIT license.
+Northwing is a modified GitHub fork built on the Reasonix project and preserves the complete Reasonix kernel and its MIT license.
 
 ## Reasonix
 
 Copyright (c) 2026 Reasonix Contributors
 
 Reasonix is licensed under the MIT License. The complete license text is included in the repository and distribution as `LICENSE`.
+
+- Upstream source: <https://github.com/esengine/DeepSeek-Reasonix>
+- Northwing fork: <https://github.com/holobunganan-sketch/DeepSeek-Reasonix>
+- Frozen Northwing baseline commit: `b1f9471da9b7bceb0566f46f45d695c8fc9bae34`
+
+The fork relationship is visible in GitHub repository metadata. Northwing does
+not claim ownership of upstream Reasonix code, releases, trademarks, signing
+credentials, or SignPath organization/project access.
 
 Northwing-specific changes include the CoWork product layer, Office capability pack, OpenCode Go setup, independent product identity, packaging, and release infrastructure. These changes do not remove upstream copyright or license notices.
 
