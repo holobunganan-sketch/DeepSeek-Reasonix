@@ -40,6 +40,11 @@ Northwing 0.3.1 is the stability recovery release for the 0.3 desktop line. It r
 - Uses a directly spawned Go helper child to wait for the staging helper, validate staging ownership, remove the directory, and retain `cleanup-error.log` when cleanup fails.
 - Keeps installer, installed-version, checksum, and update-manifest verification fail-closed.
 - Unsigned packages remain test-only; a stable release requires valid Authenticode signatures for `northwing.exe`, `northwing-update-helper.exe`, and the setup executable.
+- Removes user-assigned provider names, model IDs, and provider-controlled
+  finish-reason text from aggregate desktop metric buckets; metrics retain only
+  allowlisted categories and fixed `configured`/`unresolved` state.
+- Publishes explicit Northwing privacy, code-signing, upstream-derivation, and
+  historical unsigned-artifact disclosures for the 0.3.1 release process.
 
 ## Validation
 

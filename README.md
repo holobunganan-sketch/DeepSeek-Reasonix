@@ -75,10 +75,39 @@ Current release: **Northwing 0.2.0** (Windows x64). Download from
 | `Northwing-0.2.0-windows-x64-portable.zip` | Portable package, no installation |
 | `Northwing-0.2.0-SHA256SUMS.txt` | Verify the selected package before running it |
 
-Preview builds may display a Windows SmartScreen warning because they are not
-signed. Review the release source and checksum before proceeding.
+All currently published Northwing Windows packages are unsigned. Windows may
+show an Unknown Publisher or SmartScreen warning. Review the release source and
+verify the published SHA-256 checksum before proceeding. The 0.3.1 Stable
+workflow fails closed instead of publishing an unsigned Stable package.
 
 macOS and Linux builds are in preparation.
+
+## Code signing
+
+Northwing is applying for the SignPath Foundation open-source program. The
+application is pending, so this credit does not describe any currently
+published artifact:
+
+> Free code signing provided by SignPath.io, certificate by SignPath Foundation.
+
+See the [Northwing Code Signing Policy](./docs/NORTHWING_CODE_SIGNING_POLICY.md)
+for the trusted build path, signing scope, current status, maintainer roles,
+release gates, and the boundary from the upstream Reasonix SignPath project.
+The GitHub Release page for each artifact is authoritative for its signing
+status.
+
+## Privacy and network use
+
+Northwing stores project and session data locally, but it is not an offline-only
+application. User-configured AI providers and integrations receive data needed
+for requests; GitHub serves update metadata and downloads; optional desktop
+telemetry, aggregate metrics, and scrubbed diagnostics use inherited Reasonix
+endpoints. The desktop telemetry and metrics settings are currently enabled by
+default and can be disabled separately.
+
+See the [Northwing Privacy Policy](./docs/NORTHWING_PRIVACY_POLICY.md) for the
+exact data categories, recipients, controls, retention limits, and deletion
+instructions.
 
 ## Quick start
 
@@ -101,12 +130,17 @@ For the full workflow, see the
 - **Northwing:** [User Guide](./docs/NORTHWING_USER_GUIDE.md) ·
   [Architecture](./docs/NORTHWING_ARCHITECTURE.md) ·
   [Release Notes](./docs/NORTHWING_RELEASE_NOTES.md) ·
-  [Tool Contract](./docs/NORTHWING_TOOL_CONTRACT.md)
+  [Privacy](./docs/NORTHWING_PRIVACY_POLICY.md) ·
+  [Code Signing](./docs/NORTHWING_CODE_SIGNING_POLICY.md) ·
+  [Tool Contract](./docs/NORTHWING_TOOL_CONTRACT.md) ·
+  [Third-Party Notices](./THIRD_PARTY_NOTICES.md)
 - **Engine reference (Reasonix kernel):** [Guide](./docs/GUIDE.md) ·
   [CLI reference](./docs/CLI.md) · [Configuration paths](./docs/CONFIG_PATHS.md) ·
   [Spec](./docs/SPEC.md)
 
 ## License
 
-MIT — see [LICENSE](./LICENSE). Northwing is an independent product built on the
-Reasonix kernel; Reasonix remains MIT-licensed, © its original authors.
+MIT — see [LICENSE](./LICENSE). Northwing is an independent product built from a
+[frozen baseline](./docs/REASONIX_BASELINE.md) of the upstream
+[Reasonix repository](https://github.com/esengine/DeepSeek-Reasonix). Reasonix
+remains MIT-licensed, © its original authors.

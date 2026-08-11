@@ -90,6 +90,23 @@ func TestObserveReadsNoMessageText(t *testing.T) {
 	}
 }
 
+func TestObserveFinishReasonUsesFixedBucket(t *testing.T) {
+	m := newMetricsAggregator(t.TempDir())
+	m.observe(event.Event{
+		Kind:  event.Usage,
+		Usage: &provider.Usage{FinishReason: "Client-LegalMatter-9381-private"},
+	})
+
+	if got := m.c["finish_reason"]["other"]; got != 1 {
+		t.Fatalf("finish_reason/other = %d, want 1", got)
+	}
+	for bucket := range m.c["finish_reason"] {
+		if strings.Contains(strings.ToLower(bucket), "legalmatter") {
+			t.Fatalf("finish_reason bucket leaked provider-controlled text: %q", bucket)
+		}
+	}
+}
+
 func TestObserveSettingsSnapshotUsesSafeBuckets(t *testing.T) {
 	cfg := config.Default()
 	if err := cfg.SetDesktopLanguage(""); err != nil {
@@ -116,8 +133,8 @@ func TestObserveSettingsSnapshotUsesSafeBuckets(t *testing.T) {
 	if err := cfg.SetDesktopCheckUpdates(false); err != nil {
 		t.Fatalf("SetDesktopCheckUpdates: %v", err)
 	}
-	customProvider := "Local OpenAI"
-	customModel := "Qwen-72B-Instruct.private"
+	customProvider := "Client Secret BlueBird"
+	customModel := "LegalMatter-9381-private"
 	cfg.Providers = append(cfg.Providers, config.ProviderEntry{
 		Name:    customProvider,
 		Kind:    "openai",
@@ -149,19 +166,29 @@ func TestObserveSettingsSnapshotUsesSafeBuckets(t *testing.T) {
 		"settings_status_bar_style":        "icon",
 		"settings_status_bar_items_count":  "n_3",
 		"settings_check_updates":           "off",
-		"settings_default_model":           "deepseek_deepseek_v4_flash",
-		"settings_planner_model":           metricBucket("custom_" + customProvider + "_" + customModel),
-		"settings_provider_access":         metricBucket("custom_" + customProvider),
+		"settings_default_model":           "configured",
+		"settings_planner_model":           "configured",
+		"settings_provider_access":         "configured",
 		"settings_bot_enabled":             "off",
 		"settings_bot_connection_count":    "n_1",
 		"settings_bot_connection_provider": "feishu",
 		"settings_bot_connection_enabled":  "on",
 		"settings_bot_connection_status":   "connected",
-		"settings_bot_connection_model":    metricBucket("custom_" + customProvider + "_" + customModel),
+		"settings_bot_connection_model":    "configured",
 	}
 	for signal, bucket := range want {
 		if got := m.c[signal][bucket]; got != 1 {
 			t.Errorf("%s/%s = %d, want 1", signal, bucket, got)
+		}
+	}
+	for signal, buckets := range m.c {
+		for bucket := range buckets {
+			lower := strings.ToLower(bucket)
+			for _, sensitive := range []string{"client", "secret", "bluebird", "legalmatter", "9381", "private"} {
+				if strings.Contains(lower, sensitive) {
+					t.Fatalf("%s bucket %q leaked custom provider/model identifier fragment %q", signal, bucket, sensitive)
+				}
+			}
 		}
 	}
 }

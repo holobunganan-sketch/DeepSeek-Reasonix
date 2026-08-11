@@ -2952,7 +2952,7 @@ export const zhTW: Record<Exclude<DictKey, NorthwingDictKey>, string> = {
   "settings.telemetryLabel": "匿名啟動統計",
   "settings.telemetryHint": "啟動時傳送隨機安裝 ID、版本號和作業系統用於統計活躍安裝量。異常退出後，下次正常啟動還可能傳送脫敏的原生診斷，包括生命週期階段、符號化堆疊及 Windows/WebView2 故障類型。傳送前會移除 panic 值、個人路徑片段和金鑰，絕不包含對話或檔案內容。",
   "settings.metricsLabel": "共享聚合品質指標",
-  "settings.metricsHint": "預設開啟。傳送匿名的輪次結束統計、更新器錯誤類別、生命週期/視窗健康分桶與設定偏好快照。包含用於 DAU 去重的隨機安裝 ID。Bucket 可能包含正規化後的自訂 Provider 名和模型名——絕不包含對話、提示詞、金鑰、路徑、base URL、記憶正文、工具輸出或檔案內容。",
+  "settings.metricsHint": "預設開啟。傳送匿名的輪次結束統計、更新器錯誤類別、生命週期/視窗健康分桶與設定偏好快照。包含用於 DAU 去重的隨機安裝 ID。模型與 Provider 選擇只保留已設定/無法解析狀態，絕不傳送自訂名稱或模型 ID，也不包含對話、提示詞、金鑰、路徑、base URL、記憶正文、工具輸出或檔案內容。",
   "context.windowTitle": "上下文視窗",
   "context.windowStatusHealthy": "上下文充足",
   "context.windowStatusWatch": "即將壓縮",

@@ -1,5 +1,11 @@
 # Northwing 0.3.0 Acceptance
 
+> [!WARNING]
+> This is a historical 0.3.0 acceptance record. Its one-time unsigned-release
+> exception does not apply to 0.3.1 or any future Stable release. Current
+> requirements are defined by the
+> [Northwing Code Signing Policy](./NORTHWING_CODE_SIGNING_POLICY.md).
+
 Generated: 2026-08-08 | Branch: agent/northwing-0.3-work-first-shell
 
 ## Architecture

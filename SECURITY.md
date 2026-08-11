@@ -2,17 +2,18 @@
 
 ## Supported Versions
 
-Reasonix security fixes are prioritized for the currently developed Go rewrite
-and the current 1.x release line.
+Northwing security fixes are prioritized for the current `main-v2` development
+branch and the latest Northwing release line. The inherited Reasonix kernel is
+covered when a finding is reproducible in Northwing.
 
 | Version or branch | Security support |
 | --- | --- |
-| `main-v2` / 1.x releases | Supported |
-| `v1` / 0.x legacy branch | Critical fixes only, where practical |
-| Older releases, forks, or modified builds | Not covered unless the issue is reproducible upstream |
+| `main-v2` / latest Northwing release | Supported |
+| Older Northwing releases | Critical fixes only, where practical |
+| Upstream Reasonix or unrelated forks | Report to the repository that distributes the affected build |
 
 If you are unsure whether a version is affected, report against the newest
-released 1.x version and include the exact version or commit you tested.
+Northwing release and include the exact version or commit you tested.
 
 ## Reporting a Vulnerability
 
@@ -28,7 +29,7 @@ Preferred reporting path:
 
 Please include:
 
-- Affected Reasonix version, commit, operating system, and installation method.
+- Affected Northwing version, commit, operating system, and installation method.
 - The feature or surface involved, such as CLI, desktop app, HTTP `serve`, bot
   gateway, MCP plugin, built-in tool, updater, or configuration loading.
 - Clear reproduction steps using dummy credentials and non-sensitive files.
@@ -42,11 +43,12 @@ workspace files, or third-party user data.
 
 ## Security Boundaries
 
-Reasonix is a local coding agent. Many features intentionally operate on the
-user's local machine and workspace, including file reads, file writes, shell
-commands, MCP plugins, language servers, bot sessions, and model-provider
-requests. A finding is security-relevant when it crosses a supported boundary or
-bypasses an explicit guard.
+Northwing is a local-first desktop application powered by an inherited Reasonix
+execution kernel. Many features intentionally operate on the user's local
+machine and workspace, including file reads, file writes, shell commands, MCP
+plugins, language servers, bot sessions, and model-provider requests. A finding
+is security-relevant when it crosses a supported boundary or bypasses an
+explicit guard.
 
 Supported boundaries include:
 
@@ -135,3 +137,7 @@ public disclosure for confirmed vulnerabilities.
 Please give maintainers reasonable time to investigate and release a fix before
 publishing exploit details. If you plan to disclose on a timeline, include that
 timeline in your initial report.
+
+Northwing's data handling and release-signing boundaries are documented in the
+[Privacy Policy](./docs/NORTHWING_PRIVACY_POLICY.md) and
+[Code Signing Policy](./docs/NORTHWING_CODE_SIGNING_POLICY.md).
