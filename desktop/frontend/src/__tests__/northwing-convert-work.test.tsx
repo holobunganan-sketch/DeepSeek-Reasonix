@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 import React from "react";
 import { NorthwingShell, type NorthwingDestination } from "../northwing/Shell/NorthwingShell";
 import { readChatWorkDraft } from "../northwing/QuickChat/convertChatToWork";
+import { LocaleProvider } from "../lib/i18n";
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { pretendToBeVisual: true, url: "http://localhost/" });
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -62,8 +63,14 @@ let historyCalls: string[] = [];
   ListTabs: async () => tabs,
   ListProjectTree: async () => [{ key: "project-team", kind: "project", label: "Team project", root: "C:/team-project" }],
   HistoryForTab: async (tabId: string) => { historyCalls.push(tabId); return tabId === newChatTab.id ? [{ role: "user", content: "Create the new chat work." }] : history; },
+  SwitchWorkspace: async (workspaceRoot: string) => workspaceRoot,
+  CoworkProjectState: async () => ({ exists: true, project: { version: 3, id: "project-team", name: "Team project", createdAt: "2026-08-10T00:00:00Z", updatedAt: "2026-08-10T00:00:00Z" } }),
+  ValidateCoworkProjectWritable: async () => {},
+  Models: async () => [{ ref: "deepseek/reasoner", provider: "deepseek", model: "reasoner", current: true }],
   EnsureWorkTab: async (_workspaceRoot: string, workId: string) => { creationCalls.push(`ensure:${workId}`); return { ...chatTab, id: `work-tab-${workId}`, topicId: `work-topic-${workId}`, sessionKind: "work", workId }; },
+  MetaForTab: async () => ({ sessionPath: "/sessions/work.jsonl" }),
   RenameTopic: async (topicId: string) => { if (topicId === chatTab.topicId) chatMutations.push("rename-chat-topic"); else creationCalls.push("rename-work-topic"); },
+  SetModelForTab: async () => { creationCalls.push("set-model"); },
   SetTokenModeForTab: async () => { creationCalls.push("token-mode"); },
   UpsertCoworkWork: async () => { creationCalls.push("upsert"); return {}; },
   WorkbenchActiveTarget: async () => ({ kind: "local", identityGen: 1, requestSeq: 1 }),
@@ -87,7 +94,7 @@ const rootNode = document.getElementById("root");
 if (!rootNode) throw new Error("missing test root");
 const root = createRoot(rootNode);
 await act(async () => {
-  root.render(<NorthwingShell initialDestination={{ kind: "quick-chat", tabId: "chat-7" }} gateway={{ workspaceRoots: ["C:/team-project"], SessionWorkspace: SessionWorkspaceStub, onNavigate: (destination) => navigations.push(destination) }} />);
+  root.render(<LocaleProvider><NorthwingShell initialDestination={{ kind: "quick-chat", tabId: "chat-7" }} gateway={{ workspaceRoots: ["C:/team-project"], SessionWorkspace: SessionWorkspaceStub, onNavigate: (destination) => navigations.push(destination) }} /></LocaleProvider>);
   await flush();
 });
 
@@ -116,7 +123,7 @@ await act(async () => { click(Array.from(document.querySelectorAll("button")).fi
 ok(!navigations.some((destination) => destination.kind === "quick-chat" && destination.tabId === chatTab.id), "ordinary New Work cancellation does not reuse an abandoned chat return context");
 
 await act(async () => {
-  root.render(<NorthwingShell initialDestination={{ kind: "quick-chat", tabId: "chat-7" }} gateway={{ workspaceRoots: ["C:/team-project"], SessionWorkspace: SessionWorkspaceStub, onNavigate: (destination) => navigations.push(destination) }} />);
+  root.render(<LocaleProvider><NorthwingShell initialDestination={{ kind: "quick-chat", tabId: "chat-7" }} gateway={{ workspaceRoots: ["C:/team-project"], SessionWorkspace: SessionWorkspaceStub, onNavigate: (destination) => navigations.push(destination) }} /></LocaleProvider>);
   await flush();
 });
 await act(async () => { click(Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Convert to Work")) ?? null); await flush(); });
@@ -132,7 +139,7 @@ if (confirmWorkspace) {
 }
 ok(creationCalls.some((call) => call.startsWith("ensure:")), "confirmed conversion creates a fresh native Work tab");
 ok(creationCalls.includes("upsert") && creationCalls.includes("submit"), "confirmed conversion uses the New Work persistence and submission chain");
-count(creationCalls, "upsert", "one confirmation invokes the launch chain once");
+equal(String(creationCalls.filter((call) => call === "upsert").length), "2", "one confirmation persists before and refreshes after submission");
 count(creationCalls, "submit", "one confirmation submits one new Work goal");
 ok(navigations.some((destination) => destination.kind === "work"), "confirmed conversion navigates to the new Work workspace");
 equal(JSON.stringify(chatTab), originalTab, "confirmed conversion keeps the original chat tab unchanged");
@@ -142,7 +149,7 @@ ok(chatMutations.length === 0, "conversion never closes, rebinds, renames, or wr
 tabs = [oldActiveChatTab, newChatTab];
 historyCalls = [];
 await act(async () => {
-  root.render(<NorthwingShell initialDestination={{ kind: "quick-chat" }} gateway={{ workspaceRoots: ["C:/team-project"], SessionWorkspace: SessionWorkspaceStub, onNavigate: (destination) => navigations.push(destination) }} />);
+  root.render(<LocaleProvider><NorthwingShell initialDestination={{ kind: "quick-chat" }} gateway={{ workspaceRoots: ["C:/team-project"], SessionWorkspace: SessionWorkspaceStub, onNavigate: (destination) => navigations.push(destination) }} /></LocaleProvider>);
   await flush();
 });
 const unboundConvert = document.querySelector<HTMLButtonElement>("button.nw-quick-chat__convert");

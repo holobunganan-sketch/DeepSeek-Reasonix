@@ -34,8 +34,19 @@ func TestCatalogIsEmptyForOrdinaryWorkspaces(t *testing.T) {
 	if len(catalog.Projects) != 1 || catalog.Projects[0].Exists {
 		t.Fatalf("ordinary workspace should appear as non-existent project: %#v", catalog.Projects)
 	}
-	if len(catalog.ActiveWorks) != 0 || len(catalog.WaitingForUser) != 0 || len(catalog.RecentArtifacts) != 0 {
+	if len(catalog.Works) != 0 || len(catalog.ActiveWorks) != 0 || len(catalog.WaitingForUser) != 0 || len(catalog.RecentArtifacts) != 0 {
 		t.Fatalf("ordinary workspace should produce no works or artifacts: %#v", catalog)
+	}
+}
+
+func TestCanonicalWorkspaceKeyFoldsWindowsCaseAndSeparators(t *testing.T) {
+	left := canonicalWorkspaceKey(`C:\Northwing Work\项目 A`, "windows")
+	right := canonicalWorkspaceKey(`c:/northwing work/项目 A`, "windows")
+	if left != right {
+		t.Fatalf("Windows keys differ: %q != %q", left, right)
+	}
+	if canonicalWorkspaceKey(`/workspace/Project A`, "linux") == canonicalWorkspaceKey(`/workspace/project A`, "linux") {
+		t.Fatal("POSIX workspace keys must remain case-sensitive")
 	}
 }
 
@@ -82,6 +93,17 @@ func TestCatalogSurfacesActiveWorksWaitingAndRecentArtifacts(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	clock = clock.Add(time.Minute)
+	failed, err := store.LinkWork(root, WorkRef{
+		Title:       "Import archive",
+		SessionPath: "session-d",
+		Profile:     "delivery",
+		Stage:       WorkStageFailed,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	artifactPath := filepath.Join(root, "deliverables", "brief.pdf")
 	if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
 		t.Fatal(err)
@@ -107,16 +129,22 @@ func TestCatalogSurfacesActiveWorksWaitingAndRecentArtifacts(t *testing.T) {
 		t.Fatalf("expected one existing project: %#v", catalog.Projects)
 	}
 
-	if len(catalog.ActiveWorks) != 2 {
-		t.Fatalf("expected 2 active works, got %d: %#v", len(catalog.ActiveWorks), catalog.ActiveWorks)
+	if len(catalog.Works) != 4 {
+		t.Fatalf("expected all 4 works, got %d: %#v", len(catalog.Works), catalog.Works)
 	}
-	if catalog.ActiveWorks[0].WorkID != second.Works[1].ID {
-		t.Fatalf("latest active work should be first: %#v", catalog.ActiveWorks)
+	if catalog.Works[0].WorkID != failed.Works[3].ID || catalog.Works[1].WorkID != completed.Works[2].ID {
+		t.Fatalf("terminal works should be present in newest-first order: %#v", catalog.Works)
+	}
+	if len(catalog.ActiveWorks) != 1 {
+		t.Fatalf("expected 1 active work, got %d: %#v", len(catalog.ActiveWorks), catalog.ActiveWorks)
+	}
+	if catalog.ActiveWorks[0].WorkID != first.Works[0].ID {
+		t.Fatalf("active projection should exclude waiting and terminal works: %#v", catalog.ActiveWorks)
 	}
 	if catalog.ActiveWorks[0].SessionKind != "work" {
 		t.Fatalf("active work should expose sessionKind=work: %#v", catalog.ActiveWorks[0])
 	}
-	if catalog.ActiveWorks[0].Stage != WorkStageWaitingUser {
+	if catalog.ActiveWorks[0].Stage != WorkStagePlanning {
 		t.Fatalf("active work stage mismatch: %#v", catalog.ActiveWorks[0])
 	}
 
@@ -137,6 +165,7 @@ func TestCatalogSurfacesActiveWorksWaitingAndRecentArtifacts(t *testing.T) {
 
 	_ = first
 	_ = completed
+	_ = failed
 }
 
 func TestSummariesReturnCompactLatestActivity(t *testing.T) {

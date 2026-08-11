@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-const TEST_APP_URL = "/e2e/test-app/index.html";
+const TEST_APP_URL = "/e2e/production-entry/index.html?platform=windows";
 
 test.describe("Northwing brand surface audit", () => {
   test("Home page contains no Reasonix text in user-visible DOM", async ({ page }) => {

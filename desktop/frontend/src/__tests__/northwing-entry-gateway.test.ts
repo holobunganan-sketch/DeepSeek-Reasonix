@@ -1,6 +1,7 @@
 // Run: tsx src/__tests__/northwing-entry-gateway.test.ts
 import {
   createNorthwingCatalogLoader,
+  northwingProjectWorkspaceRoots,
   prepareNorthwingSessionDestination,
 } from "../northwing/entryGateway";
 import type { NorthwingCatalog } from "../northwing/domain/catalog";
@@ -24,6 +25,7 @@ function equal<T>(actual: T, expected: T, label: string) {
 
 const catalog: NorthwingCatalog = {
   projects: [],
+  works: [],
   activeWorks: [],
   waitingForUser: [],
   recentArtifacts: [],
@@ -62,6 +64,18 @@ async function run() {
   const result = await readCatalog();
   ok(result === catalog, "catalog loader returns the bound catalog result");
   equal(catalogRoots?.join("|"), "C:/projects/nested|C:/projects/a", "catalog binding receives recursive unique project roots");
+
+  const windowsRoots = northwingProjectWorkspaceRoots([
+    { key: "first", kind: "project", label: "First", root: " C:/Northwing Work/项目 A ", children: [] },
+    { key: "case", kind: "project", label: "Case duplicate", root: "c:\\northwing work\\项目 A", children: [] },
+    { key: "posix", kind: "project", label: "POSIX", root: "/workspace/Project A", children: [] },
+    { key: "posix-case", kind: "project", label: "POSIX case", root: "/workspace/project A", children: [] },
+  ]);
+  equal(
+    windowsRoots.join("|"),
+    "C:/Northwing Work/项目 A|/workspace/Project A|/workspace/project A",
+    "Windows workspace roots deduplicate case and separator variants while POSIX case remains significant",
+  );
 
   let listFailureVisible = false;
   const failingCatalog = createNorthwingCatalogLoader({

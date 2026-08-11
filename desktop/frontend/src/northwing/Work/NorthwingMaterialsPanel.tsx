@@ -2,6 +2,7 @@ import { useState } from "react";
 import { FileText, ExternalLink, FolderOpen } from "lucide-react";
 import type { CoworkArtifact } from "../../lib/northwingCowork";
 import { previewCoworkArtifact, openCoworkArtifact } from "../../lib/northwingCowork";
+import { useT } from "../../lib/i18n";
 
 type MaterialsTab = "materials" | "artifacts" | "versions";
 
@@ -39,6 +40,7 @@ export function NorthwingMaterialsPanel({
   artifacts,
   expectedArtifact,
 }: NorthwingMaterialsPanelProps) {
+  const t = useT();
   const [tab, setTab] = useState<MaterialsTab>("materials");
   const [preview, setPreview] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export function NorthwingMaterialsPanel({
     try {
       setPreviewError(null);
       const result = await previewCoworkArtifact(workspaceRoot, artifact.path);
-      setPreview(result.body ?? "Preview not available");
+      setPreview(result.body ?? t("northwing.work.previewUnavailable"));
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : String(err));
     }
@@ -59,19 +61,19 @@ export function NorthwingMaterialsPanel({
 
   return (
     <div className="nw-materials-panel">
-      <nav className="nw-materials-panel__tabs" role="tablist" aria-label="Materials panel">
-        {(["materials", "artifacts", "versions"] as MaterialsTab[]).map((t) => (
+      <nav className="nw-materials-panel__tabs" role="tablist" aria-label={t("northwing.work.materialsPanel")}>
+        {(["materials", "artifacts", "versions"] as MaterialsTab[]).map((panelTab) => (
           <button
-            key={t}
+            key={panelTab}
             type="button"
             role="tab"
-            aria-selected={tab === t}
-            className={`nw-materials-panel__tab${tab === t ? " nw-materials-panel__tab--active" : ""}`}
-            onClick={() => setTab(t)}
+            aria-selected={tab === panelTab}
+            className={`nw-materials-panel__tab${tab === panelTab ? " nw-materials-panel__tab--active" : ""}`}
+            onClick={() => setTab(panelTab)}
           >
-            {t === "materials" && "Materials"}
-            {t === "artifacts" && "Artifacts"}
-            {t === "versions" && "Versions"}
+            {panelTab === "materials" && t("northwing.work.materials")}
+            {panelTab === "artifacts" && t("northwing.work.artifacts")}
+            {panelTab === "versions" && t("northwing.work.versions")}
           </button>
         ))}
       </nav>
@@ -80,7 +82,7 @@ export function NorthwingMaterialsPanel({
         {tab === "materials" && (
           <section aria-labelledby="nw-materials-heading">
             <h3 id="nw-materials-heading" className="nw-materials-panel__heading">
-              Materials
+              {t("northwing.work.materials")}
             </h3>
             {materials && materials.length > 0 ? (
               <ul className="nw-materials-panel__list" role="list">
@@ -92,11 +94,11 @@ export function NorthwingMaterialsPanel({
                 ))}
               </ul>
             ) : (
-              <p className="nw-materials-panel__empty">No materials specified.</p>
+              <p className="nw-materials-panel__empty">{t("northwing.work.noMaterials")}</p>
             )}
             {expectedArtifact && (
               <div className="nw-materials-panel__expected">
-                <h3 className="nw-materials-panel__heading">Expected output</h3>
+                <h3 className="nw-materials-panel__heading">{t("northwing.work.expectedOutput")}</h3>
                 <p className="nw-materials-panel__text">{expectedArtifact}</p>
               </div>
             )}
@@ -106,10 +108,10 @@ export function NorthwingMaterialsPanel({
         {tab === "artifacts" && (
           <section aria-labelledby="nw-artifacts-heading">
             <h3 id="nw-artifacts-heading" className="nw-materials-panel__heading">
-              Artifacts
+              {t("northwing.work.artifacts")}
             </h3>
             {artifacts.length === 0 ? (
-              <p className="nw-materials-panel__empty">No artifacts produced yet.</p>
+              <p className="nw-materials-panel__empty">{t("northwing.work.noArtifacts")}</p>
             ) : (
               <ul className="nw-materials-panel__list" role="list">
                 {artifacts.map((artifact) => {
@@ -127,15 +129,15 @@ export function NorthwingMaterialsPanel({
                         <button
                           type="button"
                           className="nw-btn nw-btn--ghost"
-                          aria-label={`Preview ${fileName}`}
+                          aria-label={t("northwing.work.previewFile", { name: fileName })}
                           onClick={() => handlePreview(artifact)}
                         >
-                          Preview
+                          {t("northwing.artifacts.preview")}
                         </button>
                         <button
                           type="button"
                           className="nw-btn nw-btn--ghost"
-                          aria-label={`Open ${fileName}`}
+                          aria-label={t("northwing.work.openFile", { name: fileName })}
                           onClick={() => handleOpen(artifact)}
                         >
                           <ExternalLink size={14} aria-hidden="true" />
@@ -160,13 +162,13 @@ export function NorthwingMaterialsPanel({
         {tab === "versions" && (
           <section aria-labelledby="nw-versions-heading">
             <h3 id="nw-versions-heading" className="nw-materials-panel__heading">
-              Versions
+              {t("northwing.work.versions")}
             </h3>
             {artifacts.length === 0 ? (
-              <p className="nw-materials-panel__empty">No version history.</p>
+              <p className="nw-materials-panel__empty">{t("northwing.work.noVersions")}</p>
             ) : (
               <ul className="nw-materials-panel__list" role="list">
-                {artifacts
+                {[...artifacts]
                   .sort((a, b) => b.version - a.version)
                   .map((artifact) => {
                     const fileName = artifact.path.split("/").pop() ?? artifact.path;

@@ -106,7 +106,7 @@ async function run() {
   const headings = Array.from(document.querySelectorAll("h2")).map((h) => h.textContent);
   ok(headings.includes("Works"), "shows Works section");
   ok(headings.includes("Recent outputs"), "shows Recent outputs section");
-  ok(headings.includes("Chats"), "shows Chats section");
+  ok(!headings.includes("Chats"), "hides Chats until a reliable Project chat mapping is supplied");
 
   const newWorkButton = document.querySelector('[aria-label="New Work"]');
   ok(newWorkButton, "New Work button is visible");

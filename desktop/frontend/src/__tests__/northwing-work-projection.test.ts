@@ -40,8 +40,11 @@ const savedWork = {
   totalCriteria: 2,
 };
 
+let syncArtifactsRequested = false;
 const noRuntimeGateway: NorthwingWorkProjectionGateway = {
-  readProjectState: async () => ({
+  readProjectState: async (_workspaceRoot, syncArtifacts) => {
+    syncArtifactsRequested = syncArtifacts;
+    return ({
     exists: true,
     project: {
       version: 1,
@@ -50,8 +53,13 @@ const noRuntimeGateway: NorthwingWorkProjectionGateway = {
       createdAt: "2026-08-09T00:00:00Z",
       updatedAt: "2026-08-09T00:00:00Z",
       works: [savedWork],
+      artifacts: [
+        { id: "artifact-current", path: "deliverables/work-review/report.docx", kind: "docx", workId: "work-review", version: 1, sha256: "one", size: 1, createdAt: "2026-08-10T00:00:00Z" },
+        { id: "artifact-other", path: "deliverables/work-other/report.docx", kind: "docx", workId: "work-other", version: 1, sha256: "two", size: 1, createdAt: "2026-08-10T00:00:00Z" },
+      ],
     },
-  }),
+  });
+  },
   listTabs: async () => [],
   metaForTab: async () => {
     throw new Error("MetaForTab must not run without a native Work tab");
@@ -71,6 +79,8 @@ equal(loaded.projection.currentHarnessStep, "review", "saved review step survive
 equal(loaded.projection.acceptance, savedWork.acceptance, "mixed saved acceptance survives without runtime evidence");
 equal(loaded.projection.unresolvedFindings, ["Confirm publication date"], "saved unresolved finding survives without runtime evidence");
 equal(loaded.changed, false, "missing runtime evidence does not create a projection update");
+equal(syncArtifactsRequested, true, "entering Work synchronizes current Project artifacts");
+equal(loaded.artifacts.map((artifact) => artifact.id), ["artifact-current"], "Work projection excludes artifacts owned by another Work");
 
 const slowProjectState = deferred<Awaited<ReturnType<NorthwingWorkProjectionGateway["readProjectState"]>>>();
 let serialReads = 0;

@@ -21263,6 +21263,24 @@ body > .mermaid-diagram--fullscreen {
   background: #c42b1c;
 }
 
+.app--embedded-session .layout--embedded-session {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app--embedded-session .app-chrome,
+.app--embedded-session .sidebar,
+.app--embedded-session .sidebar-resizer,
+.app--embedded-session .sidebar-collapse-toggle {
+  display: none;
+}
+
+.app--embedded-session .chat-pane,
+.app--embedded-session .statusbar,
+.app--embedded-session .terminal-drawer,
+.app--embedded-session .terminal-drawer-resizer {
+  grid-column: 1;
+}
+
 .app--darwin .app-chrome--tabs {
   align-items: stretch;
   padding: 0 calc(var(--chrome-toggle-size) + var(--chrome-toggle-size) + 16px) 0 calc(var(--chrome-left-toggle-offset) + var(--chrome-toggle-size) + 8px);

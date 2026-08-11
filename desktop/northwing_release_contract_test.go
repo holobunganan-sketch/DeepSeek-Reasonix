@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestNorthwingReleaseWorkflowPublishesExplicitUnsignedArtifacts(t *testing.T) {
+func TestNorthwingReleaseWorkflowEnforcesSignedValidatedStableArtifacts(t *testing.T) {
 	workflow, err := os.ReadFile("../.github/workflows/northwing-release.yml")
 	if err != nil {
 		t.Fatal(err)
@@ -19,16 +19,21 @@ func TestNorthwingReleaseWorkflowPublishesExplicitUnsignedArtifacts(t *testing.T
 	for _, want := range []string{
 		"origin/main-v2",
 		"NORTHWING_RELEASE_TAG: ${{ github.ref_name }}",
-		"$tag = $env:NORTHWING_RELEASE_TAG",
+		"-Tag $env:NORTHWING_RELEASE_TAG",
 		"persist-credentials: false",
 		"resolve-northwing-release-version.ps1",
 		"assert-northwing-release-checkout-clean.ps1",
-		"Build and publish unsigned Northwing release",
-		"-UnsignedTestArtifact",
-		"-AllowUnsignedTestArtifact",
+		"Validate, sign, and publish Northwing stable release",
+		"NORTHWING_WINDOWS_RELEASE_CREDENTIAL",
+		"sign-northwing-release.ps1",
+		"-RequireInteractiveWindow",
+		"scan-northwing-windows-defender.ps1",
+		"-RequireScanner",
 		"Northwing-${{ steps.version.outputs.version }}-windows-x64-setup.exe",
 		"Northwing-${{ steps.version.outputs.version }}-windows-x64-portable.zip",
 		"Northwing-${{ steps.version.outputs.version }}-SHA256SUMS.txt",
+		"northwing-update.json",
+		"northwing-update.json.sig",
 	} {
 		if !strings.Contains(source, want) {
 			t.Fatalf("release contract missing %q", want)
@@ -48,6 +53,7 @@ func TestNorthwingReleaseWorkflowPublishesExplicitUnsignedArtifacts(t *testing.T
 		"actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff",
 		"pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1",
 		"actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+		"actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
 		"softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65",
 	} {
 		if !strings.Contains(source, pinned) {
@@ -55,28 +61,36 @@ func TestNorthwingReleaseWorkflowPublishesExplicitUnsignedArtifacts(t *testing.T
 		}
 	}
 	for _, forbidden := range []string{
-		"NORTHWING_WINDOWS_RELEASE_CREDENTIAL",
+		"-UnsignedTestArtifact",
+		"-AllowUnsignedTestArtifact",
+		"Build and publish unsigned Northwing release",
+		"continue-on-error",
 		"SIGNPATH_API_TOKEN",
 		"AZURE_TRUSTED_SIGNING",
 		"NORTHWING_SIGNING_CERTIFICATE",
-		"northwing-update.json",
-		"northwingManifestPublicKeySPKIBase64",
 	} {
 		if strings.Contains(source, forbidden) {
-			t.Fatalf("unsigned release workflow must not publish or consume %q", forbidden)
+			t.Fatalf("stable release workflow must not contain %q", forbidden)
 		}
 	}
 	steps := []string{
 		"Validate stable tag, product version, and ancestry",
 		"Install frontend",
-		"Install Wails and NSIS",
-		"Verify clean build checkout",
+		"Test root Go modules",
+		"Test desktop Go modules",
+		"Typecheck frontend",
+		"Test frontend",
+		"Build production frontend",
+		"Test production entry in browser",
+		"Install Wails and pinned NSIS",
+		"Verify clean release checkout",
 		"Build Northwing Windows x64",
 		"Restore tracked frontend dist placeholder",
 		"Verify build output did not modify source checkout",
 		"Build Northwing update helper",
-		"Package unsigned installer and portable build",
-		"Verify unsigned Windows installer and portable build",
+		"Test signing credential validation",
+		"Sign and formally verify Windows release",
+		"Scan setup and executables with Microsoft Defender",
 		"Publish GitHub Release",
 	}
 	last := -1
@@ -93,11 +107,13 @@ func TestNorthwingReleaseWorkflowPublishesExplicitUnsignedArtifacts(t *testing.T
 		"go build -trimpath -ldflags \"-s -w\" -o desktop/build/bin/northwing-update-helper.exe ./cmd/northwing-update-helper",
 		"package-northwing-windows.ps1",
 		"verify-northwing-windows.ps1",
+		"smoke-northwing-native-window.ps1",
+		"scan-northwing-windows-defender.ps1",
 		"body_path: docs/NORTHWING_RELEASE_NOTES.md",
 		"fail_on_unmatched_files: true",
 	} {
 		if !strings.Contains(source, command) {
-			t.Fatalf("unsigned release gate missing command %q", command)
+			t.Fatalf("stable release gate missing command %q", command)
 		}
 	}
 	if strings.Count(source, "assert-northwing-release-checkout-clean.ps1") != 2 {

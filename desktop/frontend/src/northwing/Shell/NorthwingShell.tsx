@@ -1,20 +1,37 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import { NorthwingNavigation } from "../Navigation/NorthwingNavigation";
 import type { NorthwingDestination } from "../Navigation/routes";
-import { destinationPageName } from "../Navigation/routes";
 import { NorthwingHome } from "../Home/NorthwingHome";
 import type { NorthwingCatalog } from "../domain/catalog";
 import { normalizeNorthwingCatalog } from "../domain/catalog";
 import { NorthwingProjects } from "../Projects/NorthwingProjects";
 import { NorthwingProjectView } from "../Projects/NorthwingProjectView";
+import { createNewNorthwingProject } from "../Projects/newProjectController";
 import { NorthwingWorkList } from "../Work/NorthwingWorkList";
 import { NorthwingWorkView } from "../Work/NorthwingWorkView";
 import { NorthwingNewWork } from "../NewWork/NorthwingNewWork";
+import { useNorthwingModelCatalog } from "../NewWork/useNorthwingModelCatalog";
 import { NorthwingQuickChat } from "../QuickChat/NorthwingQuickChat";
 import type { ChatWorkDraft } from "../QuickChat/convertChatToWork";
 import { launchNewWork } from "../NewWork/newWorkController";
 import { NorthwingArtifacts } from "../Artifacts/NorthwingArtifacts";
+import {
+  openCoworkArtifact,
+  previewCoworkArtifact,
+  revealCoworkArtifact,
+  setCoworkArtifactFinal,
+} from "../../lib/northwingCowork";
+import {
+  DesktopWindowControls,
+  useDesktopWindowChrome,
+  type DesktopWindowBridge,
+} from "../../components/DesktopWindowChrome";
+import { sameNorthwingWorkspace } from "../../lib/northwingWorkspaceIdentity";
+import { useT } from "../../lib/i18n";
+import { northwingDestinationLabel } from "../northwingI18n";
+
+const SettingsPanel = lazy(() => import("../../components/SettingsPanel").then((module) => ({ default: module.SettingsPanel })));
 
 export type { NorthwingDestination } from "../Navigation/routes";
 
@@ -22,9 +39,8 @@ export type NorthwingShellGateway = {
   workspaceRoots?: string[];
   SessionWorkspace?: React.ComponentType<{ destination: NorthwingDestination; onSessionTabReady?: (tabId: string) => void }>;
   readCatalog?: () => Promise<NorthwingCatalog>;
-  onNewWork?: () => void;
-  onOpenQuickChat?: () => void;
   onNavigate?: (destination: NorthwingDestination) => void;
+  windowBridge?: DesktopWindowBridge;
 };
 const NorthwingGatewayContext = createContext<NorthwingShellGateway | undefined>(undefined);
 export const NorthwingNavigateContext = createContext<(destination: NorthwingDestination) => void>(() => {});
@@ -34,14 +50,7 @@ export type NorthwingShellProps = {
   gateway?: NorthwingShellGateway;
 };
 
-function PlaceholderPage({ title, children }: { title: string; children?: React.ReactNode }) {
-  return (
-    <div className="northwing-placeholder-page">
-      <h1 className="northwing-placeholder-page__title">{title}</h1>
-      {children && <p className="northwing-placeholder-page__text">{children}</p>}
-    </div>
-  );
-}
+const DEFAULT_NORTHWING_DESTINATION: NorthwingDestination = { kind: "home" };
 
 function NorthwingHomePage() {
   const gateway = useContext(NorthwingGatewayContext);
@@ -75,7 +84,7 @@ function NorthwingHomePage() {
       loading={loading}
       error={error}
       onRetry={load}
-      onNewWork={() => gateway?.onNewWork?.()}
+      onNewWork={() => navigate({ kind: "new-work" })}
       onQuickChat={() => navigate({ kind: "quick-chat" })}
       onOpenWork={(work) => navigate({ kind: "work", workspaceRoot: work.workspace, workId: work.workId })}
       onOpenProject={(project) =>
@@ -117,16 +126,36 @@ function useShellCatalog() {
 }
 
 function NorthwingProjectsPage() {
+  const t = useT();
   const navigate = useContext(NorthwingNavigateContext);
   const { catalog, loading, error, reload } = useShellCatalog();
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [createProjectError, setCreateProjectError] = useState<string | undefined>();
+
+  const handleNewProject = useCallback(async () => {
+    if (creatingProject) return;
+    setCreatingProject(true);
+    setCreateProjectError(undefined);
+    try {
+      const created = await createNewNorthwingProject();
+      if (!created) return;
+      await reload();
+      navigate({ kind: "project", workspaceRoot: created.workspaceRoot });
+    } catch (err) {
+      setCreateProjectError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCreatingProject(false);
+    }
+  }, [creatingProject, navigate, reload]);
+
   if (loading || error) {
     return (
       <main role="main" data-northwing-page="projects" className="nw-page">
-        <h1 className="nw-page__title">Projects</h1>
-        <p className="nw-page__subtitle">{loading ? "Loading projects..." : error}</p>
+        <h1 className="nw-page__title">{t("northwing.nav.projects")}</h1>
+        <p className="nw-page__subtitle">{loading ? t("northwing.projects.loading") : error}</p>
         {error && (
           <button type="button" className="nw-btn nw-btn--primary" onClick={reload}>
-            Retry
+            {t("common.retry")}
           </button>
         )}
       </main>
@@ -138,66 +167,67 @@ function NorthwingProjectsPage() {
       onOpenProject={(project) =>
         navigate({ kind: project.id ? "project" : "projects", workspaceRoot: project.workspace })
       }
-      onNewProject={() => navigate({ kind: "projects" })}
+      onNewProject={() => void handleNewProject()}
+      creatingProject={creatingProject}
+      createProjectError={createProjectError}
     />
   );
 }
 
 function NorthwingWorkListPage() {
+  const t = useT();
   const navigate = useContext(NorthwingNavigateContext);
   const { catalog, loading, error, reload } = useShellCatalog();
   if (loading || error) {
     return (
       <main role="main" data-northwing-page="work-list" className="nw-page">
-        <h1 className="nw-page__title">Work</h1>
-        <p className="nw-page__subtitle">{loading ? "Loading work..." : error}</p>
+        <h1 className="nw-page__title">{t("northwing.nav.work")}</h1>
+        <p className="nw-page__subtitle">{loading ? t("northwing.workList.loading") : error}</p>
         {error && (
           <button type="button" className="nw-btn nw-btn--primary" onClick={reload}>
-            Retry
+            {t("common.retry")}
           </button>
         )}
       </main>
     );
   }
-  const works = [...catalog.activeWorks, ...catalog.waitingForUser].sort((a, b) =>
-    b.updatedAt.localeCompare(a.updatedAt),
-  );
   return (
     <NorthwingWorkList
-      works={works}
+      works={catalog.works}
       onOpenWork={(work) => navigate({ kind: "work", workspaceRoot: work.workspace, workId: work.workId })}
-      onNewWork={() => navigate({ kind: "home" })}
+      onNewWork={() => navigate({ kind: "new-work" })}
     />
   );
 }
 
 function NorthwingProjectDetailPage({ workspaceRoot }: { workspaceRoot: string }) {
+  const t = useT();
   const navigate = useContext(NorthwingNavigateContext);
   const { catalog, loading, error, reload } = useShellCatalog();
   if (loading || error) {
     return (
       <main role="main" data-northwing-page="project" className="nw-page">
-        <h1 className="nw-page__title">Project</h1>
-        <p className="nw-page__subtitle">{loading ? "Loading project..." : error}</p>
+        <h1 className="nw-page__title">{t("northwing.nav.project")}</h1>
+        <p className="nw-page__subtitle">{loading ? t("northwing.project.loading") : error}</p>
         {error && (
           <button type="button" className="nw-btn nw-btn--primary" onClick={reload}>
-            Retry
+            {t("common.retry")}
           </button>
         )}
       </main>
     );
   }
-  const project = catalog.projects.find((p) => p.workspace === workspaceRoot);
+  const project = catalog.projects.find((p) => sameNorthwingWorkspace(p.workspace, workspaceRoot));
   if (!project) {
     return (
       <main role="main" data-northwing-page="project" className="nw-page">
-        <h1 className="nw-page__title">Project not found</h1>
-        <p className="nw-page__subtitle">The requested project could not be loaded.</p>
+        <h1 className="nw-page__title">{t("northwing.project.notFound")}</h1>
+        <p className="nw-page__subtitle">{t("northwing.project.notFoundBody")}</p>
       </main>
     );
   }
-  const works = catalog.activeWorks.filter((w) => w.workspace === workspaceRoot);
-  const artifacts = catalog.recentArtifacts.filter((a) => a.workspace === workspaceRoot);
+  const works = catalog.works.filter((w) => sameNorthwingWorkspace(w.workspace, workspaceRoot));
+  const artifacts = catalog.recentArtifacts.filter((a) => sameNorthwingWorkspace(a.workspace, workspaceRoot));
   return (
     <NorthwingProjectView
       project={project}
@@ -207,18 +237,19 @@ function NorthwingProjectDetailPage({ workspaceRoot }: { workspaceRoot: string }
       onOpenArtifact={(artifact) =>
         navigate({ kind: "work", workspaceRoot: artifact.workspace, workId: artifact.workId })
       }
-      onNewWork={() => navigate({ kind: "home" })}
+      onNewWork={() => navigate({ kind: "new-work", workspaceRoot })}
     />
   );
 }
 
 function NorthwingArtifactsPage() {
-  const { catalog, loading, error } = useShellCatalog();
+  const t = useT();
+  const { catalog, loading, error, reload } = useShellCatalog();
   if (loading || error) {
     return (
       <main role="main" data-northwing-page="artifacts" className="nw-page">
-        <h1 className="nw-page__title">Artifacts</h1>
-        <p className="nw-page__subtitle">{loading ? "Loading artifacts..." : error}</p>
+        <h1 className="nw-page__title">{t("northwing.nav.artifacts")}</h1>
+        <p className="nw-page__subtitle">{loading ? t("northwing.artifacts.loading") : error}</p>
       </main>
     );
   }
@@ -230,6 +261,7 @@ function NorthwingArtifactsPage() {
     version: a.version,
     final: a.final,
     projectId: a.projectId,
+    projectName: a.projectName,
     workspace: a.workspace,
     createdAt: a.createdAt,
   }));
@@ -237,22 +269,95 @@ function NorthwingArtifactsPage() {
     <NorthwingArtifacts
       artifacts={artifacts}
       loading={false}
-      onPreview={undefined}
-      onOpen={undefined}
-      onReveal={undefined}
-      onMarkFinal={undefined}
+      onPreview={(artifact) => previewCoworkArtifact(artifact.workspace, artifact.path)}
+      onOpen={(artifact) => openCoworkArtifact(artifact.workspace, artifact.path)}
+      onReveal={(artifact) => revealCoworkArtifact(artifact.workspace, artifact.path)}
+      onMarkFinal={async (artifact) => {
+        await setCoworkArtifactFinal(artifact.workspace, artifact.id);
+        await reload();
+      }}
     />
   );
 }
 
-function NorthwingAdvancedPage() {
+function NorthwingSettingsPage({
+  returnTo,
+  navigate,
+}: {
+  returnTo?: "home" | "new-work";
+  navigate: (destination: NorthwingDestination) => void;
+}) {
+  const t = useT();
+  const platformAttribute = document.documentElement.getAttribute("data-platform");
+  const desktopPlatform = platformAttribute === "windows" || platformAttribute === "darwin"
+    ? platformAttribute
+    : "linux";
   return (
-    <main role="main" data-northwing-page="advanced" className="nw-page">
-      <h1 className="nw-page__title">Advanced tools</h1>
-      <div className="nw-card">
-        <p>Skills, MCP, Automations, Terminal, Git, and developer tools will appear here.</p>
-      </div>
+    <main role="main" data-northwing-page="settings" className="nw-page">
+      <h1 className="nw-page__title">{t("northwing.nav.settings")}</h1>
+      <Suspense fallback={<p className="nw-page__subtitle">{t("northwing.settings.loading")}</p>}>
+        <SettingsPanel
+          initialTab="models"
+          desktopPlatform={desktopPlatform}
+          agentRunning={false}
+          onChanged={() => window.dispatchEvent(new Event("reasonix:model-catalog-changed"))}
+          onUseSubagent={() => navigate({ kind: "quick-chat" })}
+          onClose={() => navigate(returnTo === "new-work" ? { kind: "new-work" } : { kind: "home" })}
+        />
+      </Suspense>
     </main>
+  );
+}
+
+function NorthwingSessionUnavailablePage() {
+  const t = useT();
+  return (
+    <main role="main" data-northwing-page="work" className="nw-page">
+      <h1 className="nw-page__title">{t("northwing.work.unavailable")}</h1>
+      <p className="nw-page__subtitle">{t("northwing.work.sessionSurfaceUnavailable")}</p>
+    </main>
+  );
+}
+
+function NorthwingNewWorkPage({
+  destination,
+  conversionDraft,
+  navigate,
+  onCancelNewWork,
+  onCompleteConversion,
+}: {
+  destination: Extract<NorthwingDestination, { kind: "new-work" }>;
+  conversionDraft: ChatWorkDraft | null;
+  navigate: (destination: NorthwingDestination) => void;
+  onCancelNewWork: () => void;
+  onCompleteConversion: () => void;
+}) {
+  const modelCatalog = useNorthwingModelCatalog();
+  const wsRoot = destination.workspaceRoot ?? "";
+  return (
+    <NorthwingNewWork
+      key={conversionDraft ? `convert-${conversionDraft.chatTabId}` : "new-work"}
+      preselectedWorkspace={conversionDraft ? undefined : wsRoot || undefined}
+      workspaceOptions={conversionDraft?.workspaceRoots}
+      requireProjectSelection={Boolean(conversionDraft)}
+      initialForm={conversionDraft ? { title: conversionDraft.title, objective: conversionDraft.objective } : undefined}
+      availableModels={modelCatalog.models.map((model) => ({
+        id: model.ref,
+        name: `${model.provider} / ${model.model}`,
+        current: model.current,
+      }))}
+      modelsLoading={modelCatalog.loading}
+      modelCatalogError={modelCatalog.error}
+      availableEfforts={modelCatalog.effort.levels}
+      effortSupported={modelCatalog.effort.supported}
+      onConfigureModels={() => navigate({ kind: "settings", returnTo: "new-work" })}
+      onLaunch={async (root, form) => {
+        const launched = await launchNewWork(root, form);
+        if (conversionDraft) onCompleteConversion();
+        navigate({ kind: "work", workspaceRoot: launched.workspaceRoot, workId: launched.work.id });
+      }}
+      onCancel={conversionDraft ? onCancelNewWork : () => navigate({ kind: "home" })}
+    />
   );
 }
 
@@ -277,20 +382,21 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
     case "work": {
       const gw = gateway;
       if (!gw?.SessionWorkspace) {
-        return <PlaceholderPage title="Work">Work workspace will appear here. Select a workbench target.</PlaceholderPage>;
+        return <NorthwingSessionUnavailablePage />;
       }
       return (
         <NorthwingWorkView
           workspaceRoot={destination.workspaceRoot}
           workId={destination.workId}
           SessionWorkspace={gw.SessionWorkspace}
+          onNavigate={_navigate}
         />
       );
     }
     case "artifacts":
       return <NorthwingArtifactsPage />;
-    case "advanced":
-      return <NorthwingAdvancedPage />;
+    case "settings":
+      return <NorthwingSettingsPage returnTo={destination.returnTo} navigate={_navigate} />;
     case "quick-chat":
       return (
         <NorthwingQuickChat
@@ -300,30 +406,26 @@ function renderProductPage(gateway: NorthwingShellGateway | undefined,
           onSessionTabReady={onSessionTabReady}
         />
       );
-    case "new-work": {
-      const wsRoot = destination.workspaceRoot ?? "";
+    case "new-work":
       return (
-        <NorthwingNewWork
-          key={conversionDraft ? `convert-${conversionDraft.chatTabId}` : "new-work"}
-          preselectedWorkspace={conversionDraft ? undefined : wsRoot || undefined}
-          workspaceOptions={conversionDraft?.workspaceRoots}
-          requireProjectSelection={Boolean(conversionDraft)}
-          initialForm={conversionDraft ? { title: conversionDraft.title, objective: conversionDraft.objective } : undefined}
-          onLaunch={async (root, form) => {
-            const { work } = await launchNewWork(root, form);
-            if (conversionDraft) onCompleteConversion();
-            _navigate({ kind: "work", workspaceRoot: root, workId: work.id });
-          }}
-          onCancel={conversionDraft ? onCancelNewWork : () => _navigate({ kind: "home" })}
+        <NorthwingNewWorkPage
+          destination={destination}
+          conversionDraft={conversionDraft}
+          navigate={_navigate}
+          onCancelNewWork={onCancelNewWork}
+          onCompleteConversion={onCompleteConversion}
         />
       );
-    }
   }
 }
 
-export function NorthwingShell({ initialDestination = { kind: "home" }, gateway }: NorthwingShellProps) {
+export function NorthwingShell({ initialDestination = DEFAULT_NORTHWING_DESTINATION, gateway }: NorthwingShellProps) {
+  const t = useT();
   const [destination, setDestination] = useState<NorthwingDestination>(initialDestination);
   const [conversionDraft, setConversionDraft] = useState<ChatWorkDraft | null>(null);
+  const windowsFramelessChrome = typeof document !== "undefined"
+    && document.documentElement.getAttribute("data-platform") === "windows";
+  const mainWindowChrome = useDesktopWindowChrome(windowsFramelessChrome, gateway?.windowBridge);
 
   useEffect(() => {
     setDestination(initialDestination);
@@ -344,13 +446,11 @@ export function NorthwingShell({ initialDestination = { kind: "home" }, gateway 
 
   const handleNewWork = useCallback(() => {
     handleAbandonConversionAndNavigate({ kind: "new-work" });
-    gateway?.onNewWork?.();
-  }, [gateway, handleAbandonConversionAndNavigate]);
+  }, [handleAbandonConversionAndNavigate]);
 
   const handleQuickChat = useCallback(() => {
     handleAbandonConversionAndNavigate({ kind: "quick-chat" });
-    gateway?.onOpenQuickChat?.();
-  }, [handleAbandonConversionAndNavigate, gateway]);
+  }, [handleAbandonConversionAndNavigate]);
 
   const handleBeginConversion = useCallback((draft: ChatWorkDraft) => {
     setConversionDraft(draft);
@@ -377,8 +477,20 @@ export function NorthwingShell({ initialDestination = { kind: "home" }, gateway 
     return <div className="northwing-shell__page">{renderProductPage(gateway, destination, handleNavigate, conversionDraft, handleBeginConversion, handleQuickChatTabReady, handleCancelNewWork, handleCompleteConversion)}</div>;
   }, [destination, gateway, handleNavigate, conversionDraft, handleBeginConversion, handleQuickChatTabReady, handleCancelNewWork, handleCompleteConversion]);
 
+  const handleWindowsTitlebarDoubleClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!windowsFramelessChrome) return;
+    const target = event.target as HTMLElement | null;
+    if (!target?.closest(".northwing-shell__topbar")) return;
+    if (target.closest("button, input, textarea, select, a, [role='button'], [role='tab'], .windows-window-controls")) return;
+    event.preventDefault();
+    mainWindowChrome.toggleMaximise();
+  }, [mainWindowChrome.toggleMaximise, windowsFramelessChrome]);
+
   return (
-    <div className="northwing-shell">
+    <div
+      className={`northwing-shell${windowsFramelessChrome ? " northwing-shell--windows-frameless" : ""}`}
+      onDoubleClickCapture={handleWindowsTitlebarDoubleClick}
+    >
       <NorthwingGatewayContext.Provider value={gateway}>
       <NorthwingNavigateContext.Provider value={handleAbandonConversionAndNavigate}>
         <div className="northwing-shell__navigation">
@@ -386,21 +498,22 @@ export function NorthwingShell({ initialDestination = { kind: "home" }, gateway 
         </div>
         <div className="northwing-shell__main">
           <header className="northwing-shell__topbar">
-            <span className="northwing-shell__breadcrumb">{destinationPageName(destination)}</span>
+            <span className="northwing-shell__breadcrumb">{northwingDestinationLabel(t, destination.kind)}</span>
             <button
               type="button"
               className="nw-btn nw-btn--ghost"
-              aria-label="Quick Chat"
+              aria-label={t("northwing.nav.quickChat")}
               onClick={handleQuickChat}
             >
               <MessageSquare size={16} aria-hidden="true" />
-              <span>Quick Chat</span>
+              <span>{t("northwing.nav.quickChat")}</span>
             </button>
           </header>
           {pageContent}
         </div>
       </NorthwingNavigateContext.Provider>
       </NorthwingGatewayContext.Provider>
+      {windowsFramelessChrome && <DesktopWindowControls controller={mainWindowChrome} />}
     </div>
   );
 }

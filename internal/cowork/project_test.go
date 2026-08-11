@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -44,6 +45,35 @@ func TestCreateAndLoadProject(t *testing.T) {
 
 	if _, err := store.Create(root, "Duplicate"); !errors.Is(err, ErrProjectExists) {
 		t.Fatalf("second Create() error = %v, want ErrProjectExists", err)
+	}
+}
+
+func TestValidateWritableRejectsReadOnlyManifestWithoutLeavingProbe(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore()
+	if _, err := store.Create(root, "Project"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ValidateWritable(root); err != nil {
+		t.Fatalf("ValidateWritable() error = %v", err)
+	}
+
+	metadataDir := filepath.Dir(ManifestPath(root))
+	entries, err := os.ReadDir(metadataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != ManifestFileName {
+		t.Fatalf("ValidateWritable() left metadata probe files: %v", entries)
+	}
+
+	manifestPath := ManifestPath(root)
+	if err := os.Chmod(manifestPath, 0o400); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(manifestPath, 0o600) })
+	if err := store.ValidateWritable(root); err == nil || !strings.Contains(strings.ToLower(err.Error()), "read-only") {
+		t.Fatalf("ValidateWritable() error = %v, want read-only manifest", err)
 	}
 }
 

@@ -8,6 +8,7 @@ import {
   type NorthwingShellGateway,
   type NorthwingDestination,
 } from "../northwing/Shell/NorthwingShell";
+import { LocaleProvider } from "../lib/i18n";
 
 function SessionWorkspaceMock({ destination }: { destination: NorthwingDestination }) {
   return (
@@ -25,8 +26,6 @@ function createGateway(): NorthwingShellGateway {
   return {
     workspaceRoots: [],
     SessionWorkspace: SessionWorkspaceMock,
-    onNewWork: () => {},
-    onOpenQuickChat: () => {},
     onNavigate: () => {},
   };
 }
@@ -61,6 +60,8 @@ globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.Event = dom.window.Event;
 globalThis.KeyboardEvent = dom.window.KeyboardEvent;
 globalThis.MouseEvent = dom.window.MouseEvent;
+Object.defineProperty(dom.window.HTMLElement.prototype, "attachEvent", { configurable: true, value: () => {} });
+Object.defineProperty(dom.window.HTMLElement.prototype, "detachEvent", { configurable: true, value: () => {} });
 
 function flush() {
   return new Promise((resolve) => setTimeout(resolve, 20));
@@ -71,7 +72,7 @@ async function render(element: React.ReactElement) {
   if (!rootElement) throw new Error("missing root");
   const root = createRoot(rootElement);
   await act(async () => {
-    root.render(element);
+    root.render(<LocaleProvider>{element}</LocaleProvider>);
     await flush();
   });
   return root;
@@ -89,14 +90,166 @@ async function run() {
     ok(link, `navigation contains ${name} link`);
   }
 
-  const advanced = Array.from(document.querySelectorAll("a, button")).find((el) => el.textContent?.includes("Advanced"));
-  ok(advanced, "Advanced tools entry exists");
+  const settings = Array.from(document.querySelectorAll("a, button")).find((el) => el.textContent?.includes("Settings"));
+  ok(settings, "Settings entry exists");
+  ok(!document.body.textContent?.includes("Advanced tools"), "stable navigation hides the Advanced tools placeholder");
+  ok(!document.body.textContent?.includes("Automations"), "stable navigation hides unavailable Automations");
 
   const quickChat = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes("Quick Chat"));
   ok(quickChat, "Quick Chat secondary entry exists");
 
+  const homeCreateWork = document.querySelector<HTMLButtonElement>(".home-card--new-work button");
+  await act(async () => {
+    homeCreateWork?.click();
+    await flush();
+  });
+  equal(
+    document.querySelector("[data-northwing-page]")?.getAttribute("data-northwing-page"),
+    "new-work",
+    "Home Create Work navigates through the Shell to the New Work form",
+  );
+  equal(document.querySelector(".northwing-shell__breadcrumb")?.textContent, "New Work", "breadcrumb hides internal new-work route kind");
+
   await act(async () => {
     homeRoot.unmount();
+    await flush();
+  });
+
+  const workListRoot = await render(
+    <NorthwingShell initialDestination={{ kind: "work-list" }} gateway={createGateway()} />,
+  );
+  const workListNewWork = document.querySelector<HTMLButtonElement>(
+    '[data-northwing-page="work-list"] [aria-label="New Work"]',
+  );
+  await act(async () => {
+    workListNewWork?.click();
+    await flush();
+  });
+  equal(
+    document.querySelector("[data-northwing-page]")?.getAttribute("data-northwing-page"),
+    "new-work",
+    "Work list New Work navigates to the New Work form",
+  );
+  await act(async () => {
+    workListRoot.unmount();
+    await flush();
+  });
+
+  let createdProject = false;
+  let projectCatalogReads = 0;
+  const newProjectBridgeCalls: string[] = [];
+  (window as typeof window & { go?: { main?: { App?: Record<string, unknown> } } }).go = {
+    main: {
+      App: {
+        PickWorkspace: async () => {
+          newProjectBridgeCalls.push("pick-workspace");
+          return "/workspace/new-project";
+        },
+        CoworkProjectState: async () => ({ exists: false }),
+        CreateCoworkProject: async () => {
+          newProjectBridgeCalls.push("create-project");
+          createdProject = true;
+          return {
+            version: 3,
+            id: "new-project",
+            name: "new-project",
+            createdAt: "2026-08-10T00:00:00Z",
+            updatedAt: "2026-08-10T00:00:00Z",
+          };
+        },
+        ValidateCoworkProjectWritable: async () => {},
+      },
+    },
+  };
+  const newProjectRoot = await render(
+    <NorthwingShell
+      initialDestination={{ kind: "projects" }}
+      gateway={{
+        ...createGateway(),
+        readCatalog: async () => {
+          projectCatalogReads += 1;
+          return {
+            projects: createdProject ? [{
+              workspace: "/workspace/new-project",
+              exists: true,
+              id: "new-project",
+              name: "new-project",
+              updatedAt: "2026-08-10T00:00:00Z",
+              workCount: 0,
+              artifactCount: 0,
+            }] : [],
+            activeWorks: [],
+            waitingForUser: [],
+            recentArtifacts: [],
+          };
+        },
+      }}
+    />,
+  );
+  const newProjectButton = document.querySelector<HTMLButtonElement>('[aria-label="New Project"]');
+  await act(async () => {
+    newProjectButton?.click();
+    await flush();
+  });
+  equal(
+    newProjectBridgeCalls.join(","),
+    "pick-workspace,create-project",
+    "New Project uses the native picker and creates a Northwing Project",
+  );
+  equal(
+    document.querySelector("[data-northwing-page]")?.getAttribute("data-northwing-page"),
+    "project",
+    "New Project enters the created Project",
+  );
+  ok(projectCatalogReads >= 2, "New Project refreshes the persisted catalog before Project render");
+  await act(async () => {
+    newProjectRoot.unmount();
+    await flush();
+  });
+
+  const projectRoot = await render(
+    <NorthwingShell
+      initialDestination={{ kind: "project", workspaceRoot: "/workspace/project-a" }}
+      gateway={{
+        ...createGateway(),
+        readCatalog: async () => ({
+          projects: [{
+            workspace: "/workspace/project-a",
+            exists: true,
+            id: "project-a",
+            name: "Project A",
+            updatedAt: "2026-08-10T00:00:00Z",
+            workCount: 0,
+            artifactCount: 0,
+          }],
+          activeWorks: [],
+          waitingForUser: [],
+          recentArtifacts: [],
+        }),
+      }}
+    />,
+  );
+  const projectNewWork = document.querySelector<HTMLButtonElement>(
+    '[data-northwing-page="project"] [aria-label="New Work"]',
+  );
+  await act(async () => {
+    projectNewWork?.click();
+    await flush();
+  });
+  equal(
+    document.querySelector("[data-northwing-page]")?.getAttribute("data-northwing-page"),
+    "new-work",
+    "Project New Work navigates to the New Work form",
+  );
+  const selectedProject = document.querySelector<HTMLInputElement>('[aria-label="Project folder"]');
+  equal(
+    selectedProject?.value,
+    "/workspace/project-a",
+    "Project New Work preserves the selected workspace",
+  );
+  ok(selectedProject?.disabled, "Project New Work locks the selected workspace");
+  await act(async () => {
+    projectRoot.unmount();
     await flush();
   });
 
@@ -165,6 +318,17 @@ async function run() {
     document.querySelector('[data-testid="session-workspace"]')?.getAttribute("data-destination-kind"),
     "work",
     "work page passes the work destination to its session adapter",
+  );
+
+  const workBack = document.querySelector<HTMLButtonElement>('[aria-label="Back to Work list"]');
+  await act(async () => {
+    workBack?.click();
+    await flush();
+  });
+  equal(
+    document.querySelector("[data-northwing-page]")?.getAttribute("data-northwing-page"),
+    "work-list",
+    "Work Back navigates to the Work list",
   );
 
   await act(async () => {

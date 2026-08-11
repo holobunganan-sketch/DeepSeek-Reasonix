@@ -105,12 +105,6 @@ async function mountApp() {
               gateway={{
                 SessionWorkspace,
                 readCatalog: readNorthwingCatalogForDesktop,
-                onNewWork: () => {
-                  console.log("northwing:new-work");
-                },
-                onOpenQuickChat: () => {
-                  console.log("northwing:quick-chat");
-                },
               }}
             />
           </ToastProvider>

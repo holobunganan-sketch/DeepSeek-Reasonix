@@ -167,7 +167,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          npx playwright test --project=chromium 2>&1 | tee "$RUNNER_TEMP/e2e-test.log"
+          pnpm test:e2e 2>&1 | tee "$RUNNER_TEMP/e2e-test.log"
 
       - name: Upload E2E report
         if: failure() && steps.e2e_tests.outcome == 'failure'
@@ -221,6 +221,10 @@ jobs:
         shell: pwsh
         run: ./scripts/test-resolve-northwing-product-version.ps1
 
+      - name: Test Defender scan result classification
+        shell: pwsh
+        run: ./scripts/test-northwing-defender-scan-result.ps1
+
       - name: Resolve Northwing product version
         id: product_version
         shell: pwsh
@@ -254,6 +258,14 @@ jobs:
         shell: pwsh
         run: go build -trimpath -ldflags "-s -w" -o desktop/build/bin/northwing-update-helper.exe ./cmd/northwing-update-helper
 
+      - name: Exercise native Northwing window when interactive desktop is available
+        shell: pwsh
+        run: |
+          ./scripts/smoke-northwing-native-window.ps1 `
+            -ExePath ./desktop/build/bin/northwing.exe `
+            -EvidencePath ./dist/Northwing-${{ steps.product_version.outputs.version }}-native-smoke.json `
+            -ScreenshotPath ./dist/Northwing-${{ steps.product_version.outputs.version }}-native-home-1240x720.png
+
       - name: Verify unified Northwing CLI
         shell: pwsh
         timeout-minutes: 1
@@ -285,6 +297,10 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-northwing-windows.ps1 -Version ${{ steps.product_version.outputs.version }} -AllowUnsignedTestArtifact
 
+      - name: Scan unsigned test files with Microsoft Defender when available
+        shell: pwsh
+        run: ./scripts/scan-northwing-windows-defender.ps1 -Version ${{ steps.product_version.outputs.version }}
+
       - uses: actions/upload-artifact@v4
         with:
           name: UNSIGNED-TEST-ONLY-Northwing-${{ steps.product_version.outputs.version }}-windows-x64
@@ -292,5 +308,8 @@ jobs:
             dist/Northwing-${{ steps.product_version.outputs.version }}-windows-x64-setup.exe
             dist/Northwing-${{ steps.product_version.outputs.version }}-windows-x64-portable.zip
             dist/Northwing-${{ steps.product_version.outputs.version }}-SHA256SUMS.txt
+            dist/Northwing-${{ steps.product_version.outputs.version }}-defender-scan.json
+            dist/Northwing-${{ steps.product_version.outputs.version }}-native-smoke.json
+            dist/Northwing-${{ steps.product_version.outputs.version }}-native-home-1240x720.png
           if-no-files-found: error
           retention-days: 14

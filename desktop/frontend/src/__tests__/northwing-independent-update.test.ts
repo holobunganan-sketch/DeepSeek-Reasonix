@@ -47,9 +47,13 @@ ok(
   /Northwing-\$\{\{ steps\.version\.outputs\.version \}\}-windows-x64-setup\.exe/.test(workflow) &&
     /Northwing-\$\{\{ steps\.version\.outputs\.version \}\}-windows-x64-portable\.zip/.test(workflow) &&
     /Northwing-\$\{\{ steps\.version\.outputs\.version \}\}-SHA256SUMS\.txt/.test(workflow) &&
+    /northwing-update\.json/.test(workflow) &&
+    /northwing-update\.json\.sig/.test(workflow) &&
+    /-SignPayload/.test(workflow) &&
+    /-SignSetup/.test(workflow) &&
     /name: Publish GitHub Release/.test(workflow) &&
-    !/northwing-update\.json/.test(workflow),
-  "unsigned release publishes Northwing packages and checksums without an untrusted update manifest",
+    !/UnsignedTestArtifact|AllowUnsignedTestArtifact/.test(workflow),
+  "stable release publishes signed Northwing packages, checksums, and a trusted update manifest",
 );
 ok(/not synchronized, rebased, merged, packaged, or distributed automatically/.test(baseline), "frozen-kernel policy is explicit");
 

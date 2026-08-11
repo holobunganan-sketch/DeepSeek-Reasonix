@@ -79,6 +79,24 @@
   border-radius: var(--nw-radius);
 }
 
+.nw-new-work__model-state {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--nw-border);
+  border-radius: var(--nw-radius);
+  background: var(--nw-surface);
+  color: var(--nw-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.nw-new-work__model-state strong {
+  color: var(--nw-text);
+}
+
 .nw-new-work__actions {
   display: flex;
   justify-content: flex-end;

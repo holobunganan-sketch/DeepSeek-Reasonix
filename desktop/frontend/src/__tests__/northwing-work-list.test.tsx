@@ -6,6 +6,7 @@ import React from "react";
 import { filterWorks } from "../northwing/Work/workFilters";
 import { NorthwingWorkList } from "../northwing/Work/NorthwingWorkList";
 import type { NorthwingWorkSummary } from "../northwing/domain/catalog";
+import { LocaleProvider } from "../lib/i18n";
 
 let failed = 0;
 function ok(value: unknown, label: string) {
@@ -47,7 +48,7 @@ async function render(element: React.ReactElement) {
   if (!rootElement) throw new Error("missing root");
   const root = createRoot(rootElement);
   await act(async () => {
-    root.render(element);
+    root.render(<LocaleProvider>{element}</LocaleProvider>);
     await flush();
   });
   return root;

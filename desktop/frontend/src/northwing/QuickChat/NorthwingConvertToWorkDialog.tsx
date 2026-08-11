@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useT } from "../../lib/i18n";
 import "./NorthwingQuickChat.css";
 
 export type NorthwingConvertToWorkDialogProps = {
@@ -14,6 +15,7 @@ export function NorthwingConvertToWorkDialog({
   onConfirm,
   onCancel,
 }: NorthwingConvertToWorkDialogProps) {
+  const t = useT();
   const [objective, setObjective] = useState("");
 
   const handleSubmit = () => {
@@ -23,18 +25,18 @@ export function NorthwingConvertToWorkDialog({
   };
 
   return (
-    <div className="nw-convert-dialog__overlay" role="dialog" aria-label="Convert to Work" onClick={onCancel}>
+    <div className="nw-convert-dialog__overlay" role="dialog" aria-label={t("northwing.quickChat.convert")} onClick={onCancel}>
       <div className="nw-convert-dialog" onClick={(e) => e.stopPropagation()}>
-        <h3 className="nw-convert-dialog__title">Convert to Work</h3>
+        <h3 className="nw-convert-dialog__title">{t("northwing.quickChat.convert")}</h3>
         <p className="nw-convert-dialog__desc">
-          This preserves your chat history and creates a formal Work with acceptance, artifacts, and review stages.
+          {t("northwing.quickChat.convertDescription")}
         </p>
         <label className="nw-convert-dialog__field">
-          <span className="nw-convert-dialog__label">What do you want to finish?</span>
+          <span className="nw-convert-dialog__label">{t("northwing.newWork.objective")}</span>
           <textarea
             className="nw-input nw-input--textarea"
             rows={3}
-            placeholder="Describe the goal this conversation should work toward..."
+            placeholder={t("northwing.quickChat.convertObjective")}
             value={objective}
             onChange={(e) => setObjective(e.target.value)}
             autoFocus
@@ -44,7 +46,7 @@ export function NorthwingConvertToWorkDialog({
         {error && <p className="nw-convert-dialog__error" role="alert">{error}</p>}
         <div className="nw-convert-dialog__actions">
           <button type="button" className="nw-btn nw-btn--ghost" onClick={onCancel} disabled={submitting}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -52,7 +54,7 @@ export function NorthwingConvertToWorkDialog({
             onClick={handleSubmit}
             disabled={submitting || !objective.trim()}
           >
-            {submitting ? "Converting..." : "Create Work"}
+            {submitting ? t("northwing.quickChat.converting") : t("northwing.quickChat.createWork")}
           </button>
         </div>
       </div>

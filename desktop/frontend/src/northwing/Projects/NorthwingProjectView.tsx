@@ -1,5 +1,7 @@
 import { FolderKanban, Briefcase, MessageSquare, Package, Plus } from "lucide-react";
 import type { NorthwingProjectSummary, NorthwingWorkSummary, NorthwingArtifactSummary } from "../domain/catalog";
+import { useT } from "../../lib/i18n";
+import { northwingStageLabel } from "../northwingI18n";
 
 export type NorthwingProjectViewProps = {
   project: NorthwingProjectSummary;
@@ -10,18 +12,6 @@ export type NorthwingProjectViewProps = {
   onOpenArtifact?: (artifact: NorthwingArtifactSummary) => void;
   onOpenChat?: (chat: { id: string; title: string; updatedAt: string }) => void;
   onNewWork?: () => void;
-};
-
-const stageLabels: Record<string, string> = {
-  intake: "Intake",
-  planning: "Planning",
-  producing: "Producing",
-  reviewing: "Reviewing",
-  repairing: "Repairing",
-  validating: "Validating",
-  waiting_user: "Waiting for you",
-  completed: "Completed",
-  failed: "Failed",
 };
 
 function formatTime(iso: string): string {
@@ -35,12 +25,13 @@ export function NorthwingProjectView({
   project,
   works,
   artifacts,
-  chats = [],
+  chats,
   onOpenWork,
   onOpenArtifact,
   onOpenChat,
   onNewWork,
 }: NorthwingProjectViewProps) {
+  const t = useT();
   return (
     <main role="main" data-northwing-page="project" className="nw-page project-page">
       <header className="project-page__header">
@@ -48,9 +39,9 @@ export function NorthwingProjectView({
           <FolderKanban size={24} aria-hidden="true" />
           <h1 className="nw-page__title">{project.name}</h1>
         </div>
-        <button type="button" className="nw-btn nw-btn--primary" aria-label="New Work" onClick={onNewWork}>
+        <button type="button" className="nw-btn nw-btn--primary" aria-label={t("northwing.nav.newWork")} onClick={onNewWork}>
           <Plus size={16} aria-hidden="true" />
-          <span>New Work</span>
+          <span>{t("northwing.nav.newWork")}</span>
         </button>
       </header>
 
@@ -58,15 +49,15 @@ export function NorthwingProjectView({
         <div className="project-page__section-header">
           <Briefcase size={18} aria-hidden="true" />
           <h2 id="project-works-heading" className="project-page__section-title">
-            Works
+            {t("northwing.project.works")}
           </h2>
           <span className="project-page__count">{works.length}</span>
         </div>
         {works.length === 0 ? (
           <div className="nw-card project-page__empty">
-            <p>No Work in this project yet.</p>
+            <p>{t("northwing.project.noWork")}</p>
             <button type="button" className="nw-btn nw-btn--primary" onClick={onNewWork}>
-              New Work
+              {t("northwing.nav.newWork")}
             </button>
           </div>
         ) : (
@@ -87,7 +78,7 @@ export function NorthwingProjectView({
               >
                 <span className="project-work-row__title">{work.title}</span>
                 <span className={`project-work-row__stage project-work-row__stage--${work.stage}`}>
-                  {stageLabels[work.stage] ?? work.stage}
+                  {northwingStageLabel(t, work.stage)}
                 </span>
                 <span className="project-work-row__acceptance">
                   {work.completedCriteria}/{work.totalCriteria}
@@ -105,13 +96,13 @@ export function NorthwingProjectView({
         <div className="project-page__section-header">
           <Package size={18} aria-hidden="true" />
           <h2 id="project-outputs-heading" className="project-page__section-title">
-            Recent outputs
+            {t("northwing.project.outputs")}
           </h2>
           <span className="project-page__count">{artifacts.length}</span>
         </div>
         {artifacts.length === 0 ? (
           <div className="nw-card project-page__empty">
-            <p>No artifacts produced yet.</p>
+            <p>{t("northwing.project.noArtifacts")}</p>
           </div>
         ) : (
           <ul className="project-page__artifacts" role="list">
@@ -133,7 +124,7 @@ export function NorthwingProjectView({
                 >
                   <span className="project-artifact-row__name">{fileName}</span>
                   <span className="project-artifact-row__kind">{artifact.kind.toUpperCase()}</span>
-                  {artifact.final && <span className="project-artifact-row__final">Final</span>}
+                  {artifact.final && <span className="project-artifact-row__final">{t("northwing.project.final")}</span>}
                   <time className="project-artifact-row__time" dateTime={artifact.createdAt}>
                     {formatTime(artifact.createdAt)}
                   </time>
@@ -144,17 +135,17 @@ export function NorthwingProjectView({
         )}
       </section>
 
-      <section className="project-page__section project-page__section--chats" aria-labelledby="project-chats-heading">
+      {chats && onOpenChat && <section className="project-page__section project-page__section--chats" aria-labelledby="project-chats-heading">
         <div className="project-page__section-header">
           <MessageSquare size={18} aria-hidden="true" />
           <h2 id="project-chats-heading" className="project-page__section-title">
-            Chats
+            {t("northwing.project.chats")}
           </h2>
           <span className="project-page__count">{chats.length}</span>
         </div>
         {chats.length === 0 ? (
           <div className="nw-card project-page__empty">
-            <p>No recent chats in this project.</p>
+            <p>{t("northwing.project.noChats")}</p>
           </div>
         ) : (
           <ul className="project-page__chats" role="list">
@@ -180,7 +171,7 @@ export function NorthwingProjectView({
             ))}
           </ul>
         )}
-      </section>
+      </section>}
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import type { CoworkProjectSummary } from "../../lib/northwingCowork";
 import type { WorkStage } from "../../lib/northwingWorkSpec";
+import { northwingWorkspaceIdentity } from "../../lib/northwingWorkspaceIdentity";
 
 export type NorthwingWorkSummary = {
   workId: string;
@@ -34,6 +35,7 @@ export type NorthwingProjectSummary = CoworkProjectSummary;
 
 export type NorthwingCatalog = {
   projects: NorthwingProjectSummary[];
+  works: NorthwingWorkSummary[];
   activeWorks: NorthwingWorkSummary[];
   waitingForUser: NorthwingWorkSummary[];
   recentArtifacts: NorthwingArtifactSummary[];
@@ -75,21 +77,70 @@ function normalizeArtifactSummary(raw: unknown): NorthwingArtifactSummary {
 }
 
 function normalizeProjectSummary(raw: unknown): NorthwingProjectSummary {
-  return (raw ?? {}) as NorthwingProjectSummary;
+  const item = (raw ?? {}) as NorthwingProjectSummary;
+  const workCount = Number(item.workCount ?? 0);
+  const artifactCount = Number(item.artifactCount ?? 0);
+  return {
+    ...item,
+    workspace: String(item.workspace ?? ""),
+    exists: Boolean(item.exists ?? false),
+    workCount: Number.isFinite(workCount) ? workCount : 0,
+    artifactCount: Number.isFinite(artifactCount) ? artifactCount : 0,
+  };
+}
+
+function deduplicateProjects(projects: NorthwingProjectSummary[]): NorthwingProjectSummary[] {
+  const unique = new Map<string, NorthwingProjectSummary>();
+  for (const project of projects) {
+    const key = northwingWorkspaceIdentity(project.workspace ?? "") || project.id || "";
+    if (!unique.has(key)) unique.set(key, project);
+  }
+  return [...unique.values()];
+}
+
+function workIdentity(work: NorthwingWorkSummary): string {
+  return work.workId || `${work.workspace}\u0000${work.title}\u0000${work.updatedAt}`;
+}
+
+function deduplicateAndSortWorks(works: NorthwingWorkSummary[]): NorthwingWorkSummary[] {
+  const unique = new Map<string, NorthwingWorkSummary>();
+  for (const work of works) {
+    const key = workIdentity(work);
+    if (!unique.has(key)) unique.set(key, work);
+  }
+  return [...unique.values()].sort((a, b) => {
+    const updated = b.updatedAt.localeCompare(a.updatedAt);
+    if (updated !== 0) return updated;
+    const project = a.projectId.localeCompare(b.projectId);
+    if (project !== 0) return project;
+    return a.workId.localeCompare(b.workId);
+  });
+}
+
+function isActiveWork(work: NorthwingWorkSummary): boolean {
+  return work.stage !== "waiting_user" && work.stage !== "completed" && work.stage !== "failed";
 }
 
 export function normalizeNorthwingCatalog(raw: unknown): NorthwingCatalog {
   const catalog = (raw ?? {}) as Record<string, unknown>;
+  const legacyActive = Array.isArray(catalog.activeWorks)
+    ? catalog.activeWorks.map(normalizeWorkSummary)
+    : [];
+  const legacyWaiting = Array.isArray(catalog.waitingForUser)
+    ? catalog.waitingForUser.map(normalizeWorkSummary)
+    : [];
+  const works = deduplicateAndSortWorks(
+    Array.isArray(catalog.works)
+      ? catalog.works.map(normalizeWorkSummary)
+      : [...legacyActive, ...legacyWaiting],
+  );
   return {
     projects: Array.isArray(catalog.projects)
-      ? catalog.projects.map(normalizeProjectSummary)
+      ? deduplicateProjects(catalog.projects.map(normalizeProjectSummary))
       : [],
-    activeWorks: Array.isArray(catalog.activeWorks)
-      ? catalog.activeWorks.map(normalizeWorkSummary)
-      : [],
-    waitingForUser: Array.isArray(catalog.waitingForUser)
-      ? catalog.waitingForUser.map(normalizeWorkSummary)
-      : [],
+    works,
+    activeWorks: works.filter(isActiveWork),
+    waitingForUser: works.filter((work) => work.stage === "waiting_user"),
     recentArtifacts: Array.isArray(catalog.recentArtifacts)
       ? catalog.recentArtifacts.map(normalizeArtifactSummary)
       : [],

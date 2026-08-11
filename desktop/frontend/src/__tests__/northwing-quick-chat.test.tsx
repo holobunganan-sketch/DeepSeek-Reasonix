@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import React from "react";
 import { NorthwingQuickChat } from "../northwing/QuickChat/NorthwingQuickChat";
 import type { NorthwingDestination } from "../northwing/Navigation/routes";
+import { LocaleProvider } from "../lib/i18n";
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
   pretendToBeVisual: true,
@@ -36,7 +37,7 @@ const rootNode = document.getElementById("root");
 if (!rootNode) throw new Error("missing test root");
 const root = createRoot(rootNode);
 await act(async () => {
-  root.render(<NorthwingQuickChat tabId="chat-7" SessionWorkspace={SessionWorkspaceStub} />);
+  root.render(<LocaleProvider><NorthwingQuickChat tabId="chat-7" SessionWorkspace={SessionWorkspaceStub} /></LocaleProvider>);
 });
 
 console.log("\nNorthwing Quick Chat behavior");

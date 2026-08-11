@@ -39,6 +39,7 @@ export type NorthwingGeneratedUpdateBindings = Pick<
 declare module "./bridge" {
   interface AppBindings {
     CreateCoworkProject?(workspaceRoot: string, name: string): Promise<CoworkProject>;
+    ValidateCoworkProjectWritable?(workspaceRoot: string): Promise<void>;
     LoadCoworkProject?(workspaceRoot: string): Promise<CoworkProject>;
     CoworkProjectState?(workspaceRoot: string, syncArtifacts: boolean): Promise<CoworkProjectState>;
     CoworkProjectSummaries?(workspaceRoots: string[]): Promise<CoworkProjectSummary[]>;

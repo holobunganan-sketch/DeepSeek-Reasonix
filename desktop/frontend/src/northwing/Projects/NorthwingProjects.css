@@ -12,6 +12,16 @@
   gap: var(--nw-space-4);
 }
 
+.projects-page .nw-page__error {
+  margin: 0;
+  padding: var(--nw-space-3);
+  border: 1px solid color-mix(in srgb, var(--nw-status-error) 35%, transparent);
+  border-radius: var(--nw-radius-md);
+  background: color-mix(in srgb, var(--nw-status-error) 10%, transparent);
+  color: var(--nw-status-error);
+  font-size: 0.875rem;
+}
+
 .projects-page__search,
 .work-list-page__search {
   display: flex;

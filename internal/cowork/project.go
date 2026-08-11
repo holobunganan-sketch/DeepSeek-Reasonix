@@ -204,6 +204,60 @@ func (s *Store) Load(workspaceRoot string) (Project, error) {
 	return s.loadUnlocked(workspaceRoot)
 }
 
+// ValidateWritable verifies that an existing project can accept an atomic
+// manifest update before a native Work session is created. The probe never
+// changes project data and is removed before this method returns.
+func (s *Store) ValidateWritable(workspaceRoot string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	project, err := s.loadUnlocked(workspaceRoot)
+	if err != nil {
+		return err
+	}
+	if project.LegacyReadOnly {
+		return ErrProjectReadOnly
+	}
+
+	manifestPath := ManifestPath(project.Workspace)
+	info, err := os.Stat(manifestPath)
+	if err != nil {
+		return fmt.Errorf("inspect project manifest permissions: %w", err)
+	}
+	if info.Mode().Perm()&0o200 == 0 {
+		return fmt.Errorf("project manifest is read-only: %s", manifestPath)
+	}
+	manifest, err := os.OpenFile(manifestPath, os.O_WRONLY, 0)
+	if err != nil {
+		return fmt.Errorf("project manifest is not writable: %w", err)
+	}
+	if err := manifest.Close(); err != nil {
+		return fmt.Errorf("close project manifest writability probe: %w", err)
+	}
+
+	metadataDir := filepath.Dir(manifestPath)
+	probe, err := os.CreateTemp(metadataDir, ".northwing-write-probe-*")
+	if err != nil {
+		return fmt.Errorf("project metadata directory is not writable: %w", err)
+	}
+	probePath := probe.Name()
+	cleanupPath := probePath
+	defer func() { _ = os.Remove(cleanupPath) }()
+	if err := probe.Close(); err != nil {
+		return fmt.Errorf("close project metadata writability probe: %w", err)
+	}
+	renamedPath := probePath + ".renamed"
+	if err := os.Rename(probePath, renamedPath); err != nil {
+		return fmt.Errorf("project metadata directory cannot commit atomic updates: %w", err)
+	}
+	cleanupPath = renamedPath
+	if err := os.Remove(renamedPath); err != nil {
+		return fmt.Errorf("remove project metadata writability probe: %w", err)
+	}
+	cleanupPath = ""
+	return nil
+}
+
 // LinkWork creates or updates a project reference to an existing Reasonix
 // session/Goal. Refreshing a runtime binding preserves durable Work policy,
 // stage, and acceptance progress when those fields are omitted by the caller.

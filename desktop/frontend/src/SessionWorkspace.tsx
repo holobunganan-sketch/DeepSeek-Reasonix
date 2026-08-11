@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { NorthwingDestination } from "./northwing/Navigation/routes";
 import { prepareNorthwingSessionDestinationDetails, type NorthwingSessionGateway } from "./northwing/entryGateway";
 import { app } from "./lib/bridge";
+import { EmbeddedSessionSurface } from "./components/EmbeddedSessionSurface";
 
 const App = lazy(() => import("./App"));
 
@@ -70,7 +71,7 @@ export default function SessionWorkspace({ destination, sessionGateway = app, on
 
   return (
     <Suspense fallback={<div className="northwing-session-workspace__loading" role="status">Loading session...</div>}>
-      <App />
+      <EmbeddedSessionSurface SessionSurface={App} />
     </Suspense>
   );
 }

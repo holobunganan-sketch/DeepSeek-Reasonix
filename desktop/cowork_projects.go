@@ -11,6 +11,13 @@ func (a *App) CreateCoworkProject(workspaceRoot, name string) (cowork.Project, e
 	return desktopCoworkStore.Create(workspaceRoot, name)
 }
 
+// ValidateCoworkProjectWritable checks that the manifest and its metadata
+// directory can accept an atomic update before the frontend creates a native
+// Work session.
+func (a *App) ValidateCoworkProjectWritable(workspaceRoot string) error {
+	return desktopCoworkStore.ValidateWritable(workspaceRoot)
+}
+
 // LoadCoworkProject returns the project links used by the Northwing desktop
 // surface without loading or duplicating session content.
 func (a *App) LoadCoworkProject(workspaceRoot string) (cowork.Project, error) {

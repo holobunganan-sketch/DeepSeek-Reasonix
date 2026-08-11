@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-const TEST_APP_URL = "/e2e/test-app/index.html";
+const TEST_APP_URL = "/e2e/production-entry/index.html?platform=windows";
 
 test.describe("Northwing Work-first path", () => {
   test("1-3: startup shows Home with New Work CTA", async ({ page }) => {
@@ -138,7 +138,7 @@ test.describe("Northwing Work-first path", () => {
       const win = window as Record<string, unknown>;
       const e2e = win.__NORTHWING_E2E__ as Record<string, Function> | undefined;
       if (e2e?.setCatalog) {
-        e2e.setCatalog({ projects: [], activeWorks: [], waitingForUser: [], recentArtifacts: [] });
+        e2e.setCatalog({ projects: [], works: [], activeWorks: [], waitingForUser: [], recentArtifacts: [] });
       }
     });
     // Navigate away and back to trigger re-render with new catalog

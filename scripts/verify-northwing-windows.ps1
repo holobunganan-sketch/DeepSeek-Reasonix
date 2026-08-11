@@ -214,6 +214,7 @@ try {
   # running it must fail promptly without touching either installed payload.
   $runningNorthwing = Start-Process -FilePath $installedExe -PassThru
   $helperUpdate = $null
+  $helperStaging = $null
   try {
     Start-Sleep -Seconds 5
     if ($runningNorthwing.HasExited) {
@@ -303,6 +304,22 @@ try {
       # path above never force-terminates Northwing.
       Stop-Process -Id $runningNorthwing.Id -Force
       $runningNorthwing.WaitForExit()
+    }
+  }
+
+  if ($helperStaging) {
+    $cleanupDeadline = [DateTime]::UtcNow.AddSeconds(15)
+    while ((Test-Path -LiteralPath $helperStaging) -and [DateTime]::UtcNow -lt $cleanupDeadline) {
+      Start-Sleep -Milliseconds 100
+    }
+    if (Test-Path -LiteralPath $helperStaging) {
+      $cleanupDiagnostic = Join-Path $helperStaging "cleanup-error.log"
+      $detail = if (Test-Path -LiteralPath $cleanupDiagnostic -PathType Leaf) {
+        Get-Content -LiteralPath $cleanupDiagnostic -Raw
+      } else {
+        "no cleanup diagnostic was written"
+      }
+      throw "Northwing native update-helper cleanup did not remove its staging directory: $detail"
     }
   }
 

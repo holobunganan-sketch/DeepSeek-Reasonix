@@ -14,6 +14,7 @@ export interface FilterableArtifact {
   version: number;
   final: boolean;
   projectId: string;
+  projectName?: string;
   workspace: string;
   createdAt: string;
 }

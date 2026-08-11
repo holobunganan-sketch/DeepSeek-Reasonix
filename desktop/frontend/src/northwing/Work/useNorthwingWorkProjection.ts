@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { app } from "../../lib/bridge";
 import type { ActiveWorkView, Meta, TabMeta } from "../../lib/types";
-import type { CoworkProject, CoworkProjectState, CoworkWorkRef, CoworkWorkProjectionUpdate } from "../../lib/northwingCowork";
+import type { CoworkArtifact, CoworkProject, CoworkProjectState, CoworkWorkRef, CoworkWorkProjectionUpdate } from "../../lib/northwingCowork";
 import {
   updateCoworkWorkProjection,
   readCoworkProjectState,
@@ -17,6 +17,7 @@ export type WorkProjectionState = WorkProjection & {
   workspaceRoot: string;
   workId: string;
   work: CoworkWorkRef | null;
+  artifacts: CoworkArtifact[];
   loading: boolean;
   error?: string;
 };
@@ -31,6 +32,7 @@ export type NorthwingWorkProjectionGateway = {
 
 export type LoadedNorthwingWorkProjection = {
   work: CoworkWorkRef;
+  artifacts: CoworkArtifact[];
   projection: WorkProjection;
   changed: boolean;
 };
@@ -142,24 +144,30 @@ async function loadNorthwingWorkProjectionNow(
   workId: string,
   gateway: NorthwingWorkProjectionGateway,
 ): Promise<LoadedNorthwingWorkProjection> {
-  const state = await gateway.readProjectState(workspaceRoot, false);
+  const state = await gateway.readProjectState(workspaceRoot, true);
   if (!state.project) throw new Error("Project not found");
   const work = state.project.works?.find((candidate) => candidate.id === workId);
   if (!work) throw new Error("Work not found in project");
 
   const saved = savedWorkProjection(work);
   const evidence = await nativeWorkRuntimeEvidence(workspaceRoot, workId, gateway);
-  if (!evidence) return { work, projection: saved, changed: false };
+  const artifacts = (state.project.artifacts ?? []).filter((artifact) => artifact.workId === workId);
+  if (!evidence) return { work, artifacts, projection: saved, changed: false };
 
   const projection = projectWork(saved, evidence);
   const changed = !sameProjection(saved, projection);
-  if (!changed) return { work, projection, changed: false };
+  if (!changed) return { work, artifacts, projection, changed: false };
 
   const update = projectionUpdate(work, projection);
   const updatedProject = await gateway.updateProjection(workspaceRoot, workId, update);
   const updatedWork = updatedProject.works?.find((candidate) => candidate.id === workId)
     ?? workWithProjection(work, projection, update);
-  return { work: updatedWork, projection, changed: true };
+  return {
+    work: updatedWork,
+    artifacts: (updatedProject.artifacts ?? []).filter((artifact) => artifact.workId === workId),
+    projection,
+    changed: true,
+  };
 }
 
 const projectionLoads = new Map<string, Promise<LoadedNorthwingWorkProjection>>();
@@ -188,6 +196,7 @@ export function useNorthwingWorkProjection(
   const routeKey = `${normalizedWorkspaceRoot(workspaceRoot)}\u0000${workId}`;
   const [projection, setProjection] = useState<WorkProjection>(emptyWorkProjection);
   const [work, setWork] = useState<CoworkWorkRef | null>(null);
+  const [artifacts, setArtifacts] = useState<CoworkArtifact[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
   const generation = useRef(0);
@@ -205,6 +214,7 @@ export function useNorthwingWorkProjection(
         if (cancelled || generation.current !== requestGeneration) return;
         loadedRouteKey.current = routeKey;
         setWork(next.work);
+        setArtifacts(next.artifacts);
         setProjection(next.projection);
         setError(undefined);
         setLoading(false);
@@ -212,6 +222,7 @@ export function useNorthwingWorkProjection(
         if (cancelled || generation.current !== requestGeneration) return;
         loadedRouteKey.current = routeKey;
         setWork(null);
+        setArtifacts([]);
         setProjection(emptyWorkProjection());
         setError(err instanceof Error ? err.message : String(err));
         setLoading(false);
@@ -235,6 +246,7 @@ export function useNorthwingWorkProjection(
       workspaceRoot,
       workId,
       work: null,
+      artifacts: [],
       loading: true,
       error: undefined,
     };
@@ -245,6 +257,7 @@ export function useNorthwingWorkProjection(
     workspaceRoot,
     workId,
     work,
+    artifacts,
     loading,
     error,
   };

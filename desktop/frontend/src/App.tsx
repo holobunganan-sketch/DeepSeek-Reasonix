@@ -17,12 +17,9 @@ import {
   Activity,
   CircleHelp,
   Command,
-  Copy as RestoreIcon,
   Download,
-  Minus,
   Search,
   Server,
-  Square,
   SquarePen,
   PanelLeft,
   PanelRight,
@@ -39,7 +36,6 @@ import {
   Brain,
   Cpu,
   Palette,
-  X,
   TerminalSquare,
 } from "lucide-react";
 import { useToast } from "./lib/toast";
@@ -81,6 +77,7 @@ import { StartupSplash } from "./components/StartupSplash";
 import { OnboardingOverlay } from "./components/OnboardingOverlay";
 import { dismissOnboarding, shouldOpenOnboarding } from "./lib/onboarding";
 import { AppChrome } from "./components/AppChrome";
+import { DesktopWindowControls, useDesktopWindowChrome } from "./components/DesktopWindowChrome";
 import { ShortcutsCheatsheet } from "./components/ShortcutsCheatsheet";
 import { ProjectTree } from "./components/ProjectTree";
 import { WorktreeBadge } from "./components/WorktreeBadge";
@@ -331,87 +328,6 @@ type HistoryScopeFilter = { scope: "global" | "project"; workspaceRoot: string }
 type WorkspaceInsertTarget = "composer" | "planRevision";
 type DesktopPlatform = "darwin" | "windows" | "linux";
 
-function useWindowsMaximised(enabled: boolean): readonly [boolean, () => void] {
-  const [maximised, setMaximised] = useState(false);
-  const syncGenerationRef = useRef(0);
-
-  const syncMaximised = useCallback(() => {
-    if (!enabled) return;
-    const generation = ++syncGenerationRef.current;
-    void app.IsMainWindowMaximised()
-      .then((value) => {
-        if (generation === syncGenerationRef.current) setMaximised(value);
-      })
-      .catch(() => {
-        if (generation === syncGenerationRef.current) setMaximised(false);
-      });
-  }, [enabled]);
-
-  useEffect(() => {
-    if (!enabled) {
-      syncGenerationRef.current += 1;
-      setMaximised(false);
-      return;
-    }
-    syncMaximised();
-    window.addEventListener("resize", syncMaximised);
-    window.addEventListener("focus", syncMaximised);
-    return () => {
-      syncGenerationRef.current += 1;
-      window.removeEventListener("resize", syncMaximised);
-      window.removeEventListener("focus", syncMaximised);
-    };
-  }, [enabled, syncMaximised]);
-
-  return [maximised, syncMaximised] as const;
-}
-
-function WindowsWindowControls({
-  maximised,
-  syncMaximised,
-}: {
-  maximised: boolean;
-  syncMaximised: () => void;
-}) {
-  const toggleMaximise = useCallback(() => {
-    void app.ToggleMaximiseMainWindow()
-      .then(() => window.setTimeout(syncMaximised, 80))
-      .catch(() => undefined);
-  }, [syncMaximised]);
-
-  return (
-    <div className="windows-window-controls" aria-label="Window controls">
-      <button
-        className="windows-window-control windows-window-control--minimize"
-        type="button"
-        aria-label="Minimize window"
-        title="Minimize"
-        onClick={() => void app.MinimiseMainWindow()}
-      >
-        <Minus size={13} strokeWidth={1.9} />
-      </button>
-      <button
-        className="windows-window-control windows-window-control--maximize"
-        type="button"
-        aria-label="Maximize or restore window"
-        aria-pressed={maximised}
-        title={maximised ? "Restore" : "Maximize"}
-        onClick={toggleMaximise}
-      >
-        {maximised ? <RestoreIcon size={12} strokeWidth={1.75} /> : <Square size={11} strokeWidth={1.8} />}
-      </button>
-      <button
-        className="windows-window-control windows-window-control--close"
-        type="button"
-        aria-label="Close window"
-        title="Close"
-        onClick={() => void app.CloseMainWindow()}
-      >
-        <X size={13} strokeWidth={1.9} />
-      </button>
-    </div>
-  );
-}
 type HistoryViewState =
   | { kind: "history"; source: "scope"; filter: HistoryScopeFilter; sessions: SessionMeta[] }
   | { kind: "history"; source: "all"; sessions: SessionMeta[] }
@@ -1061,7 +977,9 @@ function TextSizeHotkeys() {
   return null;
 }
 
-export default function App() {
+export type AppShellMode = "standalone" | "embedded";
+
+export default function App({ shellMode = "standalone" }: { shellMode?: AppShellMode } = {}) {
   const {
     state,
     liveStore,
@@ -1291,9 +1209,10 @@ export default function App() {
   const transientOverlayDismissSignal = useOverlayStore((s) => s.transientOverlayDismissSignal);
   const setTransientOverlayDismissSignal = useOverlayStore((s) => s.setTransientOverlayDismissSignal);
   const [desktopPlatform, setDesktopPlatform] = useState<DesktopPlatform>(detectBrowserPlatform);
-  const windowsFramelessChrome = desktopPlatform === "windows";
-  const [mainWindowMaximised, syncMainWindowMaximised] = useWindowsMaximised(windowsFramelessChrome);
-  useWailsResizeFix(windowsFramelessChrome, mainWindowMaximised);
+  const embeddedSession = shellMode === "embedded";
+  const windowsFramelessChrome = desktopPlatform === "windows" && !embeddedSession;
+  const mainWindowChrome = useDesktopWindowChrome(windowsFramelessChrome);
+  useWailsResizeFix(windowsFramelessChrome, mainWindowChrome.maximised);
   const [statusBarStyle, setStatusBarStyle] = useState<"icon" | "text">("text");
   const [statusBarItems, setStatusBarItems] = useState<StatusBarItemId[]>(() => [...DEFAULT_STATUS_BAR_ITEMS]);
   const [renamingTopicId, setRenamingTopicId] = useState<string | null>(null);
@@ -4114,13 +4033,11 @@ export default function App() {
     if (!target?.closest(".app-chrome, .topicbar, .workbench-dock__tools")) return;
     if (target.closest("button, input, textarea, select, a, [role='button'], [role='tab'], .windows-window-controls")) return;
     event.preventDefault();
-    void app.ToggleMaximiseMainWindow()
-      .then(() => window.setTimeout(syncMainWindowMaximised, 80))
-      .catch(() => undefined);
-  }, [syncMainWindowMaximised, windowsFramelessChrome]);
+    mainWindowChrome.toggleMaximise();
+  }, [mainWindowChrome.toggleMaximise, windowsFramelessChrome]);
   // Creation keeps the classic sidebar/chat structure while gating chrome tweaks
   // behind its own style flag so classic/workbench remain unchanged.
-  const appChromeHidden = sidebarWorkbench || sidebarCreation;
+  const appChromeHidden = embeddedSession || sidebarWorkbench || sidebarCreation;
   const workbenchChromeHidden = sidebarWorkbench;
   const sidebarClassName = [
     "sidebar",
@@ -4141,6 +4058,7 @@ export default function App() {
         `app--${desktopPlatform}`,
         windowsFramelessChrome ? "app--windows-frameless" : "",
         browserPreviewChrome ? "app--browser-preview" : "",
+        embeddedSession ? "app--embedded-session" : "",
         sidebarWorkbench ? "app--workbench" : "",
         sidebarCreation ? "app--creation" : "",
         !sidebarWorkbench && !sidebarCreation ? "app--classic" : "",
@@ -4155,6 +4073,7 @@ export default function App() {
           workbenchChromeHidden ? "layout--workbench-chrome-hidden" : "",
           sidebarCreation ? "layout--creation-chrome-hidden" : "",
           sidebarImDetailConnection ? "layout--statusbar-hidden" : "",
+          embeddedSession ? "layout--embedded-session" : "",
           sidebarCollapsed ? "layout--sidebar-collapsed" : "",
           sidebarResizing ? "layout--resizing layout--sidebar-resizing" : "",
           workspacePanelGridOpen ? "layout--workspace-open" : "",
@@ -5307,10 +5226,7 @@ export default function App() {
         onAddToChat={addSelectedTextToComposer}
       />
       {windowsFramelessChrome && (
-        <WindowsWindowControls
-          maximised={mainWindowMaximised}
-          syncMaximised={syncMainWindowMaximised}
-        />
+        <DesktopWindowControls controller={mainWindowChrome} />
       )}
     </div>
     </UpdaterProvider>
